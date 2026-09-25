@@ -1,0 +1,46 @@
+{
+  "status": "EXPLORATORY_SYNTHETIC_NOT_CALIBRATED",
+  "dataset_rows": 525,
+  "train_rows": 420,
+  "test_rows": 105,
+  "classifier": {
+    "algorithm": "SVM-RBF",
+    "accuracy": 0.9333333333333333,
+    "weighted_f1": 0.9321619974154537
+  },
+  "regressor": {
+    "algorithm": "RandomForestRegressor",
+    "r2": {
+      "maximum_vertical_displacement_mm": 0.8991692971439238,
+      "maximum_total_displacement_mm": 0.9059480562537305,
+      "approximate_maximum_stress_mpa": 0.9989453702109479,
+      "risk_index": 0.9557601203212496
+    },
+    "mae": {
+      "maximum_vertical_displacement_mm": 0.47217650776041636,
+      "maximum_total_displacement_mm": 0.7373038421244443,
+      "approximate_maximum_stress_mpa": 0.28065857438475245,
+      "risk_index": 0.03907367217503075
+    }
+  },
+  "domain": {
+    "load_factor": [
+      0.8,
+      1.4
+    ],
+    "elasticity_factor": [
+      0.6,
+      1.2
+    ],
+    "stiffness_loss": [
+      0.0,
+      0.6
+    ],
+    "affected_component": [
+      "ARCH",
+      "DECK",
+      "SUPPORT"
+    ]
+  },
+  "warning": "Prototype-only response surface. It does not replace OpenSeesPy analysis, field inspection, or code verification."
+}
