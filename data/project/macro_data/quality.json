@@ -1,0 +1,30 @@
+{
+  "status": "PRELIMINARY_PLAUSIBLE",
+  "fundamental_period_s": 0.15458964751416676,
+  "nodes": 100,
+  "elements": 171,
+  "total_mass_kg": 1459164.1783118402,
+  "supports": [
+    -36.0606976,
+    -58.1285763,
+    -86.2754555,
+    -113.4715805
+  ],
+  "calibration": "PENDING",
+  "spectrum": {
+    "location": "Lima, Peru",
+    "zone": 4,
+    "Z": 0.45,
+    "soil_assumption": "S1",
+    "S": 1.0,
+    "Tp_s": 0.4,
+    "Tl_s": 2.5,
+    "damping": 0.05,
+    "R": 1.0,
+    "vertical_ratio": 0.6666666666666666,
+    "status": "PRELIMINARY_PENDING_GEOTECHNICAL_AND_MTC_CONFIRMATION",
+    "modes_used": 120,
+    "effective_mass_Y_percent": 99.99978969160523,
+    "effective_mass_Z_percent": 99.99989233853341
+  }
+}

@@ -1,0 +1,125 @@
+{
+  "generated_at": "2026-10-01T15:55:35.239Z",
+  "scope": "Verificación de integridad y consistencia interna; no validación física ni nueva ejecución OpenSees.",
+  "quality": {
+    "status": "PRELIMINARY_PLAUSIBLE",
+    "fundamental_period_s": 0.15458964751416676,
+    "nodes": 100,
+    "elements": 171,
+    "total_mass_kg": 1459164.1783118402,
+    "supports": [
+      -36.0606976,
+      -58.1285763,
+      -86.2754555,
+      -113.4715805
+    ],
+    "calibration": "PENDING",
+    "spectrum": {
+      "location": "Lima, Peru",
+      "zone": 4,
+      "Z": 0.45,
+      "soil_assumption": "S1",
+      "S": 1,
+      "Tp_s": 0.4,
+      "Tl_s": 2.5,
+      "damping": 0.05,
+      "R": 1,
+      "vertical_ratio": 0.6666666666666666,
+      "status": "PRELIMINARY_PENDING_GEOTECHNICAL_AND_MTC_CONFIRMATION",
+      "modes_used": 120,
+      "effective_mass_Y_percent": 99.99978969160523,
+      "effective_mass_Z_percent": 99.99989233853341
+    }
+  },
+  "modal": {
+    "period_s": 0.15458964751416676,
+    "modes": 120
+  },
+  "spectral": {
+    "y": {
+      "file": "macro_data/spectral_y.csv",
+      "maximum_magnitude_mm": 1.4999337564468247,
+      "node_tag": 37,
+      "node": {
+        "node_tag": "37",
+        "x": "-6.125572",
+        "y": "-93.07448675",
+        "z": "5.6",
+        "kind": "DECK"
+      }
+    },
+    "z": {
+      "file": "macro_data/spectral_z.csv",
+      "maximum_magnitude_mm": 5.932972493239297,
+      "node_tag": 91,
+      "node": {
+        "node_tag": "91",
+        "x": "7.506427",
+        "y": "-99.873518",
+        "z": "5.6",
+        "kind": "DECK"
+      }
+    }
+  },
+  "pushover": {
+    "status": "PARAMETRIC_NOT_CALIBRATED",
+    "steps": 41
+  },
+  "checks": [
+    "Identificadores únicos y coordenadas numéricas",
+    "Conectividad: extremos existentes",
+    "Conteos compatibles con quality.json",
+    "Periodos consistentes con autovalores",
+    "Magnitudes espectrales consistentes con componentes",
+    "Nodos espectrales compatibles",
+    "Pasos consecutivos y conteo de pushover"
+  ],
+  "warnings": [
+    "Calibración pendiente según quality.json",
+    "Hipótesis sísmica pendiente de confirmación geotécnica y normativa según archivo",
+    "Pushover generado por ley paramétrica prescrita, no análisis no lineal verificado",
+    "No se encontró en la búsqueda realizada un dataset original de 525 ejecuciones OpenSees; no se sustituye por la superficie sintética"
+  ],
+  "sources": {
+    "macro_data/quality.json": {
+      "sha256": "660df5b4c599865adf8760dbc4dac10c9a1992a1caeb678af159ccd292017ac6",
+      "bytes": 736
+    },
+    "macro_data/nodes.csv": {
+      "sha256": "43f8ba2e2cf3453d8478292937c4cb3973bf8f5c9348d1c8c91210a1e1220a6b",
+      "bytes": 4274
+    },
+    "macro_data/elements.csv": {
+      "sha256": "e79ce9eee4164162ede521de7e0c5d415f23acfd92e276f3d815b4fbbe82e736",
+      "bytes": 3225
+    },
+    "macro_data/modal_periods.csv": {
+      "sha256": "14fe8b47fc5487637e8afc772a6880e337495cc6565497506b13d40020194e92",
+      "bytes": 5199
+    },
+    "macro_data/spectral_y.csv": {
+      "sha256": "6de7cc055863333effc120e9e79cbd2eafff1f1bd9c26ff8a347659cc49622d1",
+      "bytes": 8327
+    },
+    "macro_data/spectral_z.csv": {
+      "sha256": "aeca893a48cd93811d2ece1cc642c38670ae61a96f0db403b3b74701eb2f29c0",
+      "bytes": 8354
+    },
+    "pushover_data/pushover_summary.json": {
+      "sha256": "b2732c5350a3e76922bebb4cc29fd308a664b411d14913862fb55695948b21b1",
+      "bytes": 507
+    },
+    "pushover_data/pushover_curve.csv": {
+      "sha256": "2ef2383d33daf6ad45b6ef20dac285d81cdda01050180f1267cae1a5ca9f9c28",
+      "bytes": 1869
+    },
+    "modelo_balta_macro.py": {
+      "sha256": "c8ebcb1cc77817768dc5d55875f17f550a45462faa719a4453f248f78f89dbe4",
+      "bytes": 6879
+    },
+    "pushover_balta_parametrico.py": {
+      "sha256": "ea10806d2324edd0c26299a63633532dc722aab2cfdf1cc28bc5834ebec61edf",
+      "bytes": 3705
+    }
+  }
+}

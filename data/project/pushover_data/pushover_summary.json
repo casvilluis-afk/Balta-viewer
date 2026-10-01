@@ -1,0 +1,19 @@
+{
+  "status": "PARAMETRIC_NOT_CALIBRATED",
+  "steps": 41,
+  "direction": "Y",
+  "yield_displacement_m": 0.02,
+  "maximum_displacement_m": 0.12,
+  "yield_shear_kN": 2146.426858386271,
+  "peak_shear_kN": 2468.3908871442113,
+  "residual_shear_kN": 1609.820143789703,
+  "critical_element": "M049",
+  "critical_ratio": 2.3117292000000007,
+  "damage_thresholds": {
+    "BAJO": "<0.35",
+    "MODERADO": "0.35-0.70",
+    "ALTO": "0.70-1.00",
+    "CRITICO": "1.00-1.25",
+    "FALLA": ">=1.25"
+  }
+}
