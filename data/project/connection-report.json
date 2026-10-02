@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-10-01T15:55:35.239Z",
+  "generated_at": "2026-10-02T02:20:45.019Z",
   "scope": "Verificación de integridad y consistencia interna; no validación física ni nueva ejecución OpenSees.",
   "quality": {
     "status": "PRELIMINARY_PLAUSIBLE",
@@ -78,7 +78,7 @@
     "Calibración pendiente según quality.json",
     "Hipótesis sísmica pendiente de confirmación geotécnica y normativa según archivo",
     "Pushover generado por ley paramétrica prescrita, no análisis no lineal verificado",
-    "No se encontró en la búsqueda realizada un dataset original de 525 ejecuciones OpenSees; no se sustituye por la superficie sintética"
+    "Dataset original de 525 escenarios del modelo 2D localizado; consultar la sección FEM y su auditoría. No corresponde al macromodelo 3D ni a la demostración sintética."
   ],
   "sources": {
     "macro_data/quality.json": {

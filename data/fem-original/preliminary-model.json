@@ -1,0 +1,196 @@
+{
+  "status": "MODELO_PRELIMINAR_NO_CALIBRADO",
+  "opensees": "3.8.0",
+  "cases": [
+    {
+      "id": "E40_Q50",
+      "E_GPa": 40,
+      "q_kN_m": 50,
+      "u_mm": 2.402238287853777,
+      "uz_mm": -2.4022256475206962,
+      "sigma_equivalent_MPa": 11.048260749362871,
+      "stress_sensitivity_MPa": {
+        "0.75": 8.906734927199949,
+        "1": 11.048260749362871,
+        "1.25": 13.189786571525792
+      },
+      "critical_element": 72,
+      "equilibrium_kN": 4.547473508864641e-13
+    },
+    {
+      "id": "E40_Q100",
+      "E_GPa": 40,
+      "q_kN_m": 100,
+      "u_mm": 4.804476575707554,
+      "uz_mm": -4.8044512950413925,
+      "sigma_equivalent_MPa": 22.096521498725743,
+      "stress_sensitivity_MPa": {
+        "0.75": 17.813469854399898,
+        "1": 22.096521498725743,
+        "1.25": 26.379573143051584
+      },
+      "critical_element": 72,
+      "equilibrium_kN": 9.094947017729282e-13
+    },
+    {
+      "id": "E40_Q150",
+      "E_GPa": 40,
+      "q_kN_m": 150,
+      "u_mm": 7.206714863561332,
+      "uz_mm": -7.206676942562089,
+      "sigma_equivalent_MPa": 33.144782248088596,
+      "stress_sensitivity_MPa": {
+        "0.75": 26.72020478159984,
+        "1": 33.144782248088596,
+        "1.25": 39.56935971457736
+      },
+      "critical_element": 72,
+      "equilibrium_kN": 0.0
+    },
+    {
+      "id": "E50_Q50",
+      "E_GPa": 50,
+      "q_kN_m": 50,
+      "u_mm": 1.921790630283022,
+      "uz_mm": -1.9217805180165575,
+      "sigma_equivalent_MPa": 11.04826074936287,
+      "stress_sensitivity_MPa": {
+        "0.75": 8.906734927199949,
+        "1": 11.04826074936287,
+        "1.25": 13.18978657152579
+      },
+      "critical_element": 72,
+      "equilibrium_kN": 0.0
+    },
+    {
+      "id": "E50_Q100",
+      "E_GPa": 50,
+      "q_kN_m": 100,
+      "u_mm": 3.843581260566044,
+      "uz_mm": -3.843561036033115,
+      "sigma_equivalent_MPa": 22.09652149872574,
+      "stress_sensitivity_MPa": {
+        "0.75": 17.813469854399898,
+        "1": 22.09652149872574,
+        "1.25": 26.37957314305158
+      },
+      "critical_element": 72,
+      "equilibrium_kN": 0.0
+    },
+    {
+      "id": "E50_Q150",
+      "E_GPa": 50,
+      "q_kN_m": 150,
+      "u_mm": 5.765371890849067,
+      "uz_mm": -5.765341554049673,
+      "sigma_equivalent_MPa": 33.14478224808859,
+      "stress_sensitivity_MPa": {
+        "0.75": 26.72020478159983,
+        "1": 33.14478224808859,
+        "1.25": 39.569359714577345
+      },
+      "critical_element": 72,
+      "equilibrium_kN": 0.0
+    },
+    {
+      "id": "E60_Q50",
+      "E_GPa": 60,
+      "q_kN_m": 50,
+      "u_mm": 1.6014921919025182,
+      "uz_mm": -1.6014837650137976,
+      "sigma_equivalent_MPa": 11.048260749362866,
+      "stress_sensitivity_MPa": {
+        "0.75": 8.906734927199945,
+        "1": 11.048260749362866,
+        "1.25": 13.189786571525788
+      },
+      "critical_element": 72,
+      "equilibrium_kN": 0.0
+    },
+    {
+      "id": "E60_Q100",
+      "E_GPa": 60,
+      "q_kN_m": 100,
+      "u_mm": 3.2029843838050365,
+      "uz_mm": -3.2029675300275953,
+      "sigma_equivalent_MPa": 22.096521498725732,
+      "stress_sensitivity_MPa": {
+        "0.75": 17.81346985439989,
+        "1": 22.096521498725732,
+        "1.25": 26.379573143051577
+      },
+      "critical_element": 72,
+      "equilibrium_kN": 0.0
+    },
+    {
+      "id": "E60_Q150",
+      "E_GPa": 60,
+      "q_kN_m": 150,
+      "u_mm": 4.804476575707554,
+      "uz_mm": -4.8044512950413925,
+      "sigma_equivalent_MPa": 33.144782248088596,
+      "stress_sensitivity_MPa": {
+        "0.75": 26.720204781599836,
+        "1": 33.144782248088596,
+        "1.25": 39.56935971457735
+      },
+      "critical_element": 72,
+      "equilibrium_kN": 0.0
+    }
+  ],
+  "sections": [
+    {
+      "name": "arco",
+      "A_m2": 0.35,
+      "I_m4": 0.05,
+      "equivalent_height_m": 1.3093073414159544,
+      "equivalent_width_m": 0.26731691553909065,
+      "c_m": 0.6546536707079772,
+      "status": "SUPUESTO_EQUIVALENTE_NO_SECCION_MEDIDA"
+    },
+    {
+      "name": "tablero",
+      "A_m2": 1.2,
+      "I_m4": 0.25,
+      "equivalent_height_m": 1.5811388300841898,
+      "equivalent_width_m": 0.758946638440411,
+      "c_m": 0.7905694150420949,
+      "status": "SUPUESTO_EQUIVALENTE_NO_SECCION_MEDIDA"
+    },
+    {
+      "name": "pilar",
+      "A_m2": 2.0,
+      "I_m4": 1.0,
+      "equivalent_height_m": 2.449489742783178,
+      "equivalent_width_m": 0.8164965809277261,
+      "c_m": 1.224744871391589,
+      "status": "SUPUESTO_EQUIVALENTE_NO_SECCION_MEDIDA"
+    },
+    {
+      "name": "montante",
+      "A_m2": 0.08,
+      "I_m4": 0.005,
+      "equivalent_height_m": 0.8660254037844386,
+      "equivalent_width_m": 0.09237604307034013,
+      "c_m": 0.4330127018922193,
+      "status": "SUPUESTO_EQUIVALENTE_NO_SECCION_MEDIDA"
+    },
+    {
+      "name": "default",
+      "A_m2": 0.2,
+      "I_m4": 0.02,
+      "equivalent_height_m": 1.0954451150103321,
+      "equivalent_width_m": 0.18257418583505539,
+      "c_m": 0.5477225575051661,
+      "status": "SUPUESTO_EQUIVALENTE_NO_SECCION_MEDIDA"
+    }
+  ],
+  "checks": {
+    "load_linearity": true,
+    "inverse_E_displacement": true,
+    "vertical_equilibrium": true
+  },
+  "source_sha256": "1aaed9569eb2ce2fbfbbb3a2ee464c097d69d029fab7d8331c83edbca7d9d414",
+  "scope": "Estática lineal 2D, carga vertical equivalente, sin reducción de rigidez. Apoyos empotrados conservados del original. No incluye sismo, plasticidad, capacidad resistente ni peso propio adicional. La carga q representa la carga total aplicada de cada escenario.",
+  "section_hypothesis": "Rectángulos equivalentes que conservan las áreas e inercias originales. No son las secciones reales del puente. La sensibilidad ±25% de c mantiene A e I: afecta solo al posproceso de esfuerzos y no representa un intervalo estadístico."
+}

@@ -1,0 +1,23 @@
+{
+  "status": "REPRODUCED_NUMERICALLY",
+  "cases": 525,
+  "converged": 525,
+  "all_metrics_match": true,
+  "maximum_equilibrium_residual_kN": 3.637978807091713e-12,
+  "opensees": "3.8.0",
+  "field_calibration": "PENDING_NO_FIELD_MEASUREMENTS",
+  "stress_cases_different": 450,
+  "largest_stress_difference": {
+    "case_id": "S0496",
+    "original_MPa": 28.318193386563138,
+    "local_MPa": 29.81852031938522
+  },
+  "checks": "Reproducción de desplazamientos, esfuerzo archivado, carga y reacción vertical, con tolerancia relativa y absoluta 1e-6. Equilibrio calculado por separado.",
+  "limitation": "La reproducción conserva las hipótesis del script original. El esfuerzo requiere revisión: fuerzas globales interpretadas como axial/cortante y distancia extrema aproximada. No valida capacidades ni estados de daño.",
+  "source_sha256": {
+    "06_simulaciones_parametricas.py": "1aaed9569eb2ce2fbfbbb3a2ee464c097d69d029fab7d8331c83edbca7d9d414",
+    "salidas_04\\04_nodos_modelo_2D.csv": "63ab7438e0c5606d254a91ed940a1dfb120310caf158842dcafafe21a839d893",
+    "salidas_04\\04_elementos_modelo_2D.csv": "00ea27ce8caedfadeb53424aef0b270d80f09dff9bf826d50bb9cb274a742f87",
+    "Backup resultados previos\\salidas_06\\06_dataset_parametrico_convergido.csv": "81ad546abf15358d5fc61904a6fbda1bc2d642c8b1333cf5af6bfa826288d5d6"
+  }
+}
