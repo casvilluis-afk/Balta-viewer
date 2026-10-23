@@ -1,0 +1,74 @@
+{
+ "verificacion": {
+  "status": "REPRODUCED_NUMERICALLY",
+  "cases": 525,
+  "converged": 525,
+  "all_metrics_match": true,
+  "maximum_equilibrium_residual_kN": 3.637978807091713e-12,
+  "opensees": "3.8.0",
+  "field_calibration": "PENDING_NO_FIELD_MEASUREMENTS",
+  "stress_cases_different": 450,
+  "largest_stress_difference": {
+   "case_id": "S0496",
+   "original_MPa": 28.318193386563138,
+   "local_MPa": 29.81852031938522
+  },
+  "checks": "Reproducción de desplazamientos, esfuerzo archivado, carga y reacción vertical, con tolerancia relativa y absoluta 1e-6. Equilibrio calculado por separado.",
+  "limitation": "La reproducción conserva las hipótesis del script original. El esfuerzo requiere revisión: fuerzas globales interpretadas como axial/cortante y distancia extrema aproximada. No valida capacidades ni estados de daño.",
+  "source_sha256": {
+   "06_simulaciones_parametricas.py": "1aaed9569eb2ce2fbfbbb3a2ee464c097d69d029fab7d8331c83edbca7d9d414",
+   "salidas_04\\04_nodos_modelo_2D.csv": "63ab7438e0c5606d254a91ed940a1dfb120310caf158842dcafafe21a839d893",
+   "salidas_04\\04_elementos_modelo_2D.csv": "00ea27ce8caedfadeb53424aef0b270d80f09dff9bf826d50bb9cb274a742f87",
+   "Backup resultados previos\\salidas_06\\06_dataset_parametrico_convergido.csv": "81ad546abf15358d5fc61904a6fbda1bc2d642c8b1333cf5af6bfa826288d5d6"
+  }
+ },
+ "secciones": [
+  {
+   "name": "arco",
+   "A_m2": 0.35,
+   "I_m4": 0.05,
+   "equivalent_height_m": 1.3093073414159544,
+   "equivalent_width_m": 0.26731691553909065,
+   "c_m": 0.6546536707079772,
+   "status": "SUPUESTO_EQUIVALENTE_NO_SECCION_MEDIDA"
+  },
+  {
+   "name": "tablero",
+   "A_m2": 1.2,
+   "I_m4": 0.25,
+   "equivalent_height_m": 1.5811388300841898,
+   "equivalent_width_m": 0.758946638440411,
+   "c_m": 0.7905694150420949,
+   "status": "SUPUESTO_EQUIVALENTE_NO_SECCION_MEDIDA"
+  },
+  {
+   "name": "pilar",
+   "A_m2": 2.0,
+   "I_m4": 1.0,
+   "equivalent_height_m": 2.449489742783178,
+   "equivalent_width_m": 0.8164965809277261,
+   "c_m": 1.224744871391589,
+   "status": "SUPUESTO_EQUIVALENTE_NO_SECCION_MEDIDA"
+  },
+  {
+   "name": "montante",
+   "A_m2": 0.08,
+   "I_m4": 0.005,
+   "equivalent_height_m": 0.8660254037844386,
+   "equivalent_width_m": 0.09237604307034013,
+   "c_m": 0.4330127018922193,
+   "status": "SUPUESTO_EQUIVALENTE_NO_SECCION_MEDIDA"
+  },
+  {
+   "name": "default",
+   "A_m2": 0.2,
+   "I_m4": 0.02,
+   "equivalent_height_m": 1.0954451150103321,
+   "equivalent_width_m": 0.18257418583505539,
+   "c_m": 0.5477225575051661,
+   "status": "SUPUESTO_EQUIVALENTE_NO_SECCION_MEDIDA"
+  }
+ ],
+ "hipotesis": "Rectángulos equivalentes que conservan las áreas e inercias originales. No son las secciones reales del puente. La sensibilidad ±25% de c mantiene A e I: afecta solo al posproceso de esfuerzos y no representa un intervalo estadístico.",
+ "alcance": "Estática lineal 2D, carga vertical equivalente, sin reducción de rigidez. Apoyos empotrados conservados del original. No incluye sismo, plasticidad, capacidad resistente ni peso propio adicional. La carga q representa la carga total aplicada de cada escenario."
+}

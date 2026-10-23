@@ -1,0 +1,315 @@
+{
+ "fecha": "2026-10-23",
+ "sustituto": {
+  "algoritmo": "Random Forest Regressor con escalamiento físico (u·E/q, σ/q); 40 árboles, profundidad 10",
+  "datos": "450 casos FEM OpenSees 3.8.0 con carga (q = 25–200 kN/m, E = 40–60 GPa) del dataset de 525",
+  "validaciones": {
+   "aleatorio_80_20": {
+    "fisico": {
+     "u_total_max_mm": {
+      "r2": 1.0,
+      "mae": 1.896014209832073e-15
+     },
+     "max_sigma_MPa": {
+      "r2": 1.0,
+      "mae": 6.459030841041466e-15
+     },
+     "max_sigma_tablero_MPa": {
+      "r2": 1.0,
+      "mae": 2.8902806074408244e-15
+     },
+     "max_sigma_pilar_MPa": {
+      "r2": 1.0,
+      "mae": 9.387552463774935e-16
+     }
+    },
+    "directo": {
+     "u_total_max_mm": {
+      "r2": 0.9920028025384253,
+      "mae": 0.13779742103991832
+     },
+     "max_sigma_MPa": {
+      "r2": 0.9990037575217385,
+      "mae": 0.1450990934068457
+     },
+     "max_sigma_tablero_MPa": {
+      "r2": 0.9983725274036238,
+      "mae": 0.055964856769728184
+     },
+     "max_sigma_pilar_MPa": {
+      "r2": 0.9965195731201835,
+      "mae": 0.04379614294362756
+     }
+    },
+    "n_test": 90
+   },
+   "sin_q75": {
+    "fisico": {
+     "u_total_max_mm": {
+      "r2": 1.0,
+      "mae": 1.2375285981155078e-15
+     },
+     "max_sigma_MPa": {
+      "r2": 1.0,
+      "mae": 5.494863823211441e-15
+     },
+     "max_sigma_tablero_MPa": {
+      "r2": 1.0,
+      "mae": 2.2974215122909904e-15
+     },
+     "max_sigma_pilar_MPa": {
+      "r2": 1.0,
+      "mae": 7.845576040684439e-16
+     }
+    },
+    "directo": {
+     "u_total_max_mm": {
+      "r2": -2.3366738047133926,
+      "mae": 1.0575706157032287
+     },
+     "max_sigma_MPa": {
+      "r2": -91.56082866143991,
+      "mae": 3.536645900164376
+     },
+     "max_sigma_tablero_MPa": {
+      "r2": -48.75002966859936,
+      "mae": 0.9802512404385227
+     },
+     "max_sigma_pilar_MPa": {
+      "r2": -102.80357022544919,
+      "mae": 0.5635589082019429
+     }
+    },
+    "n_test": 75
+   },
+   "sin_q150": {
+    "fisico": {
+     "u_total_max_mm": {
+      "r2": 1.0,
+      "mae": 2.3329486490789954e-15
+     },
+     "max_sigma_MPa": {
+      "r2": 1.0,
+      "mae": 1.1273944740726923e-14
+     },
+     "max_sigma_tablero_MPa": {
+      "r2": 1.0,
+      "mae": 4.511946372076636e-15
+     },
+     "max_sigma_pilar_MPa": {
+      "r2": 1.0,
+      "mae": 1.6283271027835629e-15
+     }
+    },
+    "directo": {
+     "u_total_max_mm": {
+      "r2": -2.351071525728177,
+      "mae": 2.1181875070652074
+     },
+     "max_sigma_MPa": {
+      "r2": -91.5949863769875,
+      "mae": 7.074710060119899
+     },
+     "max_sigma_tablero_MPa": {
+      "r2": -48.760833965158994,
+      "mae": 1.9605627187817207
+     },
+     "max_sigma_pilar_MPa": {
+      "r2": -102.762690012946,
+      "mae": 1.1268922543492816
+     }
+    },
+    "n_test": 75
+   },
+   "sin_E50": {
+    "fisico": {
+     "u_total_max_mm": {
+      "r2": 1.0,
+      "mae": 1.3463304545287732e-15
+     },
+     "max_sigma_MPa": {
+      "r2": 1.0,
+      "mae": 7.875181988007777e-15
+     },
+     "max_sigma_tablero_MPa": {
+      "r2": 1.0,
+      "mae": 3.030168708543594e-15
+     },
+     "max_sigma_pilar_MPa": {
+      "r2": 1.0,
+      "mae": 9.274062999035474e-16
+     }
+    },
+    "directo": {
+     "u_total_max_mm": {
+      "r2": 0.7622863849837299,
+      "mae": 1.0334760860145196
+     },
+     "max_sigma_MPa": {
+      "r2": 0.9998753257539847,
+      "mae": 0.04394229813367019
+     },
+     "max_sigma_tablero_MPa": {
+      "r2": 0.9997708413181053,
+      "mae": 0.019230869587120135
+     },
+     "max_sigma_pilar_MPa": {
+      "r2": 0.9997488419832135,
+      "mae": 0.01103078856792204
+     }
+    },
+    "n_test": 150
+   }
+  }
+ },
+ "inversa": {
+  "algoritmo": "SVM-RBF (C = 10, gamma = scale) + Random Forest de severidad",
+  "datos": "1050 casos de entrenamiento × 4 réplicas de ruido y 420 de prueba, generados con el solver 2D verificado (daño 5–40 %)",
+  "entradas": "9 desplazamientos verticales del tablero normalizados por su máximo; no usa q, E ni la etiqueta",
+  "sensores_x": [
+   39.1,
+   48.22,
+   57.33,
+   66.43,
+   74.61,
+   83.97,
+   93.11,
+   102.17,
+   110.1
+  ],
+  "umbral_margen": 1.0,
+  "por_ruido": {
+   "0": {
+    "exactitud": 0.9023809523809524,
+    "f1_macro": 0.9056180824732639,
+    "exactitud_dano_20_40": 1.0,
+    "exactitud_dano_5_20": 0.7421383647798742,
+    "falsa_alarma": 0.0,
+    "cobertura_concluyente": 0.9166666666666666,
+    "exactitud_concluyentes": 0.9246753246753247,
+    "mae_severidad": 0.008948993852938892
+   },
+   "0.005": {
+    "exactitud": 0.7333333333333333,
+    "f1_macro": 0.7338849697263025,
+    "exactitud_dano_20_40": 0.8706467661691543,
+    "exactitud_dano_5_20": 0.6352201257861635,
+    "falsa_alarma": 0.4666666666666667,
+    "cobertura_concluyente": 0.8928571428571429,
+    "exactitud_concluyentes": 0.736,
+    "mae_severidad": 0.036682064818797586
+   },
+   "0.01": {
+    "exactitud": 0.6190476190476191,
+    "f1_macro": 0.619271640269119,
+    "exactitud_dano_20_40": 0.7711442786069652,
+    "exactitud_dano_5_20": 0.5283018867924528,
+    "falsa_alarma": 0.65,
+    "cobertura_concluyente": 0.8904761904761904,
+    "exactitud_concluyentes": 0.6363636363636364,
+    "mae_severidad": 0.05310803974171825
+   },
+   "0.02": {
+    "exactitud": 0.48333333333333334,
+    "f1_macro": 0.48073863556106994,
+    "exactitud_dano_20_40": 0.6268656716417911,
+    "exactitud_dano_5_20": 0.37735849056603776,
+    "falsa_alarma": 0.7166666666666667,
+    "cobertura_concluyente": 0.8261904761904761,
+    "exactitud_concluyentes": 0.5417867435158501,
+    "mae_severidad": 0.06809464884466618
+   },
+   "0.05": {
+    "exactitud": 0.2523809523809524,
+    "f1_macro": 0.2285262209241751,
+    "exactitud_dano_20_40": 0.26865671641791045,
+    "exactitud_dano_5_20": 0.15723270440251572,
+    "falsa_alarma": 0.55,
+    "cobertura_concluyente": 0.49523809523809526,
+    "exactitud_concluyentes": 0.34615384615384615,
+    "mae_severidad": 0.08407190935370076
+   }
+  },
+  "confusion_ruido_0_5": {
+   "labels": [
+    "sin_danio",
+    "arco_a1_a2",
+    "arco_a2_a3",
+    "arco_a3_a4",
+    "tablero",
+    "pilares",
+    "montantes"
+   ],
+   "m": [
+    [
+     32,
+     1,
+     0,
+     0,
+     15,
+     9,
+     3
+    ],
+    [
+     0,
+     60,
+     0,
+     0,
+     0,
+     0,
+     0
+    ],
+    [
+     0,
+     0,
+     60,
+     0,
+     0,
+     0,
+     0
+    ],
+    [
+     0,
+     0,
+     0,
+     60,
+     0,
+     0,
+     0
+    ],
+    [
+     25,
+     0,
+     0,
+     0,
+     29,
+     3,
+     3
+    ],
+    [
+     12,
+     0,
+     0,
+     0,
+     4,
+     31,
+     13
+    ],
+    [
+     3,
+     0,
+     0,
+     0,
+     4,
+     17,
+     36
+    ]
+   ]
+  },
+  "fuera_de_dominio": {
+   "metodo": "distancia al vecino de entrenamiento más cercano (percentil 99 con ruido 2 %)",
+   "umbral": 3.0685773783231385,
+   "deteccion_ruido_10": 0.9928571428571429
+  }
+ }
+}

@@ -1,0 +1,647 @@
+<title>Balta · Plataforma de inspección</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@75..100,500..800&family=Public+Sans:ital,wght@0,400;0,600;1,400&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: una barra de identidad fija + pestañas por objetivo; cada módulo es un banco de trabajo de dos columnas (controles | resultados) que se apila en móvil. */
+:root{
+  --paper:#eef2f4; --panel:#ffffff; --ink:#16212a; --muted:#566573; --line:#cfd8de;
+  --iron:#27465c; --iron-2:#3d6681; --iron-soft:#dde7ee; --rio:#6f8f7c;
+  --ok:#2e7a4e; --warn:#a8711a; --crit:#b03a3a; --ok-bg:#e2f1e8; --warn-bg:#f6ecd8; --crit-bg:#f6e1e1;
+  --g-arco:#3d6681; --g-tablero:#7b6a4f; --g-pilar:#6b7480; --g-montante:#8aa3b5; --hl:#d2502e;
+  --f-display:"Archivo","Arial Narrow",system-ui,sans-serif; --f-body:"Public Sans",system-ui,-apple-system,"Segoe UI",sans-serif; --f-mono:"IBM Plex Mono",ui-monospace,Consolas,monospace;
+  --r:6px;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --paper:#0f151a; --panel:#161f26; --ink:#e3e9ed; --muted:#93a2ae; --line:#2a3741;
+  --iron:#9dbdd6; --iron-2:#7fa6c4; --iron-soft:#1d2c37; --rio:#8fb09b;
+  --ok:#6cc596; --warn:#e0b05a; --crit:#ec8585; --ok-bg:#16301f; --warn-bg:#33281a; --crit-bg:#381d1d;
+  --g-arco:#7fa6c4; --g-tablero:#c2aa82; --g-pilar:#a3adb8; --g-montante:#5e7d93; --hl:#f08a5d; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --paper:#0f151a; --panel:#161f26; --ink:#e3e9ed; --muted:#93a2ae; --line:#2a3741;
+  --iron:#9dbdd6; --iron-2:#7fa6c4; --iron-soft:#1d2c37; --rio:#8fb09b;
+  --ok:#6cc596; --warn:#e0b05a; --crit:#ec8585; --ok-bg:#16301f; --warn-bg:#33281a; --crit-bg:#381d1d;
+  --g-arco:#7fa6c4; --g-tablero:#c2aa82; --g-pilar:#a3adb8; --g-montante:#5e7d93; --hl:#f08a5d; color-scheme:dark}
+*{box-sizing:border-box}
+body{background:var(--paper);color:var(--ink);font:15px/1.55 var(--f-body);margin:0}
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:10;background:var(--panel)}
+.wrap{max-width:1240px;margin:0 auto;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+h1,h2,h3{font-family:var(--f-display);font-stretch:85%;text-wrap:balance;margin:0;line-height:1.15}
+h2{font-size:1.55rem;font-weight:750}
+h3{font-size:1.02rem;font-weight:700;letter-spacing:.01em}
+p{margin:0}
+.muted{color:var(--muted)}
+.mono,.num{font-family:var(--f-mono);font-variant-numeric:tabular-nums}
+.eyebrow{font:500 .72rem/1.3 var(--f-mono);letter-spacing:.09em;text-transform:uppercase;color:var(--muted)}
+a{color:var(--iron-2)}
+:focus-visible{outline:2px solid var(--hl);outline-offset:2px}
+
+/* Barra superior */
+header.top{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--panel);border-bottom:1px solid var(--line)}
+.brand{display:flex;flex-wrap:wrap;align-items:baseline;gap:6px 16px;padding-block:14px 8px}
+.brand h1{font-size:1.35rem;font-weight:800;font-stretch:80%;letter-spacing:.005em}
+.brand h1 b{color:var(--iron);font-weight:800}
+.brand .eyebrow{flex:1 1 260px}
+.brand .stamp{font:500 .72rem var(--f-mono);color:var(--muted);border:1px solid var(--line);border-radius:3px;padding:2px 7px}
+nav.tabs{display:flex;gap:2px;overflow-x:auto;scrollbar-width:none;margin-inline:-4px}
+nav.tabs::-webkit-scrollbar{display:none}
+nav.tabs button{flex:none;font:600 .86rem var(--f-body);color:var(--muted);background:none;border:0;border-bottom:3px solid transparent;padding:9px 12px 10px;cursor:pointer;white-space:nowrap}
+nav.tabs button small{font:500 .68rem var(--f-mono);margin-right:6px;color:var(--muted);opacity:.8}
+nav.tabs button[aria-selected="true"]{color:var(--ink);border-bottom-color:var(--iron)}
+nav.tabs button:hover{color:var(--ink)}
+
+main{padding-block:22px 64px}
+section.view{display:grid;gap:18px}
+.view-head{display:grid;gap:6px;max-width:72ch}
+.view-head p{color:var(--muted)}
+.bench{display:grid;grid-template-columns:minmax(0,330px) minmax(0,1fr);gap:18px;align-items:start}
+@media (max-width:860px){.bench{grid-template-columns:minmax(0,1fr)}}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:16px;display:grid;gap:14px;min-width:0}
+.panel.flat{background:transparent;border:0;padding:0}
+.stack{display:grid;gap:14px;min-width:0}
+.row{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+.grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,260px),1fr));gap:14px}
+
+/* Controles */
+label.field{display:grid;gap:5px;font-size:.84rem;color:var(--muted)}
+label.field .lv{display:flex;justify-content:space-between;gap:8px}
+label.field output{font:500 .84rem var(--f-mono);color:var(--ink)}
+input[type=range]{width:100%;accent-color:var(--iron)}
+select,input[type=number],input[type=text],textarea{font:inherit;font-size:.9rem;color:var(--ink);background:var(--paper);border:1px solid var(--line);border-radius:4px;padding:7px 9px;width:100%}
+textarea{font-family:var(--f-mono);font-size:.8rem;min-height:96px;resize:vertical}
+button.btn{font:600 .86rem var(--f-body);border-radius:4px;padding:8px 13px;cursor:pointer;border:1px solid var(--iron);background:var(--iron);color:var(--panel)}
+button.btn.ghost{background:transparent;color:var(--iron)}
+button.btn:disabled{opacity:.5;cursor:default}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:4px;overflow:hidden}
+.seg button{font:500 .8rem var(--f-body);background:var(--panel);color:var(--muted);border:0;padding:6px 10px;cursor:pointer}
+.seg button[aria-pressed="true"]{background:var(--iron-soft);color:var(--ink)}
+
+/* Lecturas */
+.readout{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,150px),1fr));gap:1px;background:var(--line);border:1px solid var(--line);border-radius:var(--r);overflow:hidden}
+.readout > div{background:var(--panel);padding:11px 13px;display:grid;gap:2px;min-width:0}
+.readout .k{font:500 .7rem var(--f-mono);letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.readout .v{font:600 1.25rem var(--f-mono);font-variant-numeric:tabular-nums}
+.readout .v small{font-size:.75rem;color:var(--muted);font-weight:400}
+.readout .d{font:400 .76rem var(--f-mono);color:var(--muted)}
+.pill{display:inline-flex;align-items:center;gap:6px;font:600 .75rem var(--f-body);border-radius:99px;padding:3px 10px;border:1px solid currentColor}
+.pill.ok{color:var(--ok);background:var(--ok-bg)} .pill.warn{color:var(--warn);background:var(--warn-bg)} .pill.crit{color:var(--crit);background:var(--crit-bg)}
+.pill.neutral{color:var(--muted);background:var(--paper)}
+.note{font-size:.82rem;color:var(--muted);border-left:3px solid var(--line);padding:2px 0 2px 10px}
+.alert{border-radius:var(--r);padding:10px 12px;font-size:.86rem;display:grid;gap:3px}
+.alert.warn{background:var(--warn-bg);color:var(--ink);border:1px solid var(--warn)}
+.alert.crit{background:var(--crit-bg);color:var(--ink);border:1px solid var(--crit)}
+.alert.ok{background:var(--ok-bg);color:var(--ink);border:1px solid var(--ok)}
+.alert b{font-weight:600}
+
+/* Tablas */
+.tbl{overflow-x:auto;min-width:0}
+table{border-collapse:collapse;width:100%;font-size:.86rem}
+th,td{text-align:left;padding:7px 9px;border-bottom:1px solid var(--line);vertical-align:top}
+th{font:500 .7rem var(--f-mono);letter-spacing:.06em;text-transform:uppercase;color:var(--muted);white-space:nowrap}
+td.n,th.n{text-align:right;font-family:var(--f-mono);font-variant-numeric:tabular-nums;white-space:nowrap}
+tbody tr:hover td{background:var(--iron-soft)}
+tr.sel td{background:var(--iron-soft)}
+
+/* Visor */
+.viewer{position:relative;height:min(62vh,560px);min-height:320px;background:linear-gradient(var(--iron-soft),var(--paper));border:1px solid var(--line);border-radius:var(--r);overflow:hidden}
+.viewer canvas{display:block;width:100%;height:100%;touch-action:none}
+.viewer .hud{position:absolute;left:10px;bottom:10px;right:10px;display:flex;flex-wrap:wrap;gap:6px;pointer-events:none}
+.viewer .hud span{background:var(--panel);border:1px solid var(--line);border-radius:3px;padding:2px 7px;font:500 .72rem var(--f-mono);color:var(--muted)}
+.viewer .status{position:absolute;inset:0;display:grid;place-items:center;color:var(--muted);font-size:.9rem;text-align:center;padding:20px}
+.legend{display:flex;flex-wrap:wrap;gap:6px 14px;font-size:.8rem;color:var(--muted)}
+.legend i{display:inline-block;width:11px;height:11px;border-radius:2px;margin-right:6px;vertical-align:-1px}
+.zone-list{display:grid;gap:4px}
+.zone-list button{display:flex;justify-content:space-between;gap:10px;align-items:center;text-align:left;font:500 .86rem var(--f-body);color:var(--ink);background:transparent;border:1px solid transparent;border-radius:4px;padding:7px 9px;cursor:pointer}
+.zone-list button:hover{background:var(--paper)}
+.zone-list button[aria-pressed="true"]{background:var(--iron-soft);border-color:var(--line)}
+.zone-list .sw{width:10px;height:10px;border-radius:2px;flex:none}
+dl.facts{display:grid;grid-template-columns:auto 1fr;gap:6px 14px;margin:0;font-size:.86rem}
+dl.facts dt{color:var(--muted)} dl.facts dd{margin:0;font-family:var(--f-mono);font-size:.82rem;min-width:0;overflow-wrap:anywhere}
+
+/* Elevación 2D */
+.elev{overflow-x:auto;border:1px solid var(--line);border-radius:var(--r);background:var(--panel)}
+.elev svg{display:block;width:100%;min-width:560px;height:auto}
+.elev text{font:500 9px var(--f-mono);fill:var(--muted)}
+.bar{height:8px;background:var(--paper);border-radius:4px;overflow:hidden;min-width:60px}
+.bar i{display:block;height:100%;background:var(--iron-2)}
+.score{font:600 .95rem var(--f-mono)}
+.report{white-space:pre-wrap;font:400 .8rem/1.55 var(--f-mono);background:var(--paper);border:1px solid var(--line);border-radius:4px;padding:12px;max-height:420px;overflow:auto}
+.likert{display:grid;gap:10px;counter-reset:q}
+.likert .q{display:grid;gap:6px;border-bottom:1px solid var(--line);padding-bottom:10px}
+.likert .q p{font-size:.88rem}
+.likert .opts{display:flex;gap:4px;flex-wrap:wrap;align-items:center;font-size:.75rem;color:var(--muted)}
+.likert .opts label{display:grid;place-items:center;width:34px;height:30px;border:1px solid var(--line);border-radius:4px;cursor:pointer;font:500 .8rem var(--f-mono);color:var(--ink)}
+.likert .opts input{position:absolute;opacity:0;pointer-events:none}
+.likert .opts input:checked+label{background:var(--iron);border-color:var(--iron);color:var(--panel)}
+.likert .opts input:focus-visible+label{outline:2px solid var(--hl)}
+footer{border-top:1px solid var(--line);padding-block:18px 28px;color:var(--muted);font-size:.8rem}
+@media (prefers-reduced-motion: reduce){*{transition:none!important;animation:none!important}}
+</style>
+
+<header class="top">
+  <div class="wrap">
+    <div class="brand">
+      <h1><b>Balta</b> · Plataforma de inspección</h1>
+      <p class="eyebrow">Puente de fierro fundido sobre el Rímac · Lima, 1874</p>
+      <span class="stamp" id="buildStamp">v1 · 23 oct 2026</span>
+    </div>
+    <nav class="tabs" role="tablist" aria-label="Módulos">
+      <button role="tab" data-v="visor"><small>OE2</small>Visor y trazabilidad</button>
+      <button role="tab" data-v="simulador"><small>OE3</small>Simulador con IA</button>
+      <button role="tab" data-v="comparador"><small>OE4</small>Comparador</button>
+      <button role="tab" data-v="inspeccion"><small>OE5</small>Inspección priorizada</button>
+      <button role="tab" data-v="validacion"><small>OE6</small>Validación</button>
+      <button role="tab" data-v="procedencia"><small>OE1</small>Base y procedencia</button>
+    </nav>
+  </div>
+</header>
+
+<main class="wrap">
+<!-- ============ VISOR ============ -->
+<section class="view" id="v-visor" hidden>
+  <div class="view-head">
+    <p class="eyebrow">Módulo 1 · consulta por componente</p>
+    <h2>Del modelo 3D al elemento de cálculo</h2>
+    <p>Seleccione un componente en el modelo o en la lista. La ficha reúne su geometría, los elementos del modelo 2D que lo representan, su respuesta calculada y la calidad de la nube en esa zona.</p>
+  </div>
+  <div class="bench">
+    <div class="stack">
+      <div class="panel">
+        <h3>Componentes</h3>
+        <div class="zone-list" id="zoneList"></div>
+      </div>
+      <div class="panel" id="zoneCard"></div>
+    </div>
+    <div class="stack">
+      <div class="viewer" id="viewer"><div class="status" id="viewerStatus">Cargando el modelo 3D (5,9 MB)…</div>
+        <div class="hud"><span>Arrastre para girar</span><span>Rueda o pellizco para acercar</span><span>Clic para seleccionar</span></div></div>
+      <div class="legend" id="legend3d"></div>
+      <div class="elev" id="elevVisor"></div>
+      <p class="note">Elevación del modelo 2D (150 nodos, 221 elementos), con el eje x en metros a lo largo del puente y la escala vertical ×1,5. En rojo se marcan los elementos que corresponden al componente seleccionado.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ============ SIMULADOR ============ -->
+<section class="view" id="v-simulador" hidden>
+  <div class="view-head">
+    <p class="eyebrow">Módulo 2 · escenarios de daño</p>
+    <h2>¿Qué pasa si un componente pierde rigidez?</h2>
+    <p>Cada escenario se resuelve dos veces: con el modelo 2D exacto, ejecutado en el navegador, y con el sustituto Random Forest. La diferencia entre ambos es el indicador de confianza de la IA. Si los datos de entrada salen del rango de entrenamiento, la plataforma lo advierte.</p>
+  </div>
+  <div class="bench">
+    <div class="panel" id="simControls"></div>
+    <div class="stack">
+      <div id="simAlerts"></div>
+      <div class="readout" id="simReadout"></div>
+      <div class="elev" id="elevSim"></div>
+      <div class="panel">
+        <div class="row" style="justify-content:space-between"><h3>Diagnóstico inverso: ¿dónde está el daño?</h3><span id="invPill"></span></div>
+        <p class="muted" style="font-size:.86rem">El SVM-RBF recibe solo las 9 flechas del tablero en los puntos de medición, como las mediría un inspector, y propone la zona dañada. No conoce q, E ni el escenario elegido. El ruido simula la precisión del instrumento.</p>
+        <div class="row">
+          <label class="field" style="flex:1 1 220px"><span class="lv">Ruido de medición <output id="noiseOut">0,5 %</output></span><input type="range" id="noise" min="0" max="5" step="0.25" value="0.5"></label>
+          <button class="btn ghost" id="reread">Nueva lectura</button>
+        </div>
+        <div class="grid2">
+          <div class="tbl"><table id="sensTbl"></table></div>
+          <div class="stack" id="invResult"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ COMPARADOR ============ -->
+<section class="view" id="v-comparador" hidden>
+  <div class="view-head">
+    <p class="eyebrow">Módulo 3 · dos escenarios lado a lado</p>
+    <h2>Comparar el estado A con el estado B</h2>
+    <p>Defina dos escenarios, por ejemplo el puente intacto y una hipótesis de daño, o dos valores del módulo del fierro fundido. La tabla resume las diferencias y la elevación colorea cada elemento según cuánto cambia su esfuerzo.</p>
+  </div>
+  <div class="grid2" id="cmpControls"></div>
+  <div class="tbl panel" id="cmpTable"></div>
+  <div class="elev" id="elevCmp"></div>
+  <div class="legend" id="cmpLegend"></div>
+</section>
+
+<!-- ============ INSPECCIÓN ============ -->
+<section class="view" id="v-inspeccion" hidden>
+  <div class="view-head">
+    <p class="eyebrow">Módulo 4 · planificación de campo</p>
+    <h2>¿Dónde conviene verificar primero?</h2>
+    <p>El índice combina cuatro criterios por zona: la sensibilidad estructural, la incertidumbre geométrica de la nube, la dificultad de la IA para detectar daño allí y la demanda relativa de esfuerzo. Ajuste los pesos y la clasificación se recalcula. El reporte queda listo para copiar.</p>
+  </div>
+  <div class="bench">
+    <div class="panel" id="weights"></div>
+    <div class="stack">
+      <div class="tbl panel" id="prioTable"></div>
+      <div class="panel">
+        <div class="row" style="justify-content:space-between"><h3>Reporte de priorización</h3><button class="btn" id="copyReport">Copiar reporte</button></div>
+        <div class="report" id="report" tabindex="0"></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ VALIDACIÓN ============ -->
+<section class="view" id="v-validacion" hidden>
+  <div class="view-head">
+    <p class="eyebrow">Módulo 5 · evidencia para la tesis</p>
+    <h2>¿La plataforma responde igual que los archivos de origen?</h2>
+    <p>Aquí se comprueba la plataforma contra la línea base: concordancia con los 525 casos de OpenSees, exactitud de los dos modelos de IA, detección fuera de dominio, tiempo de consulta y usabilidad (SUS).</p>
+  </div>
+  <div class="grid2">
+    <div class="panel">
+      <div class="row" style="justify-content:space-between"><h3>Concordancia con OpenSees 3.8.0</h3><button class="btn" id="runConc">Ejecutar 450 casos</button></div>
+      <div id="concOut"><p class="muted" style="font-size:.86rem">Recalcula en este navegador los 450 casos con carga del dataset y los compara con los resultados archivados de OpenSees. También mide el tiempo medio por consulta.</p></div>
+    </div>
+    <div class="panel">
+      <h3>Tiempo de consulta</h3>
+      <div id="timeOut"></div>
+    </div>
+  </div>
+  <div class="panel tbl" id="surrTbl"></div>
+  <div class="panel tbl" id="invTbl"></div>
+  <div class="panel">
+    <div class="row" style="justify-content:space-between"><h3>Cuestionario SUS (System Usability Scale)</h3><span id="susScore" class="pill neutral">Sin responder</span></div>
+    <p class="muted" style="font-size:.86rem">Diez afirmaciones de 1 (totalmente en desacuerdo) a 5 (totalmente de acuerdo). Cada evaluador responde y copia su fila para la hoja de resultados.</p>
+    <div class="likert" id="sus"></div>
+    <div class="row"><input type="text" id="susName" placeholder="Código del evaluador, p. ej. EV-03" style="max-width:260px"><button class="btn" id="copySus" disabled>Copiar fila CSV</button></div>
+  </div>
+</section>
+
+<!-- ============ PROCEDENCIA ============ -->
+<section class="view" id="v-procedencia" hidden>
+  <div class="view-head">
+    <p class="eyebrow">Base verificada · OE1</p>
+    <h2>De dónde sale cada número</h2>
+    <p>Todo lo que muestra la plataforma se calcula a partir de estos archivos. Las huellas SHA-256 permiten comprobar que no fueron modificados después de la verificación.</p>
+  </div>
+  <div class="grid2" id="provCards"></div>
+  <div class="panel tbl" id="provSections"></div>
+  <div class="panel tbl" id="provFiles"></div>
+  <div class="panel" id="provLimits"></div>
+</section>
+</main>
+<footer><div class="wrap">Tesis UPC · Ñuñuvero Castillo, L. y Tarazona Cerna, A. · Asesor: Rick M. Delgadillo. Modelo 2D elástico verificado contra OpenSees 3.8.0; los modelos de IA se entrenaron con datos FEM.</div></footer>
+
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"}}</script>
+<script type="module">
+import * as THREE from 'three';
+import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js';
+import {OrbitControls} from 'three/addons/controls/OrbitControls.js';
+window.BaltaThree={THREE,GLTFLoader,OrbitControls};
+window.dispatchEvent(new Event('three-ready'));
+</script>
+<script>
+"use strict";
+/* ================= Utilidades ================= */
+const $=s=>document.querySelector(s);
+const fmt=(x,d=2)=>Number.isFinite(x)?x.toLocaleString('es-PE',{minimumFractionDigits:d,maximumFractionDigits:d}):'—';
+const pct=(x,d=1)=>fmt(100*x,d)+' %';
+const css=v=>getComputedStyle(document.documentElement).getPropertyValue(v).trim();
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+async function copyText(t,btn){const o=btn.textContent;try{await navigator.clipboard.writeText(t);btn.textContent='Copiado';}catch(e){const r=document.createRange();const n=$('#report');r.selectNodeContents(n);const s=getSelection();s.removeAllRanges();s.addRange(r);btn.textContent='Texto seleccionado';}setTimeout(()=>btn.textContent=o,1600);}
+
+/* ================= Definición de zonas ================= */
+// Correspondencia 3D ↔ 2D: el .glb usa z = coordenada longitudinal (m), la misma x del modelo 2D.
+const ZONES=[
+ {id:'arco_a1_a2',name:'Arco del vano izquierdo',short:'Arco izq.',fam:'arco',groups:g=>g==='arco_A1_A2',glb:n=>/^ARCOS_vano_1_(costilla|amarre|placa)/.test(n),span:'36,4–58,2 m',compl:0.78},
+ {id:'arco_a2_a3',name:'Arco del vano central',short:'Arco central',fam:'arco',groups:g=>g==='arco_A2_A3',glb:n=>/^ARCOS_vano_2_(costilla|amarre|placa)/.test(n),span:'58,2–86,3 m',compl:0.29},
+ {id:'arco_a3_a4',name:'Arco del vano derecho',short:'Arco der.',fam:'arco',groups:g=>g==='arco_A3_A4',glb:n=>/^ARCOS_vano_3_(costilla|amarre|placa)/.test(n),span:'86,3–113,5 m',compl:0.90},
+ {id:'tablero',name:'Tablero y vigas',short:'Tablero',fam:'tablero',groups:g=>g.includes('tablero')&&!g.includes('montante'),glb:n=>/^(TABLERO|VIGAS)_/.test(n),span:'36,4–113,5 m',compl:null},
+ {id:'montantes',name:'Montantes arco–tablero',short:'Montantes',fam:'montante',groups:g=>g.includes('montante'),glb:n=>/^ARCOS_vano_\d_montante/.test(n),span:'tres vanos',compl:null},
+ {id:'pilares',name:'Pilares y estribos',short:'Pilares',fam:'pilar',groups:g=>g.startsWith('pilar'),glb:n=>/^PILAR_/.test(n),span:'x = 36,4 / 58,2 / 86,3 / 113,5 m',compl:null},
+];
+const TARGET_LABEL={sin_danio:'Sin daño',arco_a1_a2:'Arco izquierdo',arco_a2_a3:'Arco central',arco_a3_a4:'Arco derecho',tablero:'Tablero',pilares:'Pilares',montantes:'Montantes'};
+const TARGETS=['sin_danio','arco_a1_a2','arco_a2_a3','arco_a3_a4','tablero','pilares','montantes'];
+const famColor=f=>css({arco:'--g-arco',tablero:'--g-tablero',pilar:'--g-pilar',montante:'--g-montante'}[f]||'--muted');
+const groupFam=g=>g.includes('montante')?'montante':g.startsWith('arco')?'arco':g.includes('tablero')?'tablero':g.startsWith('pilar')?'pilar':'otro';
+
+/* ================= Solver 2D (réplica del script 06 de OpenSees) ================= */
+let M2=null; // {nodes,elements}
+function damagedFn(target){
+  if(target==='sin_danio')return()=>false;
+  if(target.startsWith('arco'))return g=>g.toLowerCase().includes(target);
+  const k={tablero:'tablero',pilares:'pilar',montantes:'montante'}[target];return g=>g.toLowerCase().includes(k);
+}
+function prepModel(m){
+  const idx=new Map();m.nodes.forEach((n,i)=>idx.set(n.id,i));
+  const deck=m.nodes.map((n,i)=>({n,i})).filter(o=>o.n.deck).sort((a,b)=>a.n.x-b.n.x);
+  const dx=deck.map(o=>o.n.x),trib=dx.map((x,i)=>i===0?.5*(dx[1]-dx[0]):i===dx.length-1?.5*(dx[i]-dx[i-1]):.5*(dx[i+1]-dx[i-1]));
+  const fixed=new Set();m.nodes.forEach((n,i)=>{if(n.fixed){fixed.add(3*i);fixed.add(3*i+1);fixed.add(3*i+2);}});
+  const free=[];for(let k=0;k<3*m.nodes.length;k++)if(!fixed.has(k))free.push(k);
+  const map=new Int32Array(3*m.nodes.length).fill(-1);free.forEach((k,j)=>map[k]=j);
+  const els=m.elements.map(e=>{const i=idx.get(e.i),j=idx.get(e.j),a=m.nodes[i],b=m.nodes[j];const L=Math.hypot(b.x-a.x,b.z-a.z);return {...e,ii:i,jj:j,L,c:(b.x-a.x)/L,s:(b.z-a.z)/L,fam:groupFam(e.group.toLowerCase())};});
+  return {...m,idx,deck:deck.map(o=>o.i),trib,free,map,els};
+}
+function solve({q,E,target='sin_danio',pct=0}){
+  const m=M2,nf=m.free.length,K=new Float64Array(nf*nf),F=new Float64Array(nf),dmg=damagedFn(target);
+  const kgs=[];
+  for(const e of m.els){
+    const Ee=E*1e9*(dmg(e.group)?1-pct:1),{L,c,s,A,I}=e,a=Ee*A/L,b=Ee*I/(L*L*L);
+    const k=[[a,0,0,-a,0,0],[0,12*b,6*b*L,0,-12*b,6*b*L],[0,6*b*L,4*b*L*L,0,-6*b*L,2*b*L*L],[-a,0,0,a,0,0],[0,-12*b,-6*b*L,0,12*b,-6*b*L],[0,6*b*L,2*b*L*L,0,-6*b*L,4*b*L*L]];
+    const T=[[c,s,0,0,0,0],[-s,c,0,0,0,0],[0,0,1,0,0,0],[0,0,0,c,s,0],[0,0,0,-s,c,0],[0,0,0,0,0,1]];
+    const kg=Array.from({length:6},()=>new Float64Array(6));
+    for(let p=0;p<6;p++)for(let r=0;r<6;r++){let sum=0;for(let u=0;u<6;u++){if(!T[u][p])continue;for(let v=0;v<6;v++)if(T[v][r])sum+=T[u][p]*k[u][v]*T[v][r];}kg[p][r]=sum;}
+    const dof=[3*e.ii,3*e.ii+1,3*e.ii+2,3*e.jj,3*e.jj+1,3*e.jj+2];kgs.push([e,dof,kg]);
+    for(let p=0;p<6;p++){const P=m.map[dof[p]];if(P<0)continue;for(let r=0;r<6;r++){const R=m.map[dof[r]];if(R>=0)K[P*nf+R]+=kg[p][r];}}
+  }
+  m.deck.forEach((ni,t)=>{const P=m.map[3*ni+1];if(P>=0)F[P]-=q*1000*m.trib[t];});
+  // Cholesky (K simétrica definida positiva)
+  for(let j=0;j<nf;j++){let d=K[j*nf+j];for(let k=0;k<j;k++)d-=K[j*nf+k]*K[j*nf+k];d=Math.sqrt(d);K[j*nf+j]=d;
+    for(let i=j+1;i<nf;i++){let s=K[i*nf+j];for(let k=0;k<j;k++)s-=K[i*nf+k]*K[j*nf+k];K[i*nf+j]=s/d;}}
+  const y=new Float64Array(nf);for(let i=0;i<nf;i++){let s=F[i];for(let k=0;k<i;k++)s-=K[i*nf+k]*y[k];y[i]=s/K[i*nf+i];}
+  const x=new Float64Array(nf);for(let i=nf-1;i>=0;i--){let s=y[i];for(let k=i+1;k<nf;k++)s-=K[k*nf+i]*x[k];x[i]=s/K[i*nf+i];}
+  const U=new Float64Array(3*m.nodes.length);m.free.forEach((k,j)=>U[k]=x[j]);
+  let ut=0,uxm=0,uzmin=0;const n=m.nodes.length;
+  for(let i=0;i<n;i++){const ux=U[3*i],uz=U[3*i+1];ut=Math.max(ut,Math.hypot(ux,uz));uxm=Math.max(uxm,Math.abs(ux));uzmin=Math.min(uzmin,uz);}
+  const sig=new Float64Array(m.els.length);const smax={arco:0,tablero:0,pilar:0,montante:0};let sall=0;
+  kgs.forEach(([e,dof,kg],t)=>{const f=new Float64Array(6);for(let p=0;p<6;p++){let s=0;for(let r=0;r<6;r++)s+=kg[p][r]*U[dof[r]];f[p]=s;}
+    const P=Math.max(Math.abs(f[0]),Math.abs(f[3])),Mm=Math.max(Math.abs(f[2]),Math.abs(f[5]));const sg=(P/e.A+Mm*Math.sqrt(e.I/e.A)/e.I)/1e6;
+    sig[t]=sg;sall=Math.max(sall,sg);if(e.fam in smax)smax[e.fam]=Math.max(smax[e.fam],sg);
+    if(e.fam==='montante')smax.arco=Math.max(smax.arco,sg); // el script 06 clasifica 'montante_arco_tablero' como arco
+  });
+  return {U,u_total_max_mm:ut*1e3,ux_max_abs_mm:uxm*1e3,uz_min_mm:uzmin*1e3,max_sigma_MPa:sall,max_sigma_arco_MPa:smax.arco,max_sigma_tablero_MPa:smax.tablero,max_sigma_pilar_MPa:smax.pilar,max_sigma_montante_MPa:smax.montante,sig};
+}
+
+/* ================= IA: sustituto RF y SVM-RBF inverso ================= */
+let RF=null,SVM=null,MET=null,PROV=null,FEM=null;
+function treePredict(t,x){let i=0;while(t.l[i]!==-1)i=x[t.f[i]]<=t.t[i]?t.l[i]:t.r[i];return t.v[i];}
+function forest(trees,x){const o=new Float64Array(trees[0].v[0].length);for(const t of trees){const v=treePredict(t,x);for(let k=0;k<o.length;k++)o[k]+=v[k];}return Array.from(o,v=>v/trees.length);}
+function surrogate({q,E,target,pct}){
+  const x=[pct,...TARGETS.slice(1).map(k=>k===target?1:0)];const z=forest(RF.trees,x);const sc=[q/E,q,q,q];
+  const y=z.map((v,i)=>v*sc[i]);return {u_total_max_mm:y[0],max_sigma_MPa:y[1],max_sigma_tablero_MPa:y[2],max_sigma_pilar_MPa:y[3]};
+}
+function inDomain({q,E,pct}){const d=RF.domain,out=[];
+  if(q<d.q[0]||q>d.q[1])out.push(`la carga q = ${fmt(q,0)} kN/m está fuera del rango entrenado (${d.q[0]}–${d.q[1]} kN/m)`);
+  if(E<d.E[0]||E>d.E[1])out.push(`el módulo E = ${fmt(E,0)} GPa está fuera del rango entrenado (${d.E[0]}–${d.E[1]} GPa)`);
+  if(pct>d.pct[1])out.push(`la pérdida de rigidez ${pct*100|0} % supera el máximo entrenado (${d.pct[1]*100} %)`);
+  return out;}
+function svmDiagnose(u9){
+  const mx=Math.max(...u9.map(Math.abs))||1,f=u9.map(v=>v/mx);
+  const z=f.map((v,i)=>(v-SVM.mean[i])/SVM.scale[i]);
+  const K=SVM.sv.map(s=>{let d=0;for(let i=0;i<z.length;i++)d+=(z[i]-s[i])**2;return Math.exp(-SVM.gamma*d);});
+  const nc=SVM.classes.length,st=[0];SVM.nsv.forEach(n=>st.push(st[st.length-1]+n));
+  const votes=new Array(nc).fill(0),conf=new Array(nc).fill(0);let k=0;
+  for(let i=0;i<nc;i++)for(let j=i+1;j<nc;j++){let a=SVM.b[k++];
+    for(let s=st[i];s<st[i+1];s++)a+=SVM.dual[j-1][s]*K[s];for(let s=st[j];s<st[j+1];s++)a+=SVM.dual[i][s]*K[s];
+    if(a>0)votes[i]++;else votes[j]++;conf[i]+=a;conf[j]-=a;}
+  const score=votes.map((v,i)=>v+conf[i]/(3*(Math.abs(conf[i])+1)));
+  const order=score.map((s,i)=>[s,i]).sort((a,b)=>b[0]-a[0]);
+  const cls=SVM.classes[order[0][1]],margin=order[0][0]-order[1][0];
+  let dmin=Infinity;for(const t of SVM.train){let d=0;for(let i=0;i<z.length;i++)d+=(z[i]-t[i])**2;dmin=Math.min(dmin,d);}dmin=Math.sqrt(dmin);
+  let sev=null;if(cls!=='sin_danio')sev=forest(SVM.severity_trees,[...f,TARGETS.indexOf(cls)])[0];
+  return {cls,second:SVM.classes[order[1][1]],margin,conclusive:margin>=SVM.margin_threshold,dist:dmin,ood:dmin>SVM.ood_threshold,sev,score:order};
+}
+function gauss(){let u=0,v=0;while(!u)u=Math.random();while(!v)v=Math.random();return Math.sqrt(-2*Math.log(u))*Math.cos(2*Math.PI*v);}
+
+/* ================= Elevación 2D (SVG) ================= */
+const VX=1.5;
+function elevSVG({res=null,amp=0,highlight=null,colorBy=null,sensors=false,label=''}={}){
+  const m=M2,xs=m.nodes.map(n=>n.x),zs=m.nodes.map(n=>n.z);
+  const x0=Math.min(...xs)-3,x1=Math.max(...xs)+3,z0=Math.min(...zs)-1.6,z1=Math.max(...zs)+2.2;
+  const W=900,sx=W/(x1-x0),H=(z1-z0)*sx*VX,X=x=>(x-x0)*sx,Z=z=>(z1-z)*sx*VX;
+  const P=i=>{const n=m.nodes[i];let x=n.x,z=n.z;if(res&&amp){x+=res.U[3*i]*amp;z+=res.U[3*i+1]*amp;}return [X(x),Z(z)];};
+  let s=`<svg viewBox="0 0 ${W} ${H.toFixed(1)}" role="img" aria-label="Elevación del modelo 2D ${esc(label)}">`;
+  // río y terreno
+  s+=`<rect x="0" y="${Z(-9.2).toFixed(1)}" width="${W}" height="${(H-Z(-9.2)).toFixed(1)}" fill="${css('--iron-soft')}"/>`;
+  for(let x=40;x<=110;x+=10)s+=`<line x1="${X(x)}" x2="${X(x)}" y1="${H-14}" y2="${H-9}" stroke="${css('--muted')}" stroke-width=".6"/><text x="${X(x)}" y="${H-2}" text-anchor="middle">${x} m</text>`;
+  if(res&&amp){m.els.forEach(e=>{const a=m.nodes[e.ii],b=m.nodes[e.jj];s+=`<line x1="${X(a.x)}" y1="${Z(a.z)}" x2="${X(b.x)}" y2="${Z(b.z)}" stroke="${css('--line')}" stroke-width="1.2"/>`;});}
+  m.els.forEach((e,t)=>{const [ax,az]=P(e.ii),[bx,bz]=P(e.jj);let col=famColor(e.fam),w=e.fam==='pilar'?4:e.fam==='montante'?1:2;
+    if(colorBy){col=colorBy(e,t);w=Math.max(w,2.2);}
+    if(highlight&&highlight(e.group)){col=css('--hl');w=e.fam==='montante'?2:3.4;}
+    s+=`<line x1="${ax.toFixed(1)}" y1="${az.toFixed(1)}" x2="${bx.toFixed(1)}" y2="${bz.toFixed(1)}" stroke="${col}" stroke-width="${w}" stroke-linecap="round"><title>Elemento ${e.id} · ${esc(e.group)}${res?` · σ ≈ ${fmt(res.sig[t],2)} MPa`:''}</title></line>`;});
+  m.nodes.forEach((n,i)=>{if(n.fixed){const [x,z]=P(i);s+=`<path d="M${x-6} ${z+7}h12l-6-7z" fill="${css('--muted')}"/>`;}});
+  if(sensors&&SVM){SVM.sensors_node_index.forEach((ni,k)=>{const [x,z]=P(ni);s+=`<circle cx="${x}" cy="${z-9}" r="4.2" fill="${css('--panel')}" stroke="${css('--ink')}" stroke-width="1.2"/><text x="${x}" y="${z-16}" text-anchor="middle">S${k+1}</text>`;});}
+  if(amp)s+=`<text x="${W-6}" y="12" text-anchor="end">deformada ×${amp}</text>`;
+  return s+'</svg>';
+}
+
+/* ================= Navegación ================= */
+const VIEWS=['visor','simulador','comparador','inspeccion','validacion','procedencia'];
+const inited={};
+function show(v){if(!VIEWS.includes(v))v='visor';
+  VIEWS.forEach(k=>{$('#v-'+k).hidden=k!==v;});
+  document.querySelectorAll('nav.tabs button').forEach(b=>b.setAttribute('aria-selected',b.dataset.v===v));
+  try{history.replaceState(null,'','#'+v);}catch(e){}
+  if(!inited[v]&&DATA_READY){inited[v]=true;INIT[v]();}
+  if(v==='visor'&&window.__resize3d)window.__resize3d();
+  window.scrollTo({top:0});}
+document.querySelectorAll('nav.tabs button').forEach(b=>b.addEventListener('click',()=>show(b.dataset.v)));
+
+/* ================= Módulo: Visor ================= */
+let selZone=ZONES[1].id; const sens20={};
+function computeSensitivity(){const base=solve({q:100,E:50});ZONES.forEach(z=>{const r=solve({q:100,E:50,target:z.id,pct:.2});
+  const zs=(rr)=>Math.max(...M2.els.map((e,t)=>z.groups(e.group)?rr.sig[t]:0));
+  sens20[z.id]={du:r.u_total_max_mm/base.u_total_max_mm-1,ds:r.max_sigma_MPa/base.max_sigma_MPa-1,zoneSig:zs(base),n:M2.els.filter(e=>z.groups(e.group)).length,base,r};});}
+function renderZoneList(){
+  $('#zoneList').innerHTML=ZONES.map(z=>`<button data-z="${z.id}" aria-pressed="${z.id===selZone}"><span class="row" style="gap:9px"><span class="sw" style="background:${famColor(z.fam)}"></span>${z.name}</span><span class="mono muted" style="font-size:.75rem">${sens20[z.id].n} el.</span></button>`).join('');
+  $('#zoneList').querySelectorAll('button').forEach(b=>b.onclick=()=>selectZone(b.dataset.z));}
+function selectZone(id){selZone=id;renderZoneList();renderZoneCard();$('#elevVisor').innerHTML=elevSVG({highlight:ZONES.find(z=>z.id===id).groups,label:'visor'});if(window.__highlight3d)window.__highlight3d(id);}
+function renderZoneCard(){const z=ZONES.find(z=>z.id===selZone),s=sens20[z.id];const ids=M2.els.filter(e=>z.groups(e.group)).map(e=>e.id);
+  const sec=M2.els.find(e=>z.groups(e.group));
+  const det=detectability()[z.id];
+  $('#zoneCard').innerHTML=`<div class="row" style="justify-content:space-between"><h3>${z.name}</h3>${z.compl==null?'<span class="pill neutral">Nube: sin medir</span>':`<span class="pill ${z.compl<.5?'crit':z.compl<.85?'warn':'ok'}">Nube ${pct(z.compl,0)}</span>`}</div>
+  <dl class="facts">
+   <dt>Tramo</dt><dd>${z.span}</dd>
+   <dt>Elementos 2D</dt><dd>${ids.length} (${ids[0]}–${ids[ids.length-1]})</dd>
+   <dt>Sección equiv.</dt><dd>A = ${sec.A} m² · I = ${sec.I} m⁴</dd>
+   <dt>σ máx. (q 100, E 50)</dt><dd>${fmt(s.zoneSig,2)} MPa</dd>
+   <dt>Con 20 % de daño</dt><dd>Δu ${s.du>=0?'+':''}${pct(s.du,1)} · Δσ ${s.ds>=0?'+':''}${pct(s.ds,1)}</dd>
+   <dt>Detección IA (ruido 0,5 %)</dt><dd>${pct(det,0)} de aciertos</dd>
+  </dl>
+  ${z.id==='arco_a2_a3'?'<p class="note">El intradós del arco central solo tiene 29 % de cobertura en la nube y la clave no fue registrada. Su geometría es la más incierta del puente.</p>':''}
+  <div class="row"><button class="btn" id="goSim">Simular daño aquí</button><button class="btn ghost" id="goInsp">Ver su prioridad</button></div>`;
+  $('#goSim').onclick=()=>{SIM.target=z.id;if(SIM.pct===0)SIM.pct=.2;if(inited.simulador)syncSimControls();show('simulador');};
+  $('#goInsp').onclick=()=>show('inspeccion');}
+function detectability(){const c=MET.inversa.confusion_ruido_0_5,o={};c.labels.forEach((l,i)=>{const row=c.m[i],tot=row.reduce((a,b)=>a+b,0);o[l]=row[i]/tot;});return o;}
+INIT_VISOR=function(){renderZoneList();selectZone(selZone);
+  $('#legend3d').innerHTML=[['arco','Arcos (nervios, amarres)'],['tablero','Tablero y vigas'],['montante','Montantes'],['pilar','Pilares y estribos']].map(([f,t])=>`<span><i style="background:${famColor(f)}"></i>${t}</span>`).join('')+`<span><i style="background:${css('--hl')}"></i>Selección</span>`;
+  if(window.BaltaThree)init3d();else window.addEventListener('three-ready',init3d,{once:true});
+  setTimeout(()=>{if(!window.BaltaThree)$('#viewerStatus').textContent='No se pudo cargar la librería 3D. El resto de la plataforma funciona con normalidad.';},9000);};
+var INIT_VISOR;
+function init3d(){const {THREE,GLTFLoader,OrbitControls}=window.BaltaThree,host=$('#viewer');
+  const renderer=new THREE.WebGLRenderer({antialias:true,alpha:true});renderer.setPixelRatio(Math.min(devicePixelRatio,2));host.prepend(renderer.domElement);
+  const scene=new THREE.Scene(),cam=new THREE.PerspectiveCamera(35,1,0.1,2000);
+  scene.add(new THREE.HemisphereLight(0xffffff,0x8899aa,1.6));const dl=new THREE.DirectionalLight(0xffffff,1.6);dl.position.set(40,80,30);scene.add(dl);
+  const ctl=new OrbitControls(cam,renderer.domElement);ctl.enableDamping=true;
+  const mats={};const matFor=(f,h)=>{const k=f+(h?'h':'');if(!mats[k])mats[k]=new THREE.MeshStandardMaterial({color:new THREE.Color(h?css('--hl'):famColor(f)),roughness:.75,metalness:f==='arco'||f==='montante'?.35:.05});return mats[k];};
+  const pickables=[];
+  const famOf=n=>/^ARCOS_vano_\d_montante/.test(n)?'montante':/^ARCOS_/.test(n)?'arco':/^(TABLERO|VIGAS)_/.test(n)?'tablero':/^PILAR_/.test(n)?'pilar':null;
+  function resize(){const w=host.clientWidth,h=host.clientHeight;renderer.setSize(w,h,false);cam.aspect=w/h;cam.updateProjectionMatrix();}
+  window.__resize3d=resize;new ResizeObserver(resize).observe(host);
+  new GLTFLoader().load('../models/puente-balta-v12.glb',g=>{
+    const root=g.scene;root.rotation.z=Math.PI; // el .glb tiene la vertical invertida (Zcloud = −Zblend)
+    root.traverse(o=>{if(!o.isMesh)return;if(/^PUSH_/.test(o.name)){o.visible=false;return;}const f=famOf(o.name);if(!f){o.visible=false;return;}
+      o.userData.fam=f;o.userData.zone=(ZONES.find(z=>z.glb(o.name))||{}).id;o.material=matFor(f,false);pickables.push(o);});
+    scene.add(root);root.updateMatrixWorld(true);
+    const box=new THREE.Box3();pickables.forEach(o=>box.expandByObject(o));const c=box.getCenter(new THREE.Vector3()),sz=box.getSize(new THREE.Vector3());
+    ctl.target.copy(c);cam.position.set(c.x+sz.z*.55,c.y+sz.z*.28,c.z-sz.z*.42);cam.near=.1;cam.far=sz.z*10;cam.updateProjectionMatrix();
+    $('#viewerStatus').remove();resize();window.__highlight3d(selZone);},
+    ev=>{if(ev.total)$('#viewerStatus').textContent=`Cargando el modelo 3D… ${Math.round(100*ev.loaded/ev.total)} %`;},
+    ()=>{$('#viewerStatus').textContent='No se pudo cargar el modelo 3D.';});
+  window.__highlight3d=id=>{pickables.forEach(o=>o.material=matFor(o.userData.fam,o.userData.zone===id));};
+  const ray=new THREE.Raycaster(),ptr=new THREE.Vector2();let down=null;
+  renderer.domElement.addEventListener('pointerdown',e=>down=[e.clientX,e.clientY]);
+  renderer.domElement.addEventListener('pointerup',e=>{if(!down||Math.hypot(e.clientX-down[0],e.clientY-down[1])>5)return;const r=renderer.domElement.getBoundingClientRect();
+    ptr.set((e.clientX-r.left)/r.width*2-1,-(e.clientY-r.top)/r.height*2+1);ray.setFromCamera(ptr,cam);const hit=ray.intersectObjects(pickables,false).find(h=>h.object.userData.zone);
+    if(hit)selectZone(hit.object.userData.zone);});
+  (function loop(){requestAnimationFrame(loop);ctl.update();renderer.render(scene,cam);})();}
+
+/* ================= Módulo: Simulador ================= */
+const SIM={q:100,E:50,target:'arco_a2_a3',pct:.3,noise:.005,u9:null};
+function syncSimControls(){$('#sq').value=SIM.q;$('#sE').value=SIM.E;$('#sP').value=SIM.pct*100;$('#sT').value=SIM.target;runSim();}
+function simControlsHTML(){return `
+  <h3>Escenario</h3>
+  <label class="field"><span class="lv">Carga en el tablero q <output id="sqo"></output></span><input type="range" id="sq" min="0" max="300" step="5"></label>
+  <label class="field"><span class="lv">Módulo elástico E <output id="sEo"></output></span><input type="range" id="sE" min="30" max="120" step="1"></label>
+  <label class="field">Componente con daño<select id="sT">${TARGETS.map(t=>`<option value="${t}">${TARGET_LABEL[t]}</option>`).join('')}</select></label>
+  <label class="field"><span class="lv">Pérdida de rigidez <output id="sPo"></output></span><input type="range" id="sP" min="0" max="60" step="1"></label>
+  <p class="note">Rango de entrenamiento de la IA: q 25–200 kN/m, E 40–60 GPa y daño 0–40 %. Para el fierro fundido del Balta, la literatura reporta E entre 66 y 111 GPa. Mueva E por encima de 60 para ver la alerta de dominio.</p>`;}
+function runSim(){
+  const sc={q:SIM.q,E:SIM.E,target:SIM.target,pct:SIM.target==='sin_danio'?0:SIM.pct};
+  $('#sqo').textContent=fmt(SIM.q,0)+' kN/m';$('#sEo').textContent=fmt(SIM.E,0)+' GPa';$('#sPo').textContent=(sc.pct*100|0)+' %';$('#sP').disabled=SIM.target==='sin_danio';
+  if(sc.q<=0){$('#simReadout').innerHTML='';$('#simAlerts').innerHTML='<div class="alert warn"><b>Sin carga</b>Con q = 0 el modelo no tiene respuesta. Aumente la carga.</div>';$('#elevSim').innerHTML=elevSVG({sensors:true});return;}
+  const t0=performance.now(),fem=solve(sc),t1=performance.now(),ia=surrogate(sc),t2=performance.now();
+  const base=solve({q:sc.q,E:sc.E});
+  const out=inDomain(sc);
+  $('#simAlerts').innerHTML=out.length?`<div class="alert warn"><b>Fuera del dominio de la IA</b>${out.map(esc).join('; ')}. La predicción del Random Forest no es confiable aquí; use el valor del modelo 2D.</div>`:'';
+  const rows=[['u_total_max_mm','Desplazamiento máx.','mm'],['max_sigma_MPa','σ máx. (arco)','MPa'],['max_sigma_tablero_MPa','σ máx. tablero','MPa'],['max_sigma_pilar_MPa','σ máx. pilares','MPa']];
+  $('#simReadout').innerHTML=rows.map(([k,l,u])=>{const e=Math.abs(ia[k]/fem[k]-1);const cls=out.length?'crit':e<.02?'ok':e<.08?'warn':'crit';
+    return `<div><span class="k">${l}</span><span class="v">${fmt(fem[k],2)} <small>${u}</small></span><span class="d">vs. intacto ${fem[k]>=base[k]?'+':''}${pct(fem[k]/base[k]-1,1)}</span><span class="d">IA ${fmt(ia[k],2)} · <span class="pill ${cls}" style="padding:0 7px;font-size:.68rem">${e<1e-3?'= FEM':'Δ '+pct(e,1)}</span></span></div>`;}).join('')
+    +`<div><span class="k">Tiempo de cálculo</span><span class="v">${fmt(t1-t0,0)} <small>ms</small></span><span class="d">IA: ${fmt(t2-t1,1)} ms</span></div>`;
+  const amp=Math.round(1500/Math.max(fem.u_total_max_mm,.5)/10)*10||100;
+  $('#elevSim').innerHTML=elevSVG({res:fem,amp,highlight:sc.pct>0?damagedFn(sc.target):null,sensors:true,label:'simulador'});
+  SIM.fem=fem;readSensors();}
+function readSensors(){if(!SIM.fem)return;const nl=SIM.noise;const raw=SVM.sensors_node_index.map(ni=>SIM.fem.U[3*ni+1]*1e3);const mx=Math.max(...raw.map(Math.abs));
+  SIM.u9=raw.map(v=>v+gauss()*nl*mx);const d=svmDiagnose(SIM.u9);
+  $('#sensTbl').innerHTML=`<thead><tr><th>Punto</th><th class="n">x (m)</th><th class="n">Flecha (mm)</th></tr></thead><tbody>${SIM.u9.map((v,i)=>`<tr><td>S${i+1}</td><td class="n">${fmt(SVM.sensors_x[i],1)}</td><td class="n">${fmt(v,3)}</td></tr>`).join('')}</tbody>`;
+  const truth=SIM.target==='sin_danio'||SIM.pct===0?'sin_danio':SIM.target,hit=d.cls===truth;
+  $('#invPill').innerHTML=d.ood?'<span class="pill crit">Fuera de dominio</span>':!d.conclusive?'<span class="pill warn">No concluyente</span>':`<span class="pill ${hit?'ok':'crit'}">${hit?'Coincide con el escenario':'No coincide'}</span>`;
+  $('#invResult').innerHTML=`<div class="readout" style="grid-template-columns:1fr 1fr">
+    <div><span class="k">Zona propuesta</span><span class="v" style="font-size:1.05rem">${TARGET_LABEL[d.cls]}</span><span class="d">2.ª opción: ${TARGET_LABEL[d.second]}</span></div>
+    <div><span class="k">Severidad estimada</span><span class="v" style="font-size:1.05rem">${d.sev==null?'—':pct(Math.max(0,d.sev),0)}</span><span class="d">real: ${truth==='sin_danio'?'0 %':pct(SIM.pct,0)}</span></div>
+    <div><span class="k">Margen de votos</span><span class="v" style="font-size:1.05rem">${fmt(d.margin,2)}</span><span class="d">mínimo para concluir: ${fmt(SVM.margin_threshold,1)}</span></div>
+    <div><span class="k">Distancia al dominio</span><span class="v" style="font-size:1.05rem">${fmt(d.dist,2)}</span><span class="d">umbral: ${fmt(SVM.ood_threshold,2)}</span></div></div>
+    ${d.ood?'<div class="alert crit"><b>Lectura fuera de dominio</b>El patrón de flechas no se parece a ningún caso de entrenamiento. Revise los instrumentos o la hipótesis de carga antes de interpretar.</div>':''}
+    <p class="note">Con el ruido actual (${pct(SIM.noise,2)}), la validación da ${pct(nearestNoise(SIM.noise).exactitud,0)} de exactitud global y ${pct(nearestNoise(SIM.noise).falsa_alarma,0)} de falsas alarmas.</p>`;}
+function nearestNoise(nl){const keys=Object.keys(MET.inversa.por_ruido).map(Number);const k=keys.reduce((a,b)=>Math.abs(b-nl)<Math.abs(a-nl)?b:a);return MET.inversa.por_ruido[String(k)];}
+INIT_SIM=function(){$('#simControls').innerHTML=simControlsHTML();
+  $('#sq').oninput=e=>{SIM.q=+e.target.value;runSim();};$('#sE').oninput=e=>{SIM.E=+e.target.value;runSim();};
+  $('#sP').oninput=e=>{SIM.pct=e.target.value/100;runSim();};$('#sT').onchange=e=>{SIM.target=e.target.value;runSim();};
+  $('#noise').oninput=e=>{SIM.noise=e.target.value/100;$('#noiseOut').textContent=fmt(+e.target.value,2)+' %';readSensors();};$('#reread').onclick=readSensors;
+  syncSimControls();};
+var INIT_SIM;
+
+/* ================= Módulo: Comparador ================= */
+const CMP={A:{q:100,E:50,target:'sin_danio',pct:0},B:{q:100,E:50,target:'arco_a2_a3',pct:.3}};
+function cmpCard(k){const s=CMP[k];return `<div class="panel"><div class="row" style="justify-content:space-between"><h3>Escenario ${k}</h3><span class="pill ${k==='A'?'neutral':'warn'}">${k==='A'?'Referencia':'Hipótesis'}</span></div>
+  <div class="grid2" style="gap:10px">
+   <label class="field">q (kN/m)<input type="number" id="c${k}q" min="5" max="400" step="5" value="${s.q}"></label>
+   <label class="field">E (GPa)<input type="number" id="c${k}E" min="20" max="150" step="1" value="${s.E}"></label>
+   <label class="field">Componente<select id="c${k}t">${TARGETS.map(t=>`<option value="${t}" ${t===s.target?'selected':''}>${TARGET_LABEL[t]}</option>`).join('')}</select></label>
+   <label class="field">Pérdida de rigidez (%)<input type="number" id="c${k}p" min="0" max="90" step="5" value="${s.pct*100}"></label></div></div>`;}
+function runCmp(){['A','B'].forEach(k=>{const s=CMP[k];s.q=Math.max(1,+$('#c'+k+'q').value||1);s.E=Math.max(1,+$('#c'+k+'E').value||1);s.target=$('#c'+k+'t').value;s.pct=s.target==='sin_danio'?0:Math.min(.95,(+$('#c'+k+'p').value||0)/100);});
+  const a=solve(CMP.A),b=solve(CMP.B);
+  const rows=[['Desplazamiento total máx.','u_total_max_mm','mm'],['Flecha vertical máx.','uz_min_mm','mm'],['Desplazamiento horizontal máx.','ux_max_abs_mm','mm'],['σ máx. arcos y montantes','max_sigma_arco_MPa','MPa'],['σ máx. tablero','max_sigma_tablero_MPa','MPa'],['σ máx. pilares','max_sigma_pilar_MPa','MPa'],['σ máx. montantes','max_sigma_montante_MPa','MPa']];
+  let iMax=0,dMax=0;a.sig.forEach((v,t)=>{const d=Math.abs(b.sig[t]-v)/Math.max(v,1e-6);if(d>dMax){dMax=d;iMax=t;}});
+  $('#cmpTable').innerHTML=`<table><thead><tr><th>Respuesta</th><th class="n">A</th><th class="n">B</th><th class="n">B − A</th><th class="n">Cambio</th></tr></thead><tbody>${rows.map(([l,k,u])=>{const va=Math.abs(a[k]),vb=Math.abs(b[k]),r=vb/va-1;
+    return `<tr><td>${l} <span class="muted">(${u})</span></td><td class="n">${fmt(va,3)}</td><td class="n">${fmt(vb,3)}</td><td class="n">${vb-va>=0?'+':''}${fmt(vb-va,3)}</td><td class="n"><span class="pill ${Math.abs(r)<.05?'neutral':Math.abs(r)<.2?'warn':'crit'}">${r>=0?'+':''}${pct(r,1)}</span></td></tr>`;}).join('')}
+    <tr><td>Elemento con mayor cambio de esfuerzo</td><td class="n" colspan="2">${M2.els[iMax].id} · ${esc(M2.els[iMax].group)}</td><td class="n">${fmt(b.sig[iMax]-a.sig[iMax],2)} MPa</td><td class="n"><span class="pill crit">${pct(dMax,1)}</span></td></tr></tbody></table>`;
+  const lim=Math.max(.05,Math.min(dMax,.5));const col=(e,t)=>{const r=(b.sig[t]-a.sig[t])/Math.max(a.sig[t],1e-6);const x=Math.max(-1,Math.min(1,r/lim));return x>=0?mix(css('--line'),css('--crit'),x):mix(css('--line'),css('--iron-2'),-x);};
+  $('#elevCmp').innerHTML=elevSVG({res:b,colorBy:col,label:'comparador'});
+  $('#cmpLegend').innerHTML=`<span><i style="background:${css('--iron-2')}"></i>esfuerzo baja en B (−${pct(lim,0)} o más)</span><span><i style="background:${css('--line')}"></i>sin cambio</span><span><i style="background:${css('--crit')}"></i>esfuerzo sube en B (+${pct(lim,0)} o más)</span>`;}
+function hex(c){c=c.replace('#','');if(c.length===3)c=c.split('').map(x=>x+x).join('');return [0,2,4].map(i=>parseInt(c.slice(i,i+2),16));}
+function mix(a,b,t){const A=hex(a),B=hex(b);return 'rgb('+A.map((v,i)=>Math.round(v+(B[i]-v)*t)).join(',')+')';}
+INIT_CMP=function(){$('#cmpControls').innerHTML=cmpCard('A')+cmpCard('B');$('#cmpControls').querySelectorAll('input,select').forEach(el=>el.addEventListener('input',runCmp));runCmp();};
+var INIT_CMP;
+
+/* ================= Módulo: Inspección priorizada ================= */
+const W={sens:.30,geo:.30,det:.20,dem:.20};
+const CRIT=[['sens','Sensibilidad estructural','cuánto cambia la respuesta si la zona pierde 20 % de rigidez'],['geo','Incertidumbre geométrica','1 − completitud de la nube en la zona'],['det','Dificultad de detección','1 − aciertos de la IA inversa con ruido de 0,5 %'],['dem','Demanda relativa','σ máx. de la zona / σ máx. del puente']];
+const ACTIONS={
+ arco_a2_a3:'Agregar una estación TLS en el cauce, unos 10 m al oeste del vano central (W75), para registrar el intradós y la clave. Contar los nervios y medir su peralte.',
+ arco_a1_a2:'Completar el intradós desde el cauce y medir el peralte de los nervios en los arranques.',
+ arco_a3_a4:'Cobertura alta. Verificar visualmente corrosión y uniones en los arranques.',
+ tablero:'Medir flechas en los 9 puntos S1–S9 con carga conocida. Revisar apoyos de las vigas transversales.',
+ montantes:'Inspección visual de uniones montante–arco y montante–tablero, que la nube no resuelve.',
+ pilares:'Levantar la geometría completa de pilares y estribos. La reconstrucción por simetría falla por asimetría.'};
+function priorities(){const det=detectability(),z=ZONES.map(zz=>{const s=sens20[zz.id];return {z:zz,sens:Math.max(Math.abs(s.du),Math.abs(s.ds)),geo:zz.compl==null?.5:1-zz.compl,geoKnown:zz.compl!=null,det:1-det[zz.id],dem:s.zoneSig};});
+  const mS=Math.max(...z.map(o=>o.sens)),mD=Math.max(...z.map(o=>o.dem));
+  z.forEach(o=>{o.n={sens:o.sens/mS,geo:o.geo,det:o.det,dem:o.dem/mD};const sw=W.sens+W.geo+W.det+W.dem||1;o.score=(W.sens*o.n.sens+W.geo*o.n.geo+W.det*o.n.det+W.dem*o.n.dem)/sw;o.level=o.score>=.6?'Alta':o.score>=.4?'Media':'Baja';});
+  return z.sort((a,b)=>b.score-a.score);}
+function renderPrio(){const P=priorities(),cls={Alta:'crit',Media:'warn',Baja:'ok'};
+  $('#prioTable').innerHTML=`<table><thead><tr><th>#</th><th>Zona</th><th class="n">Índice</th><th>Prioridad</th>${CRIT.map(c=>`<th>${c[1].split(' ')[0]}</th>`).join('')}</tr></thead><tbody>${P.map((o,i)=>`<tr><td class="num">${i+1}</td><td>${o.z.name}</td><td class="n score">${fmt(o.score,2)}</td><td><span class="pill ${cls[o.level]}">${o.level}</span></td>${CRIT.map(c=>`<td><div class="bar" title="${fmt(o.n[c[0]],2)}${c[0]==='geo'&&!o.geoKnown?' (supuesto)':''}"><i style="width:${100*o.n[c[0]]}%;${c[0]==='geo'&&!o.geoKnown?'opacity:.4':''}"></i></div></td>`).join('')}</tr>`).join('')}</tbody></table>
+  <p class="note">Las barras tenues indican zonas sin dato de completitud de la nube; se asume 0,5. Solo se midió la completitud del intradós de los tres arcos.</p>`;
+  const d=new Date().toLocaleDateString('es-PE',{day:'2-digit',month:'long',year:'numeric'});
+  let r=`REPORTE DE PRIORIZACIÓN DE INSPECCIÓN · PUENTE BALTA\nGenerado: ${d} · Plataforma Balta v1\nPesos: sensibilidad ${W.sens.toFixed(2)} · incertidumbre geométrica ${W.geo.toFixed(2)} · detección ${W.det.toFixed(2)} · demanda ${W.dem.toFixed(2)}\nModelo: 2D elástico (150 nodos, 221 elementos), q = 100 kN/m, E = 50 GPa, daño de referencia 20 %\n\n`;
+  P.forEach((o,i)=>{const s=sens20[o.z.id];r+=`${i+1}. ${o.z.name.toUpperCase()} · prioridad ${o.level.toLowerCase()} (índice ${o.score.toFixed(2)})\n   Con 20 % de pérdida de rigidez: Δu ${(100*s.du).toFixed(1)} %, Δσ ${(100*s.ds).toFixed(1)} %.\n   Completitud de la nube: ${o.geoKnown?(100*o.z.compl).toFixed(0)+' %':'sin medir'}. Aciertos de la IA inversa: ${(100*(1-o.det)).toFixed(0)} %.\n   Acción sugerida: ${ACTIONS[o.z.id]}\n\n`;});
+  r+='Alcance: el índice ordena dónde verificar primero. No es una evaluación de seguridad ni de capacidad resistente.';
+  $('#report').textContent=r;}
+INIT_INSP=function(){$('#weights').innerHTML='<h3>Pesos de los criterios</h3>'+CRIT.map(([k,l,d])=>`<label class="field"><span class="lv">${l} <output id="w${k}o">${W[k].toFixed(2)}</output></span><input type="range" id="w${k}" min="0" max="1" step="0.05" value="${W[k]}"><span style="font-size:.76rem">${d}</span></label>`).join('')+'<button class="btn ghost" id="wReset">Restablecer pesos</button>';
+  CRIT.forEach(([k])=>$('#w'+k).oninput=e=>{W[k]=+e.target.value;$('#w'+k+'o').textContent=W[k].toFixed(2);renderPrio();});
+  $('#wReset').onclick=()=>{Object.assign(W,{sens:.3,geo:.3,det:.2,dem:.2});CRIT.forEach(([k])=>{$('#w'+k).value=W[k];$('#w'+k+'o').textContent=W[k].toFixed(2);});renderPrio();};
+  $('#copyReport').onclick=e=>copyText($('#report').textContent,e.target);renderPrio();};
+var INIT_INSP;
+
+/* ================= Módulo: Validación ================= */
+const SUS_Q=['Creo que me gustaría usar esta plataforma con frecuencia.','Encontré la plataforma innecesariamente compleja.','Pensé que la plataforma era fácil de usar.','Creo que necesitaría ayuda de una persona técnica para poder usarla.','Las distintas funciones de la plataforma están bien integradas.','Pensé que había demasiadas inconsistencias en la plataforma.','Imagino que la mayoría de las personas aprendería a usarla muy rápido.','Encontré la plataforma muy engorrosa de usar.','Me sentí muy seguro al usar la plataforma.','Necesité aprender muchas cosas antes de poder usarla.'];
+function renderValidation(){
+  const v=MET.sustituto.validaciones,nm={aleatorio_80_20:'Partición aleatoria 80/20',sin_q75:'Sin el nivel q = 75 kN/m',sin_q150:'Sin el nivel q = 150 kN/m',sin_E50:'Sin E = 50 GPa'};
+  $('#surrTbl').innerHTML=`<h3>Sustituto Random Forest · R² en datos no vistos</h3><p class="muted" style="font-size:.86rem">${esc(MET.sustituto.datos)}. Se compara el RF con escalamiento físico, usado por la plataforma, con un RF directo como el de la primera parte. Excluir un nivel completo de carga mide si el modelo interpola.</p>
+  <table><thead><tr><th>Validación</th><th class="n">Casos de prueba</th><th class="n">R² u (con escalamiento)</th><th class="n">R² σ (con escalamiento)</th><th class="n">R² u (RF directo)</th><th class="n">R² σ (RF directo)</th></tr></thead><tbody>${Object.entries(v).map(([k,o])=>`<tr><td>${nm[k]||k}</td><td class="n">${o.n_test}</td><td class="n">${fmt(o.fisico.u_total_max_mm.r2,4)}</td><td class="n">${fmt(o.fisico.max_sigma_MPa.r2,4)}</td><td class="n" style="color:${o.directo.u_total_max_mm.r2<.9?css('--crit'):'inherit'}">${fmt(o.directo.u_total_max_mm.r2,3)}</td><td class="n" style="color:${o.directo.max_sigma_MPa.r2<.9?css('--crit'):'inherit'}">${fmt(o.directo.max_sigma_MPa.r2,3)}</td></tr>`).join('')}</tbody></table>`;
+  const p=MET.inversa.por_ruido;
+  $('#invTbl').innerHTML=`<h3>Diagnóstico inverso SVM-RBF · desempeño según el ruido</h3><p class="muted" style="font-size:.86rem">${esc(MET.inversa.datos)}. Entradas: ${esc(MET.inversa.entradas)}. Fuera de dominio: con ruido de 10 % se detecta el ${pct(MET.inversa.fuera_de_dominio.deteccion_ruido_10,0)} de las lecturas.</p>
+  <table><thead><tr><th>Ruido</th><th class="n">Exactitud</th><th class="n">F1 macro</th><th class="n">Daño 20–40 %</th><th class="n">Daño 5–20 %</th><th class="n">Falsa alarma</th><th class="n">Concluyentes</th><th class="n">MAE severidad</th></tr></thead><tbody>${Object.entries(p).map(([k,o])=>`<tr><td class="num">${pct(+k,1)}</td><td class="n">${pct(o.exactitud)}</td><td class="n">${fmt(o.f1_macro,3)}</td><td class="n">${pct(o.exactitud_dano_20_40)}</td><td class="n">${pct(o.exactitud_dano_5_20)}</td><td class="n">${pct(o.falsa_alarma)}</td><td class="n">${pct(o.cobertura_concluyente)}</td><td class="n">${fmt(100*o.mae_severidad,1)} pp</td></tr>`).join('')}</tbody></table>
+  <p class="note">Lectura: con flechas casi exactas, la IA localiza el daño; desde 0,5 % de ruido, el diagnóstico pierde confiabilidad para daños menores a 20 % y las falsas alarmas crecen. Por eso la plataforma marca los resultados no concluyentes y no reemplaza la inspección de campo.</p>`;
+  // tiempo de consulta
+  const t=[];for(let i=0;i<5;i++){const a=performance.now();solve({q:100,E:50,target:'arco_a2_a3',pct:.3});t.push(performance.now()-a);}
+  const t2=[];for(let i=0;i<50;i++){const a=performance.now();surrogate({q:100,E:50,target:'arco_a2_a3',pct:.3});t2.push(performance.now()-a);}
+  const med=a=>a.slice().sort((x,y)=>x-y)[a.length>>1];
+  $('#timeOut').innerHTML=`<div class="readout"><div><span class="k">Modelo 2D completo</span><span class="v">${fmt(med(t),0)} <small>ms</small></span><span class="d">mediana de 5 escenarios</span></div><div><span class="k">Sustituto IA</span><span class="v">${fmt(med(t2),2)} <small>ms</small></span><span class="d">mediana de 50</span></div></div>
+  <p class="note">Consulta de referencia: «¿cuánto cambian la flecha y el esfuerzo si el arco central pierde 30 % de rigidez?». En la línea base hay que abrir el script, editarlo, ejecutar OpenSees y leer el CSV. Cronometre ese flujo con los evaluadores y regístrelo junto a estos valores.</p>`;
+  // SUS
+  $('#sus').innerHTML=SUS_Q.map((q,i)=>`<div class="q"><p><span class="mono muted">${String(i+1).padStart(2,'0')}</span> ${q}</p><div class="opts" role="radiogroup" aria-label="Afirmación ${i+1}"><span>En desacuerdo</span>${[1,2,3,4,5].map(v=>`<input type="radio" name="sus${i}" id="sus${i}_${v}" value="${v}"><label for="sus${i}_${v}">${v}</label>`).join('')}<span>De acuerdo</span></div></div>`).join('');
+  $('#sus').addEventListener('change',susScore);$('#copySus').onclick=e=>{const a=susAnswers();copyText([$('#susName').value||'EV',...a,susCalc(a)].join(','),e.target);};}
+function susAnswers(){return SUS_Q.map((_,i)=>{const c=document.querySelector(`input[name=sus${i}]:checked`);return c?+c.value:null;});}
+function susCalc(a){return 2.5*a.reduce((s,v,i)=>s+(i%2===0?v-1:5-v),0);}
+function susScore(){const a=susAnswers(),n=a.filter(v=>v!=null).length;if(n<10){$('#susScore').className='pill neutral';$('#susScore').textContent=`${n} de 10 respondidas`;$('#copySus').disabled=true;return;}
+  const s=susCalc(a);$('#susScore').className='pill '+(s>=68?'ok':s>=51?'warn':'crit');$('#susScore').textContent=`SUS = ${fmt(s,1)} · ${s>=80.3?'excelente':s>=68?'sobre el promedio':s>=51?'aceptable con reservas':'bajo'}`;$('#copySus').disabled=false;}
+async function runConcordance(){const btn=$('#runConc');btn.disabled=true;btn.textContent='Calculando…';await new Promise(r=>setTimeout(r,30));
+  const rows=FEM.filter(r=>r.q_kN_m>0);const keys=['u_total_max_mm','ux_max_abs_mm','max_sigma_MPa','max_sigma_tablero_MPa','max_sigma_pilar_MPa'];const err={};keys.forEach(k=>err[k]=0);
+  const t0=performance.now();for(let i=0;i<rows.length;i++){const r=rows[i],o=solve({q:r.q_kN_m,E:r.E_GPa,target:r.damage_target,pct:r.damage_pct});keys.forEach(k=>err[k]=Math.max(err[k],Math.abs(o[k]-r[k])/Math.max(Math.abs(r[k]),1e-9)));
+    if(i%40===39){btn.textContent=`Calculando… ${i+1}/${rows.length}`;await new Promise(r=>setTimeout(r,0));}}
+  const dt=performance.now()-t0,worst=Math.max(...Object.values(err));
+  $('#concOut').innerHTML=`<div class="alert ${worst<1e-6?'ok':'warn'}"><b>${worst<1e-6?'Concordancia total':'Hay diferencias'}</b>${rows.length} casos recalculados en ${fmt(dt/1000,1)} s (${fmt(dt/rows.length,0)} ms por caso). Error relativo máximo frente a OpenSees: ${worst.toExponential(1)}.</div>
+   <div class="tbl"><table><thead><tr><th>Respuesta</th><th class="n">Error relativo máx.</th></tr></thead><tbody>${keys.map(k=>`<tr><td class="mono">${k}</td><td class="n">${err[k].toExponential(1)}</td></tr>`).join('')}</tbody></table></div>`;
+  btn.textContent='Volver a ejecutar';btn.disabled=false;}
+INIT_VAL=function(){renderValidation();$('#runConc').onclick=runConcordance;};
+var INIT_VAL;
+
+/* ================= Módulo: Procedencia ================= */
+INIT_PROV=function(){const v=PROV.verificacion;
+  $('#provCards').innerHTML=[
+   ['Nube de puntos','TLS Trimble X7 · 601 243 puntos tras el filtro SOR','Contraste con el modelo geométrico: media 0,291 m, RMSE 0,433 m y 92,85 % de puntos a menos de 0,50 m.'],
+   ['Modelo 2D','150 nodos · 221 elementos elasticBeamColumn','Apoyos empotrados y secciones rectangulares equivalentes. Reproducido en el navegador con un error relativo menor a 1e-11.'],
+   ['Dataset FEM',`${v.cases} casos · ${v.converged} convergieron · OpenSees ${v.opensees}`,`Residuo máximo de equilibrio: ${v.maximum_equilibrium_residual_kN.toExponential(2)} kN. Los 75 casos con q = 0 no tienen respuesta y no se usan para entrenar.`],
+   ['Modelo 3D','puente-balta-v12.glb · 287 objetos útiles','Coordenada longitudinal en metros, la misma del modelo 2D. Así cada arco, pilar y estribo se enlaza con sus elementos de cálculo.']
+  ].map(([h,s,p])=>`<div class="panel"><p class="eyebrow">${h}</p><h3>${s}</h3><p class="muted" style="font-size:.86rem">${p}</p></div>`).join('');
+  $('#provSections').innerHTML=`<h3>Secciones equivalentes del modelo</h3><table><thead><tr><th>Familia</th><th class="n">A (m²)</th><th class="n">I (m⁴)</th><th class="n">Alto equiv. (m)</th><th class="n">c (m)</th></tr></thead><tbody>${PROV.secciones.map(s=>`<tr><td>${s.name}</td><td class="n">${s.A_m2}</td><td class="n">${s.I_m4}</td><td class="n">${fmt(s.equivalent_height_m,3)}</td><td class="n">${fmt(s.c_m,3)}</td></tr>`).join('')}</tbody></table><p class="note">${esc(PROV.hipotesis)}</p>`;
+  $('#provFiles').innerHTML=`<h3>Archivos de origen y huellas SHA-256</h3><table><thead><tr><th>Archivo</th><th>SHA-256</th></tr></thead><tbody>${Object.entries(v.source_sha256).map(([f,h])=>`<tr><td class="mono" style="font-size:.78rem">${esc(f)}</td><td class="mono" style="font-size:.72rem;overflow-wrap:anywhere">${h}</td></tr>`).join('')}</tbody></table>`;
+  $('#provLimits').innerHTML=`<h3>Alcance del modelo</h3><ul style="margin:0;padding-left:18px;display:grid;gap:6px;font-size:.88rem"><li>${esc(PROV.alcance)}</li><li>El esfuerzo es una estimación con P/A + M·c/I y fuerzas globales del elemento, igual que el script original. ${esc(v.limitation.split('.')[1]||'')}.</li><li>La geometría 2D usa arranques a −5,0 m. El levantamiento indica unos −6,4 m y una primera luz mayor. El modelo corregido (modelo C del artículo) reemplazará esta base.</li><li>El pushover paramétrico del prototipo anterior no se usa. Sus valores no coinciden con los del manuscrito.</li></ul>`;};
+var INIT_PROV;
+
+/* ================= Arranque ================= */
+const INIT={visor:()=>INIT_VISOR(),simulador:()=>INIT_SIM(),comparador:()=>INIT_CMP(),inspeccion:()=>INIT_INSP(),validacion:()=>INIT_VAL(),procedencia:()=>INIT_PROV()};
+let DATA_READY=false;
+function parseCSV(t){const [h,...ls]=t.trim().split(/\r?\n/);const k=h.split(',');return ls.map(l=>{const v=l.split(',');const o={};k.forEach((kk,i)=>{const n=+v[i];o[kk]=v[i]!==''&&Number.isFinite(n)?n:v[i];});return o;});}
+(async()=>{
+  try{const get=p=>fetch(p).then(r=>{if(!r.ok)throw new Error(p);return r;});
+    const [m,rf,svm,met,prov,fem]=await Promise.all([get('data/modelo_2d.json').then(r=>r.json()),get('data/rf_surrogate.json').then(r=>r.json()),get('data/svm_inverse.json').then(r=>r.json()),get('data/metrics_ia.json').then(r=>r.json()),get('data/procedencia.json').then(r=>r.json()),get('data/fem_525.csv').then(r=>r.text())]);
+    M2=prepModel(m);RF=rf;SVM=svm;MET=met;PROV=prov;FEM=parseCSV(fem);computeSensitivity();DATA_READY=true;
+    let h=(location.hash||'').slice(1);show(VIEWS.includes(h)?h:'visor');
+  }catch(e){$('main').insertAdjacentHTML('afterbegin',`<div class="alert crit"><b>No se pudieron cargar los datos</b>Falta el archivo ${esc(e.message)}. Publique la carpeta data/ junto a la página.</div>`);}
+})();
+</script>
