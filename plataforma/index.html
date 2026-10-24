@@ -1,3 +1,8 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Balta · Plataforma de inspección</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -90,7 +95,7 @@ label.f{display:grid;gap:3px;font-size:.8rem;color:var(--ink-2)}
 label.f .lv{display:flex;justify-content:space-between;gap:8px}
 label.f output{font:500 .8rem var(--f-mono);color:var(--ink)}
 input[type=range]{width:100%;accent-color:var(--ink)}
-select,input[type=number],input[type=text]{font:inherit;font-size:.85rem;color:var(--ink);background:var(--sheet);border:1px solid var(--rule);border-radius:0;padding:5px 7px;width:100%}
+select,input[type=number],input[type=text],input[type=date]{font:inherit;font-size:.85rem;color:var(--ink);background:var(--sheet);border:1px solid var(--rule);border-radius:0;padding:5px 7px;width:100%}
 .btn{background:var(--ink);color:var(--sheet);border:1px solid var(--ink);padding:6px 12px;font:600 .78rem var(--f-cond);letter-spacing:.08em;text-transform:uppercase;cursor:pointer}
 .btn.line{background:transparent;color:var(--ink)}
 .btn:disabled{opacity:.45;cursor:default}
@@ -116,6 +121,10 @@ table.data td{padding:5px 8px;border-bottom:1px solid var(--rule-2)}
 table.data td.n,table.data th.n{text-align:right;font-family:var(--f-mono);font-variant-numeric:tabular-nums;white-space:nowrap}
 table.data tr.hl td{background:var(--red-bg)}
 .meter{height:6px;background:var(--rule-2);min-width:54px}.meter i{display:block;height:100%;background:var(--ink-2)}
+.sheet-tools{display:flex;justify-content:flex-end;align-items:center;gap:6px;margin-bottom:-8px}
+.sheet-tools .btn{padding:3px 9px}
+.sheet-tools:has(+ .sheet[hidden]){display:none}
+[hidden]{display:none!important}
 .report{white-space:pre-wrap;font:400 .76rem/1.55 var(--f-mono);border:1px solid var(--rule);padding:12px;max-height:340px;overflow:auto;background:var(--surface)}
 
 /* ---------- Visor 3D ---------- */
@@ -137,7 +146,7 @@ table.data tr.hl td{background:var(--red-bg)}
 
 <div class="app">
   <header class="bar">
-    <div class="mark"><b>Puente Balta</b><span>Plataforma de inspección · v1.2</span></div>
+    <div class="mark"><b>Puente Balta</b><span>Plataforma de inspección · v1.3</span></div>
     <nav class="menu" role="tablist" aria-label="Herramientas">
       <button role="tab" data-v="modelo"><span class="k">1</span>Modelo</button>
       <button role="tab" data-v="simulacion"><span class="k">2</span>Simulación</button>
@@ -432,7 +441,7 @@ function legendRow(items,x,y){return items.map(([type,col,label],i)=>{const xx=x
 /* ================= Estado y navegación ================= */
 const VIEWS=['modelo','simulacion','comparacion','dinamica','inspeccion','validacion','registro'];
 const S={view:'modelo',zone:'arco_a2_a3',q:100,E:50,target:'arco_a2_a3',pct:.3,noise:.005,m3d:'3d',
-  A:{q:100,E:50,target:'sin_danio',pct:0},B:{q:100,E:50,target:'arco_a2_a3',pct:.3},W:{sens:.3,geo:.3,det:.2,dem:.2}};
+  A:{q:100,E:50,target:'sin_danio',pct:0},B:{q:100,E:50,target:'arco_a2_a3',pct:.3},W:{sens:.3,geo:.3,det:.2,dem:.2,cond:.2}};
 let DATA_READY=false,lastSolveMs=0;
 function show(v){if(!VIEWS.includes(v))v='modelo';S.view=v;
   document.querySelectorAll('.menu button').forEach(b=>b.setAttribute('aria-selected',b.dataset.v===v));
@@ -732,7 +741,8 @@ function histogram(fs,fm,tol,k){const ink=css('--ink'),i3=css('--ink-3'),red=css
   return s+'</svg></div>';}
 
 /* ================= 5 · Plan de inspección ================= */
-const CRIT=[['sens','Sensibilidad estructural','Cambio de la respuesta si la zona pierde 20 % de rigidez'],['geo','Incertidumbre geométrica','1 − cobertura de la nube en la zona'],['det','Dificultad de detección','1 − aciertos de la IA inversa con ruido de 0,5 %'],['dem','Demanda relativa','σ máx. de la zona / σ máx. del puente']];
+const CRIT=[['sens','Sensibilidad estructural','Cambio de la respuesta si la zona pierde 20 % de rigidez'],['geo','Incertidumbre geométrica','1 − cobertura de la nube en la zona'],['det','Dificultad de detección','1 − aciertos de la IA inversa con ruido de 0,5 %'],['dem','Demanda relativa','σ máx. de la zona / σ máx. del puente'],['cond','Condición observada','(9 − calificación NBI) / 9 del último registro de campo']];
+if(S.W.cond==null)S.W.cond=.2;
 const ACTIONS={
  arco_a2_a3:'Estación TLS adicional en el cauce, a unos 10 m al oeste del vano central (W75), para registrar intradós y clave. Contar los nervios y medir su peralte.',
  arco_a1_a2:'Completar el intradós desde el cauce y medir el peralte de los nervios en los arranques.',
@@ -740,32 +750,84 @@ const ACTIONS={
  tablero:'Medir flechas en S1–S9 con carga conocida. Revisar los apoyos de las vigas transversales.',
  montantes:'Inspección visual de las uniones montante–arco y montante–tablero, que la nube no resuelve.',
  pilares:'Levantamiento completo de pilares y estribos. La reconstrucción por simetría no funciona por su asimetría.'};
-function priorities(){const det=detectability(),W=S.W,z=ZONES.map(zz=>{const s=sens20[zz.id];return {z:zz,sens:Math.max(Math.abs(s.du),Math.abs(s.ds)),geo:zz.compl==null?.5:1-zz.compl,geoKnown:zz.compl!=null,det:1-det[zz.id],dem:s.zoneSig};});
-  const mS=Math.max(...z.map(o=>o.sens)),mD=Math.max(...z.map(o=>o.dem)),sw=W.sens+W.geo+W.det+W.dem||1;
-  z.forEach(o=>{o.n={sens:o.sens/mS,geo:o.geo,det:o.det,dem:o.dem/mD};o.score=(W.sens*o.n.sens+W.geo*o.n.geo+W.det*o.n.det+W.dem*o.n.dem)/sw;o.level=o.score>=.6?'Alta':o.score>=.4?'Media':'Baja';});
+/* ---------- Registro de campo (guardado en este navegador; exportable) ---------- */
+const NBI=[[9,'Excelente'],[8,'Muy bueno'],[7,'Bueno'],[6,'Satisfactorio'],[5,'Regular'],[4,'Deficiente'],[3,'Serio'],[2,'Crítico'],[1,'Falla inminente'],[0,'En falla']];
+const FKEY='balta_registro_campo_v1';
+function loadField(){try{const v=JSON.parse(localStorage.getItem(FKEY)||'[]');return Array.isArray(v)?v:[];}catch(e){return [];}}
+function saveField(a){try{localStorage.setItem(FKEY,JSON.stringify(a));return true;}catch(e){return false;}}
+let FIELD=loadField();
+function latestByZone(){const o={};FIELD.forEach(r=>{if(!o[r.zona]||r.fecha>=o[r.zona].fecha)o[r.zona]=r;});return o;}
+function priorities(){const det=detectability(),W=S.W,last=latestByZone(),useCond=FIELD.length>0,z=ZONES.map(zz=>{const s=sens20[zz.id],rec=last[zz.id];return {z:zz,sens:Math.max(Math.abs(s.du),Math.abs(s.ds)),geo:zz.compl==null?.5:1-zz.compl,geoKnown:zz.compl!=null,det:1-det[zz.id],dem:s.zoneSig,cond:rec?(9-rec.nbi)/9:.5,condKnown:!!rec,rec};});
+  const wc=useCond?W.cond:0,mS=Math.max(...z.map(o=>o.sens)),mD=Math.max(...z.map(o=>o.dem)),sw=W.sens+W.geo+W.det+W.dem+wc||1;
+  z.forEach(o=>{o.n={sens:o.sens/mS,geo:o.geo,det:o.det,dem:o.dem/mD,cond:o.cond};o.score=(W.sens*o.n.sens+W.geo*o.n.geo+W.det*o.n.det+W.dem*o.n.dem+wc*o.n.cond)/sw;o.level=o.score>=.6?'Alta':o.score>=.4?'Media':'Baja';});
   return z.sort((a,b)=>b.score-a.score);}
 function vInsp(){
-  $('#left').innerHTML=`<div class="ph">Pesos de los criterios</div><div class="pb">${CRIT.map(([k,l,d])=>`<label class="f"><span class="lv">${l} <output id="o${k}">${S.W[k].toFixed(2)}</output></span><input type="range" id="w${k}" min="0" max="1" step="0.05" value="${S.W[k]}"><span class="help">${d}</span></label>`).join('')}<button class="btn line" id="wReset">Restablecer pesos</button></div>`;
+  $('#left').innerHTML=`<div class="ph">Pesos de los criterios</div><div class="pb">${CRIT.map(([k,l,d])=>`<label class="f"><span class="lv">${l} <output id="o${k}">${S.W[k].toFixed(2)}</output></span><input type="range" id="w${k}" min="0" max="1" step="0.05" value="${S.W[k]}"><span class="help">${d}${k==='cond'?'. Se activa cuando hay al menos un registro de campo.':''}</span></label>`).join('')}<button class="btn line" id="wReset">Restablecer pesos</button></div>`;
   CRIT.forEach(([k])=>$('#w'+k).oninput=e=>{S.W[k]=+e.target.value;$('#o'+k).textContent=S.W[k].toFixed(2);inspCompute();});
-  $('#wReset').onclick=()=>{S.W={sens:.3,geo:.3,det:.2,dem:.2};vInsp();};
-  $('#canvas').innerHTML=`<div class="sheet" id="inspSheet"></div><div class="doc"><h2>Orden de verificación</h2><div class="tw" id="inspTbl"></div><p class="help">Barras tenues: zona sin dato de cobertura de la nube, se asume 0,5. Solo se midió la cobertura del intradós de los tres arcos.</p></div>`;
+  $('#wReset').onclick=()=>{S.W={sens:.3,geo:.3,det:.2,dem:.2,cond:.2};vInsp();};
+  $('#canvas').innerHTML=`<div class="sheet" id="inspSheet"></div><div class="doc"><h2>Orden de verificación</h2><div class="tw" id="inspTbl"></div><p class="help" id="inspHelp"></p></div><div class="doc" id="fieldDoc"></div>`;
   $('#right').innerHTML=`<div class="ph">Reporte<button class="btn" id="copyRep" style="padding:3px 9px">Copiar</button></div><div class="pb"><div class="report" id="report" tabindex="0"></div></div>`;
   $('#copyRep').onclick=e=>copyText($('#report').textContent,e.target,$('#report'));
-  inspCompute();}
-function inspCompute(){const P=priorities(),rank={};P.forEach((o,i)=>rank[o.z.id]={i:i+1,o});
+  renderField();inspCompute();}
+function renderField(){const today=new Date().toISOString().slice(0,10);
+  $('#fieldDoc').innerHTML=`<div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;align-items:baseline"><h2>Registro de inspección en campo</h2><span class="mono dim" style="font-size:.76rem">${FIELD.length} registro${FIELD.length===1?'':'s'} en este navegador</span></div>
+   <p style="font-size:.86rem">Cada registro califica una zona con la escala de condición NBI de 0 a 9 (FHWA, <i>Recording and Coding Guide</i>, 1995). El último registro de cada zona entra al índice como criterio "Condición observada".</p>
+   <form id="fForm" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,170px),1fr));gap:10px">
+    <label class="f">Zona<select id="fZona">${ZONES.map(z=>`<option value="${z.id}">${z.long}</option>`).join('')}</select></label>
+    <label class="f">Fecha<input type="date" id="fFecha" value="${today}" required></label>
+    <label class="f">Inspector<input type="text" id="fInsp" placeholder="Nombre o código" required></label>
+    <label class="f">Condición NBI<select id="fNbi">${NBI.map(([v,l])=>`<option value="${v}" ${v===6?'selected':''}>${v} · ${l}</option>`).join('')}</select></label>
+    <label class="f">Corrosión<select id="fCorr"><option>no observada</option><option>superficial</option><option>con pérdida de sección</option><option>severa</option></select></label>
+    <label class="f">Fisuras en fundición<select id="fFis"><option>no observadas</option><option>sí</option><option>no verificable</option></select></label>
+    <label class="f">Uniones y pernos<select id="fUni"><option>completos</option><option>flojos</option><option>faltantes</option><option>no verificable</option></select></label>
+    <label class="f" style="grid-column:1/-1">Observaciones<input type="text" id="fObs" placeholder="Ubicación exacta, mediciones, número de foto…"></label>
+    <div style="grid-column:1/-1;display:flex;gap:8px;flex-wrap:wrap"><button class="btn" type="submit">Agregar registro</button><button class="btn line" type="button" id="fCsv">Exportar CSV</button><button class="btn line" type="button" id="fJson">Exportar JSON</button><label class="btn line" style="display:inline-flex;align-items:center">Importar JSON<input type="file" id="fImp" accept=".json,application/json" hidden></label><span id="fMsg" class="help" style="align-self:center"></span></div></form>
+   ${FIELD.length?`<div class="tw"><table class="data"><thead><tr><th>Fecha</th><th>Zona</th><th>Inspector</th><th class="n">NBI</th><th>Corrosión</th><th>Fisuras</th><th>Uniones</th><th>Observaciones</th><th></th></tr></thead><tbody>${FIELD.slice().sort((a,b)=>b.fecha.localeCompare(a.fecha)).map(r=>`<tr${r.nbi<=4?' class="hl"':''}><td class="mono">${esc(r.fecha)}</td><td>${esc((ZONES.find(z=>z.id===r.zona)||{}).name||r.zona)}</td><td>${esc(r.inspector)}</td><td class="n">${r.nbi}</td><td>${esc(r.corrosion)}</td><td>${esc(r.fisuras)}</td><td>${esc(r.uniones)}</td><td>${esc(r.obs)}</td><td><button class="btn line" style="padding:2px 7px" data-del="${esc(r.id)}">Quitar</button></td></tr>`).join('')}</tbody></table></div>`:'<p class="help">Aún no hay registros. Complete el formulario durante la visita; los datos quedan en este navegador hasta que los exporte.</p>'}`;
+  $('#fForm').onsubmit=e=>{e.preventDefault();const r={id:Date.now().toString(36),zona:$('#fZona').value,fecha:$('#fFecha').value,inspector:$('#fInsp').value.trim(),nbi:+$('#fNbi').value,corrosion:$('#fCorr').value,fisuras:$('#fFis').value,uniones:$('#fUni').value,obs:$('#fObs').value.trim()};
+    if(!r.fecha||!r.inspector){$('#fMsg').textContent='Indique la fecha y el inspector.';return;}FIELD.push(r);const ok=saveField(FIELD);renderField();inspCompute();$('#fMsg').textContent=ok?'Registro agregado.':'Registro agregado solo en esta sesión: el navegador no permite guardarlo. Expórtelo antes de cerrar.';};
+  $('#fieldDoc').querySelectorAll('[data-del]').forEach(b=>b.onclick=()=>{FIELD=FIELD.filter(r=>r.id!==b.dataset.del);saveField(FIELD);renderField();inspCompute();});
+  const cols=['id','zona','fecha','inspector','nbi','corrosion','fisuras','uniones','obs'];
+  $('#fCsv').onclick=()=>download('registro_campo_balta.csv','text/csv',[cols.join(','),...FIELD.map(r=>cols.map(c=>'"'+String(r[c]??'').replace(/"/g,'""')+'"').join(','))].join('\n'));
+  $('#fJson').onclick=()=>download('registro_campo_balta.json','application/json',JSON.stringify(FIELD,null,1));
+  $('#fImp').onchange=e=>{const f=e.target.files[0];if(!f)return;const rd=new FileReader();rd.onload=()=>{try{const a=JSON.parse(rd.result);if(!Array.isArray(a))throw 0;
+      const valid=a.filter(r=>r&&ZONES.some(z=>z.id===r.zona)&&/^\d{4}-\d{2}-\d{2}$/.test(r.fecha)&&Number.isInteger(r.nbi)&&r.nbi>=0&&r.nbi<=9);
+      const ids=new Set(FIELD.map(r=>r.id));valid.forEach(r=>{if(!ids.has(r.id))FIELD.push({id:String(r.id||Date.now().toString(36)),zona:r.zona,fecha:r.fecha,inspector:String(r.inspector||''),nbi:r.nbi,corrosion:String(r.corrosion||''),fisuras:String(r.fisuras||''),uniones:String(r.uniones||''),obs:String(r.obs||'')});});
+      saveField(FIELD);renderField();inspCompute();$('#fMsg').textContent=`${valid.length} registros importados${valid.length<a.length?`; ${a.length-valid.length} descartados por datos incompletos`:''}.`;}catch(err){$('#fMsg').textContent='El archivo no es un registro de campo válido.';}};rd.readAsText(f);};}
+function inspCompute(){const P=priorities(),rank={};P.forEach((o,i)=>rank[o.z.id]={i:i+1,o});const useCond=FIELD.length>0;
   const lvlCol={Alta:css('--red'),Media:css('--warn'),Baja:css('--ink-3')};
   const hatch=(X,Z)=>{let s=`<defs>${['Alta','Media','Baja'].map(l=>`<pattern id="h${l}" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><line x1="0" y1="0" x2="0" y2="6" stroke="${lvlCol[l]}" stroke-width="${l==='Alta'?2:1}" opacity="${l==='Baja'?.35:.55}"/></pattern>`).join('')}</defs>`;
     const spans=[['arco_a1_a2',36.4,58.2],['arco_a2_a3',58.2,86.3],['arco_a3_a4',86.3,113.5]];
     spans.forEach(([id,a,b])=>{const r=rank[id];s+=`<rect x="${X(a)+3}" y="${Z(-.6)}" width="${X(b)-X(a)-6}" height="${Z(-8.6)-Z(-.6)}" fill="url(#h${r.o.level})"/><text x="${(X(a)+X(b))/2}" y="${Z(-7.6)}" text-anchor="middle" font-size="11" class="cond" font-weight="700" fill="${lvlCol[r.o.level]}">${r.i} · ${r.o.level.toUpperCase()}</text>`;});
     return s;};
   $('#inspSheet').innerHTML=sheet({no:'S-04',title:'Plan de verificación en campo',content:elevation({sensors:true,box:{x:46,y:70,w:900,h:300},hatchZones:hatch}),
-    notes:`<text x="40" y="458">Prioridad por vano (rayado):</text>`+legendRow([['rect',lvlCol.Alta,'Alta (índice ≥ 0,60)'],['rect',lvlCol.Media,'Media (0,40–0,60)'],['rect',lvlCol.Baja,'Baja (< 0,40)']],40,474)+`<text x="40" y="520">Tablero ${rank.tablero.i}.º · Montantes ${rank.montantes.i}.º · Pilares ${rank.pilares.i}.º</text>`});
-  $('#inspTbl').innerHTML=`<table class="data"><thead><tr><th>N.º</th><th>Zona</th><th class="n">Índice</th><th>Prioridad</th>${CRIT.map(c=>`<th>${c[1].split(' ')[0]}</th>`).join('')}</tr></thead><tbody>${P.map((o,i)=>`<tr${o.level==='Alta'?' class="hl"':''}><td class="mono">${i+1}</td><td>${o.z.long}</td><td class="n">${fmt(o.score,2)}</td><td><span class="flag ${o.level==='Alta'?'crit':o.level==='Media'?'warn':'na'}">${o.level}</span></td>${CRIT.map(c=>`<td><div class="meter" title="${fmt(o.n[c[0]],2)}"><i style="width:${100*o.n[c[0]]}%;${c[0]==='geo'&&!o.geoKnown?'opacity:.35':''}"></i></div></td>`).join('')}</tr>`).join('')}</tbody></table>`;
+    notes:`<text x="40" y="458">Prioridad por vano (rayado):</text>`+legendRow([['rect',lvlCol.Alta,'Alta (índice ≥ 0,60)'],['rect',lvlCol.Media,'Media (0,40–0,60)'],['rect',lvlCol.Baja,'Baja (< 0,40)']],40,474)+`<text x="40" y="520">Tablero ${rank.tablero.i}.º · Montantes ${rank.montantes.i}.º · Pilares ${rank.pilares.i}.º${useCond?' · incluye registros de campo':''}</text>`});
+  $('#inspTbl').innerHTML=`<table class="data"><thead><tr><th>N.º</th><th>Zona</th><th class="n">Índice</th><th>Prioridad</th>${CRIT.map(c=>`<th>${c[1].split(' ')[0]}</th>`).join('')}</tr></thead><tbody>${P.map((o,i)=>`<tr${o.level==='Alta'?' class="hl"':''}><td class="mono">${i+1}</td><td>${o.z.long}</td><td class="n">${fmt(o.score,2)}</td><td><span class="flag ${o.level==='Alta'?'crit':o.level==='Media'?'warn':'na'}">${o.level}</span></td>${CRIT.map(c=>{const faint=(c[0]==='geo'&&!o.geoKnown)||(c[0]==='cond'&&!o.condKnown),off=c[0]==='cond'&&!useCond;return `<td>${off?'<span class="dim mono" style="font-size:.72rem">inactivo</span>':`<div class="meter" title="${fmt(o.n[c[0]],2)}"><i style="width:${100*o.n[c[0]]}%;${faint?'opacity:.35':''}"></i></div>`}</td>`;}).join('')}</tr>`).join('')}</tbody></table>`;
+  $('#inspHelp').textContent='Barras tenues: zona sin dato y valor asumido de 0,5. Solo se midió la cobertura del intradós de los tres arcos.'+(useCond?' La condición usa el último registro de campo de cada zona.':' La condición observada se activa con el primer registro de campo.');
   const d=new Date().toLocaleDateString('es-PE',{day:'2-digit',month:'long',year:'numeric'}),W=S.W;
-  let r=`PLAN DE VERIFICACIÓN EN CAMPO · PUENTE BALTA\nLámina S-04 · ${d}\nPesos: sensibilidad ${W.sens.toFixed(2)} · incertidumbre geométrica ${W.geo.toFixed(2)} · detección ${W.det.toFixed(2)} · demanda ${W.dem.toFixed(2)}\nModelo 2D elástico (150 nodos, 221 elementos), q = 100 kN/m, E = 50 GPa, daño de referencia 20 %\n\n`;
-  P.forEach((o,i)=>{const s=sens20[o.z.id];r+=`${i+1}. ${o.z.long.toUpperCase()}\n   Prioridad ${o.level.toLowerCase()} · índice ${o.score.toFixed(2)}\n   Δu ${(100*s.du).toFixed(1)} % · Δσ ${(100*s.ds).toFixed(1)} % con 20 % de daño\n   Cobertura de la nube: ${o.geoKnown?(100*o.z.compl).toFixed(0)+' %':'sin medir'} · aciertos IA: ${(100*(1-o.det)).toFixed(0)} %\n   Acción: ${ACTIONS[o.z.id]}\n\n`;});
+  let r=`PLAN DE VERIFICACIÓN EN CAMPO · PUENTE BALTA\nLámina S-04 · ${d}\nPesos: sensibilidad ${W.sens.toFixed(2)} · incertidumbre geométrica ${W.geo.toFixed(2)} · detección ${W.det.toFixed(2)} · demanda ${W.dem.toFixed(2)} · condición ${useCond?W.cond.toFixed(2):'inactiva (sin registros)'}\nModelo 2D elástico (150 nodos, 221 elementos), q = 100 kN/m, E = 50 GPa, daño de referencia 20 %\n\n`;
+  P.forEach((o,i)=>{const s=sens20[o.z.id];r+=`${i+1}. ${o.z.long.toUpperCase()}\n   Prioridad ${o.level.toLowerCase()} · índice ${o.score.toFixed(2)}\n   Δu ${(100*s.du).toFixed(1)} % · Δσ ${(100*s.ds).toFixed(1)} % con 20 % de daño\n   Cobertura de la nube: ${o.geoKnown?(100*o.z.compl).toFixed(0)+' %':'sin medir'} · aciertos IA: ${(100*(1-o.det)).toFixed(0)} %\n`+(o.rec?`   Último registro de campo: ${o.rec.fecha}, NBI ${o.rec.nbi} (${NBI.find(x=>x[0]===o.rec.nbi)[1].toLowerCase()}), corrosión ${o.rec.corrosion}, fisuras ${o.rec.fisuras}, uniones ${o.rec.uniones}${o.rec.obs?'. '+o.rec.obs:''}\n`:'')+`   Acción: ${ACTIONS[o.z.id]}\n\n`;});
   r+='El índice ordena dónde verificar primero. No es una evaluación de seguridad ni de capacidad resistente.';
   $('#report').textContent=r;statusBar();}
+/* ---------- Descargas y exportación de láminas ---------- */
+const IN_FRAME=(()=>{try{return window.top!==window.self;}catch(e){return true;}})();
+function download(name,type,data){
+  if(IN_FRAME){toast('La descarga no está disponible en esta vista. Ábrala desde la versión publicada en GitHub Pages.');return;}
+  const url=URL.createObjectURL(data instanceof Blob?data:new Blob([data],{type}));const a=document.createElement('a');a.href=url;a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),4000);}
+function toast(t){let el=$('#toast');if(!el){el=document.createElement('div');el.id='toast';el.setAttribute('role','status');el.style.cssText='position:fixed;left:50%;bottom:calc(46px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--ink);color:var(--sheet);padding:8px 14px;font-size:.82rem;max-width:min(92vw,520px);z-index:20';document.body.appendChild(el);}el.textContent=t;el.hidden=false;clearTimeout(el._t);el._t=setTimeout(()=>el.hidden=true,4200);}
+function sheetSVG(svg){const c=svg.cloneNode(true);c.setAttribute('xmlns','http://www.w3.org/2000/svg');const vb=c.viewBox.baseVal;c.setAttribute('width',vb.width);c.setAttribute('height',vb.height);
+  const st=document.createElementNS('http://www.w3.org/2000/svg','style');st.textContent=`text{font-family:"DM Mono",Consolas,monospace;fill:${css('--ink')}}.cond{font-family:"Barlow Condensed","Arial Narrow",sans-serif;letter-spacing:.06em}`;c.insertBefore(st,c.firstChild);
+  const bg=document.createElementNS('http://www.w3.org/2000/svg','rect');bg.setAttribute('width','100%');bg.setAttribute('height','100%');bg.setAttribute('fill',css('--sheet'));c.insertBefore(bg,st.nextSibling);
+  return new XMLSerializer().serializeToString(c);}
+function sheetName(svg){const m=(svg.getAttribute('aria-label')||'lamina').match(/Lámina (S-\d+)/);return 'Balta_'+(m?m[1]:'lamina');}
+function exportSheet(sheetEl,kind){const svg=sheetEl.querySelector('svg');if(!svg)return;const txt=sheetSVG(svg),name=sheetName(svg);
+  if(kind==='svg')return download(name+'.svg','image/svg+xml',txt);
+  const img=new Image(),url=URL.createObjectURL(new Blob([txt],{type:'image/svg+xml'}));
+  img.onload=()=>{const vb=svg.viewBox.baseVal,k=3,cv=document.createElement('canvas');cv.width=vb.width*k;cv.height=vb.height*k;const g=cv.getContext('2d');g.fillStyle=css('--sheet');g.fillRect(0,0,cv.width,cv.height);g.drawImage(img,0,0,cv.width,cv.height);URL.revokeObjectURL(url);cv.toBlob(b=>download(name+'.png','image/png',b),'image/png');};
+  img.onerror=()=>toast('No se pudo generar el PNG. Use la descarga en SVG.');img.src=url;}
+function addSheetTools(){document.querySelectorAll('.sheet').forEach(sh=>{if(sh.previousElementSibling&&sh.previousElementSibling.classList.contains('sheet-tools'))return;
+  const t=document.createElement('div');t.className='sheet-tools';t.innerHTML=`<span class="help">Exportar lámina</span><button class="btn line" data-k="svg">SVG</button><button class="btn line" data-k="png">PNG</button>`;
+  t.querySelectorAll('button').forEach(b=>b.onclick=()=>exportSheet(sh,b.dataset.k));sh.before(t);});}
+new MutationObserver(()=>addSheetTools()).observe(document.getElementById('canvas'),{childList:true,subtree:false});
 
 /* ================= 5 · Validación ================= */
 const SUS_Q=['Creo que me gustaría usar esta plataforma con frecuencia.','Encontré la plataforma innecesariamente compleja.','Pensé que la plataforma era fácil de usar.','Creo que necesitaría ayuda de una persona técnica para poder usarla.','Las distintas funciones de la plataforma están bien integradas.','Pensé que había demasiadas inconsistencias en la plataforma.','Imagino que la mayoría de las personas aprendería a usarla muy rápido.','Encontré la plataforma muy engorrosa de usar.','Me sentí muy seguro al usar la plataforma.','Necesité aprender muchas cosas antes de poder usarla.'];
