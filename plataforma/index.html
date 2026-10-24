@@ -151,7 +151,7 @@ details summary::-webkit-details-marker{color:var(--ink-3)}
 
 <div class="app">
   <header class="bar">
-    <div class="mark"><b>Puente Balta</b><span>Plataforma de inspección · v1.7</span></div>
+    <div class="mark"><b>Puente Balta</b><span>Plataforma de inspección · v2.0</span></div>
     <nav class="menu" role="tablist" aria-label="Herramientas">
       <button role="tab" data-v="modelo"><span class="k">1</span>Modelo</button>
       <button role="tab" data-v="simulacion"><span class="k">2</span>Simulación</button>
@@ -160,6 +160,7 @@ details summary::-webkit-details-marker{color:var(--ink-3)}
       <button role="tab" data-v="inspeccion"><span class="k">5</span>Plan de inspección</button>
       <button role="tab" data-v="validacion"><span class="k">6</span>Validación</button>
       <button role="tab" data-v="registro"><span class="k">7</span>Registro</button>
+      <button role="tab" data-v="tupuente"><span class="k">8</span>Tu puente</button>
     </nav>
   </header>
   <div class="work">
@@ -458,7 +459,7 @@ function elevation({res=null,amp=0,highlight=null,colorBy=null,sensors=false,box
 function legendRow(items,x,y){return items.map(([type,col,label],i)=>{const xx=x,yy=y+i*13;const mk=type==='line'?`<line x1="${xx}" x2="${xx+18}" y1="${yy-3}" y2="${yy-3}" stroke="${col}" stroke-width="2"/>`:`<rect x="${xx}" y="${yy-8}" width="18" height="8" fill="${col}"/>`;return mk+`<text x="${xx+24}" y="${yy}">${label}</text>`;}).join('');}
 
 /* ================= Estado y navegación ================= */
-const VIEWS=['modelo','simulacion','comparacion','dinamica','inspeccion','validacion','registro'];
+const VIEWS=['modelo','simulacion','comparacion','dinamica','inspeccion','validacion','registro','tupuente'];
 const S={view:'modelo',zone:'arco_a2_a3',q:100,E:50,target:'arco_a2_a3',pct:.3,noise:.005,m3d:'3d',
   A:{q:100,E:50,target:'sin_danio',pct:0},B:{q:100,E:50,target:'arco_a2_a3',pct:.3},W:{sens:.3,geo:.3,det:.2,dem:.2,cond:.2}};
 let DATA_READY=false,lastSolveMs=0;
@@ -467,7 +468,7 @@ function show(v){if(!VIEWS.includes(v))v='modelo';S.view=v;
   try{history.replaceState(null,'','#'+v);}catch(e){}
   if(DATA_READY)render();}
 document.querySelectorAll('.menu button').forEach(b=>b.addEventListener('click',()=>show(b.dataset.v)));
-function render(){({modelo:vModelo,simulacion:vSim,comparacion:vCmp,dinamica:vDin,inspeccion:vInsp,validacion:vVal,registro:vReg})[S.view]();statusBar();}
+function render(){({modelo:vModelo,simulacion:vSim,comparacion:vCmp,dinamica:vDin,inspeccion:vInsp,validacion:vVal,registro:vReg,tupuente:vTu})[S.view]();statusBar();}
 function statusBar(extra=''){const v=PROV.verificacion;
   $('#status').innerHTML=`<span class="okdot">Solver 2D verificado · OpenSees ${v.opensees} · ${v.cases} casos</span><span>q ${fmt(S.q,0)} kN/m</span><span>E ${fmt(S.E,0)} GPa</span><span>Último cálculo ${fmt(lastSolveMs,0)} ms</span>${extra}<span class="dim">Ñuñuvero · Tarazona · UPC 2026</span>`;}
 function timedSolve(sc){const t=performance.now(),r=solve(sc);lastSolveMs=performance.now()-t;return r;}
@@ -1117,3 +1118,6 @@ function parseCSV(t){const [h,...ls]=t.trim().split(/\r?\n/);const k=h.split(','
   }catch(e){$('#canvas').innerHTML=`<div class="msg crit"><b>No se pudieron cargar los datos.</b> Falta el archivo ${esc(e.message)}; publique la carpeta data/ junto a la página.</div>`;}
 })();
 </script>
+<script src="op_core.js"></script>
+<script src="op_ui.js"></script>
+
