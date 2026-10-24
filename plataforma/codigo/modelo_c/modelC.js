@@ -43,9 +43,9 @@ function mcBuild(D,pp){
   deckEnd.forEach(k=>{fx[3*k]=fx[3*k+1]=1;});
   return {nodes,el,E,A,I,grp,mass:m,fx,p,ydeck,deckN,arches,springs};
 }
-function mcK(fr){const N=fr.nodes.length,nd=3*N,K=new Float64Array(nd*nd);
+function mcK(fr,esc){const N=fr.nodes.length,nd=3*N,K=new Float64Array(nd*nd);
   fr.el.forEach(([i1,i2],j)=>{const dx=fr.nodes[i2][0]-fr.nodes[i1][0],dz=fr.nodes[i2][1]-fr.nodes[i1][1],L=Math.hypot(dx,dz),c=dx/L,s=dz/L;
-    const EA=fr.E[j]*fr.A[j]/L,EI=fr.E[j]*fr.I[j];
+    const Ej=fr.E[j]*(esc?esc[j]:1),EA=Ej*fr.A[j]/L,EI=Ej*fr.I[j];
     const k=[[EA,0,0,-EA,0,0],[0,12*EI/L**3,6*EI/L**2,0,-12*EI/L**3,6*EI/L**2],[0,6*EI/L**2,4*EI/L,0,-6*EI/L**2,2*EI/L],[-EA,0,0,EA,0,0],[0,-12*EI/L**3,-6*EI/L**2,0,12*EI/L**3,-6*EI/L**2],[0,6*EI/L**2,2*EI/L,0,-6*EI/L**2,4*EI/L]];
     const T=[[c,s,0,0,0,0],[-s,c,0,0,0,0],[0,0,1,0,0,0],[0,0,0,c,s,0],[0,0,0,-s,c,0],[0,0,0,0,0,1]];
     const d=[3*i1,3*i1+1,3*i1+2,3*i2,3*i2+1,3*i2+2];
@@ -61,8 +61,8 @@ function mcJacobi(Ain,n){const A=Float64Array.from(Ain),V=new Float64Array(n*n);
       for(let k=0;k<n;k++){const vkp=V[k*n+p],vkq=V[k*n+q];V[k*n+p]=c*vkp-s*vkq;V[k*n+q]=s*vkp+c*vkq;}}}
   const ev=[];for(let i=0;i<n;i++)ev.push(A[i*n+i]);return {ev,V};}
 // Modal: problema generalizado K φ = λ M φ (M diagonal, masa rotacional = 1e-4·m), iteración en subespacio
-function mcModal(fr,nmodes=6){
-  const K=mcK(fr),N=fr.nodes.length,nd=3*N,free=[];for(let i=0;i<nd;i++)if(!fr.fx[i])free.push(i);
+function mcModal(fr,nmodes=6,esc=null){
+  const K=mcK(fr,esc),N=fr.nodes.length,nd=3*N,free=[];for(let i=0;i<nd;i++)if(!fr.fx[i])free.push(i);
   const nf=free.length,Md=new Float64Array(nd);for(let i=0;i<N;i++){Md[3*i]=Md[3*i+1]=fr.mass[i];Md[3*i+2]=fr.mass[i]*1e-4;}
   const m=free.map(i=>Md[i]),L=new Float64Array(nf*nf);
   for(let a=0;a<nf;a++)for(let b=0;b<=a;b++)L[a*nf+b]=.5*(K[free[a]*nd+free[b]]+K[free[b]*nd+free[a]]);
@@ -94,4 +94,17 @@ function mcModal(fr,nmodes=6){
   const part=phi.map(u=>{let mm=0;for(let i=0;i<nd;i++)mm+=u[i]*u[i]*Md[i];const g=[0,1].map(dd=>{let s=0;for(let i=0;i<N;i++)s+=u[3*i+dd]*Md[3*i+dd];return s/mm;});return {Y:g[0]**2*mm/mt,Z:g[1]**2*mm/mt};});
   return {f,phi,part};
 }
-if(typeof module!=='undefined')module.exports={mcBuild,mcModal};
+/* ---- Bloque B: zonas de daño, sensores y rasgos (réplica de blockB_data.py) ---- */
+function mcZones(fr){const z=new Int16Array(fr.el.length).fill(-1);
+  fr.el.forEach(([i,j],t)=>{const mid=(fr.nodes[i][0]+fr.nodes[j][0])/2;
+    fr.arches.forEach((A,ai)=>{const a=A.ys[0],b=A.ys[A.ys.length-1];
+      if(fr.grp[t]==='arco_'+A.k){const r=(mid-a)/(b-a);z[t]=ai*5+Math.min(Math.floor(r*5),4);}
+      if(fr.grp[t]==='tablero'&&a<=mid&&mid<=b)z[t]=15+ai;});});return z;}
+function mcSensors(fr){const ys=[];fr.arches.forEach(A=>{const a=A.ys[0],b=A.ys[A.ys.length-1];[.25,.5,.75].forEach(r=>ys.push(a+r*(b-a)));});
+  return ys.map(y=>{const yd=fr.ydeck.reduce((best,v)=>Math.abs(v-y)<Math.abs(best-y)?v:best,fr.ydeck[0]);return {y,node:fr.deckN[yd],dof:3*fr.deckN[yd]+1};});}
+function mcFeatures(f,phi,f0,phi0,sdof,NM=8){const dot=(a,b)=>{let s=0;for(let i=0;i<a.length;i++)s+=a[i]*b[i];return s;};const df=[],sh=[];
+  for(let i=0;i<NM;i++){let best=-1,j=0;for(let k=0;k<NM;k++){const m=dot(phi0[i],phi[k])**2/(dot(phi0[i],phi0[i])*dot(phi[k],phi[k]));if(m>best){best=m;j=k;}}
+    df.push((f[j]-f0[i])/f0[i]);
+    if(i<4){const v=sdof.map(d=>phi[j][d]),v0=sdof.map(d=>phi0[i][d]);const sg=Math.sign(dot(v,v0))||1,mx=Math.max(...v.map(Math.abs));v.forEach(x=>sh.push(x*sg/mx));}}
+  return df.concat(sh);}
+if(typeof module!=='undefined')module.exports={mcBuild,mcModal,mcZones,mcSensors,mcFeatures};
