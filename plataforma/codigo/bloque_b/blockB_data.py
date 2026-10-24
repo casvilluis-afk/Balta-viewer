@@ -1,14 +1,22 @@
 import os
-"""Bloque B: dataset de identificación de daño a partir de datos modales medibles con 9 sensores en el tablero."""
+"""Bloque B: dataset de identificación de daño a partir de datos modales medibles con 9 sensores en el tablero.
+
+Versión corregida (23/10/2026):
+  1. Análisis modal con desplazamiento-inversión (fe2d_modal_si.modal_si) en vez de Frame2D.modal,
+     que perdía precisión por la masa rotacional de 1e-4·m.
+  2. Convención de signo explícita para los modos de referencia: en cada modo, la componente de mayor
+     valor absoluto en los 9 sensores es positiva. Así los rasgos de forma no dependen del solver.
+"""
 import numpy as np, pandas as pd, time
 from modelC import build, NOMINAL, FACES
+from fe2d_modal_si import modal_si
 
 HERE = os.path.dirname(os.path.abspath(__file__)) + os.sep
 NM = 8          # modos usados
 rng = np.random.default_rng(7)
 
 fr0, meta0 = build(return_meta=True)
-f0, phi0, _ = fr0.modal(NM)
+f0, phi0, _ = modal_si(fr0, NM)
 ydeck = np.array(meta0['ydeck'])
 
 # --- sensores: arranques/4, clave y 3/4 de cada vano (9 puntos verticales en el tablero)
@@ -16,6 +24,11 @@ spans = [(meta0['arch_nodes'][k][2][0], meta0['arch_nodes'][k][2][-1]) for k in 
 sens_y = [a + r * (b - a) for a, b in spans for r in (0.25, 0.5, 0.75)]
 sens_nodes = [meta0['deck_nodes'][min(meta0['ydeck'], key=lambda v: abs(v - y))] for y in sens_y]
 sens_dof = [3 * n + 1 for n in sens_nodes]
+# convención de signo: componente de mayor |valor| en los sensores positiva
+for _i in range(NM):
+    _v = phi0[sens_dof, _i]
+    if _v[np.argmax(np.abs(_v))] < 0:
+        phi0[:, _i] *= -1
 
 # --- zonas de daño: 5 por arco + tablero por vano = 18
 def zone_of_elements(fr, meta):
@@ -70,9 +83,9 @@ def sample(n_per_zone=260, n_undamaged=400, model_unc=0.05):
         esc = np.ones(len(fr.el))
         if zz >= 0:
             esc[zones == zz] = 1 - d
-        f, phi, _ = fr.modal(NM, escale=esc)
+        f, phi, _ = modal_si(fr, NM, escale=esc)
         df_, sh = features(f, phi)
-        rows.append(dict(zona=zz, severidad=d, **{f'df{i+1}': v for i, v in enumerate(df_)},
+        rows.append(dict(zona=zz, severidad=d, E_ci=p['E_ci'], w_deck=p['w_deck'], **{f'df{i+1}': v for i, v in enumerate(df_)},
                          **{f's{i}': v for i, v in enumerate(sh)}))
     print('simulaciones', len(rows), 'en', round(time.time() - t, 1), 's')
     return pd.DataFrame(rows)
@@ -82,4 +95,4 @@ if __name__ == '__main__':
     df = sample()
     df.to_csv(HERE + 'blockB_dataset.csv', index=False)
     print(df.groupby('zona').size().head(), ZNAMES[:5])
-    import json; json.dump(dict(zonas=ZNAMES, sens_y=[float(v) for v in sens_y], f0=f0.tolist()), open(HERE + 'blockB_meta.json', 'w'), ensure_ascii=False)
+    import json; json.dump(dict(zonas=ZNAMES, sens_y=[float(v) for v in sens_y], f0=f0.tolist(), phi0_sens=phi0[sens_dof, :4].T.tolist(), solver='modal_si', signo='componente máxima positiva'), open(HERE + 'blockB_meta.json', 'w'), ensure_ascii=False)

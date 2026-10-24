@@ -17,7 +17,7 @@ from sklearn.preprocessing import StandardScaler
 from sklearn.metrics import accuracy_score, f1_score, balanced_accuracy_score, mean_absolute_error
 
 OUT = '/home/claude/balta-plataforma/site2/data/'
-df = pd.read_csv('blockB_dataset_si.csv'); meta = json.load(open('blockB_meta_si.json'))
+df = pd.read_csv('corregido/blockB_dataset.csv'); meta = json.load(open('corregido/blockB_meta.json'))
 FCOL = [c for c in df.columns if c.startswith('df')]; SCOL = [c for c in df.columns if c.startswith('s') and c[1:].isdigit()]
 COLS = FCOL + SCOL
 span_of = lambda z: np.where(z < 0, -1, np.where(z >= 15, z - 15, z // 5))
@@ -67,10 +67,7 @@ print('svm vectores soporte', svm.support_vectors_.shape, 'ood', thr, det)
 def tj(e):
     t = e.tree_; return dict(f=t.feature.tolist(), t=np.round(t.threshold, 5).tolist(), l=t.children_left.tolist(), r=t.children_right.tolist(), v=np.round(t.value[:, 0, 0], 4).tolist())
 
-import modelC, blockB_data_original as B
-from fe2d_modal_si import modal_si
-_fr0 = modelC.build(); _f0, _phi0, _ = modal_si(_fr0, 8)
-phi0_ref = _phi0[B.sens_dof, :4].T  # convención de signo de los modos de referencia usada en el dataset
+phi0_ref = np.array(meta['phi0_sens'])  # convención explícita: componente máxima positiva en los sensores
 json.dump(dict(phi0_sens_ref=np.round(phi0_ref, 8).tolist(), classes=svm.classes_.tolist(), mean=sc.mean_.tolist(), scale=sc.scale_.tolist(), gamma=float(svm._gamma),
                sv=np.round(svm.support_vectors_, 5).tolist(), nsv=svm.n_support_.tolist(), dual=np.round(svm.dual_coef_, 6).tolist(), b=svm.intercept_.tolist(),
                ood_threshold=thr, train=np.round(sub, 4).tolist(), zonas=meta['zonas'], f0=meta['f0'], sens_y=meta['sens_y'],
