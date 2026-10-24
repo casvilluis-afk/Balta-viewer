@@ -287,7 +287,10 @@ function mcBuild(D,pp){
   const arches=[],springs={};
   for(const k of ['izq','centro','der']){const c=D.fit[k].coef,yv=-c[1]/(2*c[0]);let a,b;
     if(k==='izq'){b=F.p1_L;a=p.left_span?b-p.left_span:2*yv-b;}else if(k==='centro'){a=F.p1_R;b=F.p2_L;}else{a=F.p2_R;b=F.abut_R;}
-    const ys=[],zs=[],ids=[];for(let i=0;i<=MC_NSEG;i++){const y=a+(b-a)*i/MC_NSEG;ys.push(y);zs.push(mcPolyval(c,y)+p.rib_h/2);ids.push(addN(y,zs[i]));}
+    const OA=(p.geo==='anterior'&&D.old_arches)?D.old_arches[k]:null;
+    // geometría anterior: eje del nervio del modelo 2D previo llevado a la luz medida con ξ = (y−a)/(b−a)
+    const zf=OA?(y=>{const yy=OA.y[0]+(y-a)/(b-a)*(OA.y[OA.y.length-1]-OA.y[0]);let j=1;while(j<OA.y.length-1&&OA.y[j]<yy)j++;const t=Math.max(0,Math.min(1,(yy-OA.y[j-1])/(OA.y[j]-OA.y[j-1])));return OA.z[j-1]+t*(OA.z[j]-OA.z[j-1]);}):(y=>mcPolyval(c,y)+p.rib_h/2);
+    const ys=[],zs=[],ids=[];for(let i=0;i<=MC_NSEG;i++){const y=a+(b-a)*i/MC_NSEG;ys.push(y);zs.push(zf(y));ids.push(addN(y,zs[i]));}
     for(let i=0;i<MC_NSEG;i++)addE(ids[i],ids[i+1],p.E_ci,Ar,Ir,'arco_'+k);
     arches.push({k,ids,ys,zs});springs[k]=[ids[0],ids[ids.length-1]];}
   const r4=v=>Math.round(v*1e4)/1e4;
@@ -649,17 +652,19 @@ function elevC({fr,phi=null,amp=0,showOld=false,box={x:46,y:70,w:900,h:300}}){
   ax.forEach(([lab,x])=>{s+=`<line x1="${X(x)}" x2="${X(x)}" y1="${box.y-6}" y2="${Z(-10.9)+4}" stroke="${i3}" stroke-width=".5" stroke-dasharray="8 3 1.5 3"/><circle cx="${X(x)}" cy="${box.y-16}" r="10" fill="${css('--sheet')}" stroke="${ink}" stroke-width=".8"/><text x="${X(x)}" y="${box.y-13}" font-size="8" text-anchor="middle" class="cond" font-weight="700">${lab}</text>`;});
   const yD=Z(-10.9),spans=[['izq',fr.nodes[fr.springs.izq[0]][0],F.p1_L],['centro',F.p1_R,F.p2_L],['der',F.p2_R,F.abut_R]];
   spans.forEach(([k,a,b])=>{const g=MCD.geometria[k];s+=`<line x1="${X(a)}" x2="${X(b)}" y1="${yD}" y2="${yD}" stroke="${ink}" stroke-width=".6"/>${[a,b].map(x=>`<line x1="${X(x)-4}" x2="${X(x)+4}" y1="${yD+4}" y2="${yD-4}" stroke="${ink}" stroke-width="1"/>`).join('')}<text x="${(X(a)+X(b))/2}" y="${yD-4}" font-size="9" text-anchor="middle">${fmt(g.luz,2)}${k==='izq'?'*':''}</text>`;
-    const c=MCD.fit[k].coef,yk=g.clave_y,zk=mcPolyval(c,yk);if(!phi)s+=`<text x="${X(yk)}" y="${Z(zk)+14}" font-size="8" text-anchor="middle" fill="${i2}">f = ${fmt(g.flecha,2)} m · ${g.flecha_luz}</text>`;});
+    const c=MCD.fit[k].coef,yk=g.clave_y,zk=mcPolyval(c,yk);if(!phi&&fr.p.geo!=='anterior')s+=`<text x="${X(yk)}" y="${Z(zk)+14}" font-size="8" text-anchor="middle" fill="${i2}">f = ${fmt(g.flecha,2)} m · ${g.flecha_luz}</text>`;});
   [56.4,59.9,84.4,88.0].forEach(x=>s+=`<text x="${X(x)}" y="${yD+14}" font-size="7.5" text-anchor="middle" fill="${i3}">${fmt(x,1)}</text>`);
   const sbx=box.x,sby=box.y+box.h+30;for(let i=0;i<4;i++)s+=`<rect x="${sbx+i*5*sx}" y="${sby}" width="${5*sx}" height="4" fill="${i%2?css('--sheet'):ink}" stroke="${ink}" stroke-width=".6"/>`;
   s+=`<text x="${sbx}" y="${sby+14}" font-size="8">0</text><text x="${sbx+10*sx}" y="${sby+14}" font-size="8" text-anchor="middle">10</text><text x="${sbx+20*sx}" y="${sby+14}" font-size="8" text-anchor="middle">20 m</text>`;
   return s;}
 function vDin(){
   $('#left').innerHTML=`<div class="ph">Parámetros del modelo C</div><div class="pb">${DIN_P.map(d=>{const v=(S.dinP[d.k]??MCD.nominal[d.k])/d.sc;return `<label class="f"><span class="lv">${d.l}${d.sup?' <span class="flag warn" style="font-size:.7rem">supuesto</span>':''}<output id="od_${d.k}">${fmt(v,d.step<1?2:0)} ${d.u}</output></span><input type="range" id="id_${d.k}" min="${d.min}" max="${d.max}" step="${d.step}" value="${v}"><span class="help">${d.note}</span></label>`;}).join('')}
+   <label class="f">Geometría de los arcos<select id="id_geo"><option value="medida">Medida en la nube (modelo C)</option><option value="anterior">Modelo anterior (salidas_04)</option></select></label>
    <label class="f">Arranques de los arcos<select id="id_spr"><option value="fixed">Empotrados (nominal)</option><option value="pinned">Articulados</option></select></label>
    <button class="btn line" id="dinReset">Valores nominales</button>
    <p class="help">Rangos iguales a los del Monte Carlo de 400 casos (mc_C.csv, recalculado por desplazamiento-inversión). Geometría de arcos ajustada a la nube TLS.</p></div>`;
-  $('#id_spr').value=S.dinP.springing||'fixed';
+  $('#id_spr').value=S.dinP.springing||'fixed';$('#id_geo').value=S.dinP.geo||'medida';
+  $('#id_geo').onchange=e=>{if(e.target.value==='anterior')S.dinP.geo='anterior';else delete S.dinP.geo;dinCompute();};
   DIN_P.forEach(d=>{const el=$('#id_'+d.k);el.oninput=()=>{$('#od_'+d.k).textContent=fmt(+el.value,d.step<1?2:0)+' '+d.u;};el.onchange=()=>{S.dinP[d.k]=d.k==='n_ribs'?+el.value:+el.value*d.sc;dinCompute();};});
   $('#id_spr').onchange=e=>{S.dinP.springing=e.target.value;dinCompute();};$('#dinReset').onclick=()=>{S.dinP={};vDin();};
   $('#canvas').innerHTML=`<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><div class="toggle" role="group" aria-label="Modo" id="modeBtns"></div><label style="display:flex;gap:6px;align-items:center;font-size:.82rem"><input type="checkbox" id="showOld" ${S.showOld?'checked':''}> Superponer geometría del modelo anterior</label></div>
@@ -670,14 +675,18 @@ function dinCompute(){const r=dinSolve(),fr=r.fr;
   $('#modeBtns').innerHTML=r.f.map((f,i)=>`<button data-i="${i}" aria-pressed="${i===S.mode}">Modo ${i+1} · ${fmt(f,2)} Hz</button>`).join('');
   $('#modeBtns').querySelectorAll('button').forEach(b=>b.onclick=()=>{S.mode=+b.dataset.i;dinCompute();});
   const pz=r.part[S.mode];
-  $('#dinSheet').innerHTML=sheet({no:'S-05',title:`Modelo C · modo ${S.mode+1} · ${fmt(r.f[S.mode],2)} Hz`,scale:'H 1:400 · V ×1,5',
+  const geoAnt=S.dinP.geo==='anterior';
+  $('#dinSheet').innerHTML=sheet({no:'S-05',title:`Modelo C${geoAnt?' · arcos anteriores':''} · modo ${S.mode+1} · ${fmt(r.f[S.mode],2)} Hz`,scale:'H 1:400 · V ×1,5',
     content:elevC({fr,phi:r.phi[S.mode],amp:2.2,showOld:S.showOld}),
-    notes:legendRow([['line',css('--ink'),`Forma modal (+), participación Z ${pct(pz.Z,1)} · Y ${pct(pz.Y,1)}`],['line',css('--rule'),'Forma modal (−)']].concat(S.showOld?[['line',css('--blue'),'Geometría del modelo anterior (salidas_04)']]:[]),40,458)+`<text x="40" y="502">Arcos: parábolas ajustadas a la nube (arch_fit.json) · caras de pilares medidas</text><text x="40" y="514">* Luz izquierda por simetría con la clave ajustada</text>`});
+    notes:legendRow([['line',css('--ink'),`Forma modal (+), participación Z ${pct(pz.Z,1)} · Y ${pct(pz.Y,1)}`],['line',css('--rule'),'Forma modal (−)']].concat(S.showOld?[['line',css('--blue'),'Geometría del modelo anterior (salidas_04)']]:[]),40,458)+`<text x="40" y="502">${geoAnt?'Arcos: eje del modelo anterior (salidas_04) llevado a las luces medidas':'Arcos: parábolas ajustadas a la nube (arch_fit.json) · caras de pilares medidas'}</text><text x="40" y="514">* Luz izquierda por simetría con la clave ajustada</text>`});
   const old=MCD.anterior.f;
   $('#right').innerHTML=`<div class="ph">Modos<span class="mono dim" style="letter-spacing:0;text-transform:none">${fmt(lastSolveMs,0)} ms</span></div>
    <div class="tw"><table class="data"><thead><tr><th>Modo</th><th class="n">f (Hz)</th><th class="n">T (s)</th><th class="n">Part. Z</th><th class="n">Part. Y</th></tr></thead><tbody>${r.f.map((f,i)=>`<tr${i===S.mode?' class="hl"':''}><td class="mono">${i+1}</td><td class="n">${fmt(f,3)}</td><td class="n">${fmt(1/f,4)}</td><td class="n">${pct(r.part[i].Z,1)}</td><td class="n">${pct(r.part[i].Y,1)}</td></tr>`).join('')}</tbody></table></div>
    <div class="ph" style="border-top:1px solid var(--rule)">Modelo anterior vs modelo C</div>
    <div class="tw"><table class="data"><thead><tr><th></th><th class="n">Anterior</th><th class="n">Modelo C</th><th class="n">Cambio</th></tr></thead><tbody>${old.map((f,i)=>`<tr><td class="mono">f${i+1}</td><td class="n">${fmt(f,2)}</td><td class="n">${fmt(r.f[i],2)}</td><td class="n">${sgn(r.f[i]/f-1)}</td></tr>`).join('')}</tbody></table></div>
+   <div class="ph" style="border-top:1px solid var(--rule)">Efecto solo de la geometría</div>
+   <div class="tw"><table class="data"><thead><tr><th></th><th class="n">Arcos medidos</th><th class="n">Arcos anteriores</th><th class="n">Cambio</th></tr></thead><tbody>${[0,1,2].map(i=>`<tr><td class="mono">f${i+1}</td><td class="n">${fmt([7.437,7.517,7.712][i],2)}</td><td class="n">${fmt(MCD.anterior_en_C.f[i],2)}</td><td class="n">${sgn(MCD.anterior_en_C.f[i]/[7.437,7.517,7.712][i]-1)}</td></tr>`).join('')}</tbody></table></div>
+   <div class="pb help">Mismo modelo C (material, masas, pilares y tablero); solo cambia el perfil de los arcos. Método: geometria_anterior.py.</div>
    <div class="pb help">Anterior: ${esc(MCD.anterior.fuente)}. Cambian a la vez la geometría, el material (E 50 → 100 GPa) y la masa (q 60 → 120 kN/m más peso propio).</div>`;
   calRender();statusBar();}
 function calRender(){const k=S.fWhich,fm=parseFloat(String(S.fMeas).replace(',','.')),tol=S.fTol,c=MCD.mc.cols,ci=n=>c.indexOf(n);

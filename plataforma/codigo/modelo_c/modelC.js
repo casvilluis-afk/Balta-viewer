@@ -11,7 +11,10 @@ function mcBuild(D,pp){
   const arches=[],springs={};
   for(const k of ['izq','centro','der']){const c=D.fit[k].coef,yv=-c[1]/(2*c[0]);let a,b;
     if(k==='izq'){b=F.p1_L;a=p.left_span?b-p.left_span:2*yv-b;}else if(k==='centro'){a=F.p1_R;b=F.p2_L;}else{a=F.p2_R;b=F.abut_R;}
-    const ys=[],zs=[],ids=[];for(let i=0;i<=MC_NSEG;i++){const y=a+(b-a)*i/MC_NSEG;ys.push(y);zs.push(mcPolyval(c,y)+p.rib_h/2);ids.push(addN(y,zs[i]));}
+    const OA=(p.geo==='anterior'&&D.old_arches)?D.old_arches[k]:null;
+    // geometría anterior: eje del nervio del modelo 2D previo llevado a la luz medida con ξ = (y−a)/(b−a)
+    const zf=OA?(y=>{const yy=OA.y[0]+(y-a)/(b-a)*(OA.y[OA.y.length-1]-OA.y[0]);let j=1;while(j<OA.y.length-1&&OA.y[j]<yy)j++;const t=Math.max(0,Math.min(1,(yy-OA.y[j-1])/(OA.y[j]-OA.y[j-1])));return OA.z[j-1]+t*(OA.z[j]-OA.z[j-1]);}):(y=>mcPolyval(c,y)+p.rib_h/2);
+    const ys=[],zs=[],ids=[];for(let i=0;i<=MC_NSEG;i++){const y=a+(b-a)*i/MC_NSEG;ys.push(y);zs.push(zf(y));ids.push(addN(y,zs[i]));}
     for(let i=0;i<MC_NSEG;i++)addE(ids[i],ids[i+1],p.E_ci,Ar,Ir,'arco_'+k);
     arches.push({k,ids,ys,zs});springs[k]=[ids[0],ids[ids.length-1]];}
   const r4=v=>Math.round(v*1e4)/1e4;
