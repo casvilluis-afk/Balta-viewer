@@ -50,7 +50,7 @@ button{font:inherit;color:inherit}
 .side{background:var(--surface);overflow:auto;min-width:0}
 .side.l{border-right:1px solid var(--rule)}
 .side.r{border-left:1px solid var(--rule)}
-.canvas{overflow:auto;min-width:0;padding:16px;display:grid;align-content:start;gap:14px}
+.canvas{overflow:auto;min-width:0;padding:16px;display:grid;align-content:start;grid-auto-rows:max-content;gap:14px}
 .status{display:flex;flex-wrap:wrap;gap:0;background:var(--surface);border-top:1px solid var(--rule);font:400 .74rem var(--f-mono);color:var(--ink-2);padding-left:max(10px,env(safe-area-inset-left,0px));padding-right:max(10px,env(safe-area-inset-right,0px));padding-bottom:env(safe-area-inset-bottom,0px)}
 .status span{padding:5px 12px;border-right:1px solid var(--rule-2);white-space:nowrap}
 .status .okdot::before{content:"";display:inline-block;width:7px;height:7px;background:var(--ok);margin-right:6px;vertical-align:0}
