@@ -137,7 +137,9 @@ function detectSupports(O, deckTop, ground, frac = 0.62, tol = 0.25) {
   const sup = groups.map(g => ({ a: g[0].peak, b: g[g.length - 1].peak }));
   // es estribo si no hay tablero más allá; si el tablero sigue, es un pilar y el vano extremo se completa por simetría
   const deckBeyond = (s0, dir) => { let c = 0; for (let i = 0; i < O.n; i++) if (Math.abs(O.z[i] - deckTop) < .3 && (dir < 0 ? O.s[i] < s0 - 5 : O.s[i] > s0 + 5)) c++; return c > 200; };
-  sup.forEach((p, i) => { p.tipo = 'pilar'; if (i === 0 && !deckBeyond(p.a, -1)) p.tipo = 'estribo'; if (i === sup.length - 1 && !deckBeyond(p.b, 1)) p.tipo = 'estribo'; });
+  // un grupo de una sola cara en un extremo es un estribo (se ve solo la cara hacia el vano); también si no hay tablero más allá
+  sup.forEach((p, i) => { p.tipo = 'pilar'; const single = groups[i].length === 1, end = i === 0 ? -1 : i === sup.length - 1 ? 1 : 0;
+    if (end && (single || !deckBeyond(end < 0 ? p.a : p.b, end))) p.tipo = 'estribo'; });
   return { supports: sup, zSlab: zc, faces: big.map(r => r.peak) };
 }
 function spansOf(sup) { const sp = []; for (let k = 0; k < sup.length - 1; k++) sp.push({ a: sup[k].b, b: sup[k + 1].a, k }); return sp; }

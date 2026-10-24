@@ -52,7 +52,7 @@ function opNube() {
 }
 function opSetCloud(c, name, minPts) {
   OP.cloud = c; OP.name = name; OP.O = OPC.orient(c, $('#opUp').value, +$('#opUnit').value); OP.minPts = Math.max(3, Math.round(minPts));
-  OP.deckTop = OPC.deckLevel(OP.O); OP.ground = OPC.groundLevel(OP.O); const S = OPC.detectSupports(OP.O, OP.deckTop, OP.ground); OP.supports = S.supports.map(p => ({ ...p })); OP.zSlab = S.zSlab;
+  OP.deckTop = OPC.deckLevel(OP.O); OP.ground = OPC.groundLevel(OP.O); const S = OPC.detectSupports(OP.O, OP.deckTop, OP.ground); OP.supports = S.supports.map(p => ({ ...p })); OP.zSlab = S.zSlab; const sp = OP.supports; OP.ends = { left: sp.length && sp[0].tipo === 'estribo' ? 'none' : 'simetria', right: sp.length && sp[sp.length - 1].tipo === 'estribo' ? 'none' : 'simetria' };
   OP.band = { zmin: OP.ground + .2 * (OP.deckTop - OP.ground), zmax: OP.deckTop - .38 }; OP.geo = OP.model = OP.modes = OP.camp = OP.ia = null;
   $('#opLoad').textContent = ''; opInfo(); vTu();
 }
@@ -101,7 +101,7 @@ function opApoyos() {
   $('#opThick').onchange = e => { OP.deckThick = +e.target.value; OP.geo = null; };
   $('#opGround').onchange = e => { OP.ground = +e.target.value; OP.band.zmin = OP.ground + .2 * (OP.deckTop - OP.ground); OP.geo = null; redraw(); };
   $('#opEndL').onchange = e => { OP.ends.left = e.target.value; OP.geo = null; }; $('#opEndR').onchange = e => { OP.ends.right = e.target.value; OP.geo = null; };
-  $('#opRedetect').onclick = () => { const S = OPC.detectSupports(OP.O, OP.deckTop, OP.ground); OP.supports = S.supports; OP.geo = null; redraw(); };
+  $('#opRedetect').onclick = () => { const S = OPC.detectSupports(OP.O, OP.deckTop, OP.ground); OP.supports = S.supports; const sp = OP.supports; OP.ends = { left: sp.length && sp[0].tipo === 'estribo' ? 'none' : 'simetria', right: sp.length && sp[sp.length - 1].tipo === 'estribo' ? 'none' : 'simetria' }; $('#opEndL').value = OP.ends.left; $('#opEndR').value = OP.ends.right; OP.geo = null; redraw(); };
   $('#opElev').onclick = ev => { const cv = $('#opElev'), r = cv.getBoundingClientRect(), M = opMap(cv), s = M.S((ev.clientX - r.left) * cv.width / r.width); OP.supports.push({ a: +(s - .5).toFixed(2), b: +(s + .5).toFixed(2), tipo: 'pilar' }); OP.supports.sort((p, q) => p.a - q.a); OP.geo = null; redraw(); };
   redraw(); opBindNext();
   opRightHelp('<p>Un <b>pilar</b> tiene dos caras: la izquierda y la derecha. Un <b>estribo</b> visible puede tener ambas caras iguales.</p><p>Los arcos se ajustan entre caras consecutivas. Si la nube no muestra un estribo, elija "completar por simetría" en ese extremo.</p><p>La franja de búsqueda de apoyos está a 62 % de la altura entre el tablero y el terreno, como en el análisis del Balta.</p>');
