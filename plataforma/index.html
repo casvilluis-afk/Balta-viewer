@@ -104,6 +104,7 @@ select,input[type=number],input[type=text]{font:inherit;font-size:.85rem;color:v
 .sheet svg{display:block;width:100%;min-width:640px;height:auto}
 .sheet svg text{font-family:var(--f-mono);fill:var(--ink)}
 .sheet svg .cond{font-family:var(--f-cond);letter-spacing:.06em}
+.doc svg text{font-family:var(--f-mono)}
 .doc{background:var(--sheet);border:1px solid var(--rule);padding:22px 24px;display:grid;gap:14px;min-width:0}
 .doc h2{font:700 1.3rem var(--f-cond);letter-spacing:.04em;text-transform:uppercase;margin:0}
 .doc h3{font:600 .82rem var(--f-cond);letter-spacing:.09em;text-transform:uppercase;margin:6px 0 0;color:var(--ink-2)}
@@ -136,14 +137,15 @@ table.data tr.hl td{background:var(--red-bg)}
 
 <div class="app">
   <header class="bar">
-    <div class="mark"><b>Puente Balta</b><span>Plataforma de inspección · v1.1</span></div>
+    <div class="mark"><b>Puente Balta</b><span>Plataforma de inspección · v1.2</span></div>
     <nav class="menu" role="tablist" aria-label="Herramientas">
       <button role="tab" data-v="modelo"><span class="k">1</span>Modelo</button>
       <button role="tab" data-v="simulacion"><span class="k">2</span>Simulación</button>
       <button role="tab" data-v="comparacion"><span class="k">3</span>Comparación</button>
-      <button role="tab" data-v="inspeccion"><span class="k">4</span>Plan de inspección</button>
-      <button role="tab" data-v="validacion"><span class="k">5</span>Validación</button>
-      <button role="tab" data-v="registro"><span class="k">6</span>Registro</button>
+      <button role="tab" data-v="dinamica"><span class="k">4</span>Dinámica</button>
+      <button role="tab" data-v="inspeccion"><span class="k">5</span>Plan de inspección</button>
+      <button role="tab" data-v="validacion"><span class="k">6</span>Validación</button>
+      <button role="tab" data-v="registro"><span class="k">7</span>Registro</button>
     </nav>
   </header>
   <div class="work">
@@ -177,9 +179,9 @@ async function copyText(t,btn,node){const o=btn.textContent;try{await navigator.
 /* ================= Zonas y correspondencia 3D ↔ 2D ================= */
 // El .glb usa z = coordenada longitudinal (m), la misma x del modelo 2D.
 const ZONES=[
- {id:'arco_a1_a2',name:'Arco vano 1',long:'Arco del vano izquierdo',grp:'Arcos de fierro fundido',fam:'arco',groups:g=>g==='arco_A1_A2',glb:n=>/^ARCOS_vano_1_(costilla|amarre|placa)/.test(n),span:'A1–A2 · 36,4–58,2 m',compl:0.78},
- {id:'arco_a2_a3',name:'Arco vano 2',long:'Arco del vano central',grp:'Arcos de fierro fundido',fam:'arco',groups:g=>g==='arco_A2_A3',glb:n=>/^ARCOS_vano_2_(costilla|amarre|placa)/.test(n),span:'A2–A3 · 58,2–86,3 m',compl:0.29},
- {id:'arco_a3_a4',name:'Arco vano 3',long:'Arco del vano derecho',grp:'Arcos de fierro fundido',fam:'arco',groups:g=>g==='arco_A3_A4',glb:n=>/^ARCOS_vano_3_(costilla|amarre|placa)/.test(n),span:'A3–A4 · 86,3–113,5 m',compl:0.90},
+ {id:'arco_a1_a2',name:'Arco vano 1',long:'Arco del vano izquierdo',grp:'Arcos de fierro fundido',fam:'arco',groups:g=>g==='arco_A1_A2',glb:n=>/^ARCOS_vano_1_(costilla|amarre|placa)/.test(n),span:'A1–A2 · 36,4–58,2 m',compl:0.7755,arc:'izq'},
+ {id:'arco_a2_a3',name:'Arco vano 2',long:'Arco del vano central',grp:'Arcos de fierro fundido',fam:'arco',groups:g=>g==='arco_A2_A3',glb:n=>/^ARCOS_vano_2_(costilla|amarre|placa)/.test(n),span:'A2–A3 · 58,2–86,3 m',compl:0.2857,arc:'centro'},
+ {id:'arco_a3_a4',name:'Arco vano 3',long:'Arco del vano derecho',grp:'Arcos de fierro fundido',fam:'arco',groups:g=>g==='arco_A3_A4',glb:n=>/^ARCOS_vano_3_(costilla|amarre|placa)/.test(n),span:'A3–A4 · 86,3–113,5 m',compl:0.8980,arc:'der'},
  {id:'montantes',name:'Montantes',long:'Montantes arco–tablero',grp:'Superestructura',fam:'montante',groups:g=>g.includes('montante'),glb:n=>/^ARCOS_vano_\d_montante/.test(n),span:'tres vanos',compl:null},
  {id:'tablero',name:'Tablero y vigas',long:'Tablero, vigas longitudinales y transversales',grp:'Superestructura',fam:'tablero',groups:g=>g.includes('tablero')&&!g.includes('montante'),glb:n=>/^(TABLERO|VIGAS)_/.test(n),span:'36,4–113,5 m',compl:null},
  {id:'pilares',name:'Pilares y estribos',long:'Pilares de piedra y estribos',grp:'Subestructura',fam:'pilar',groups:g=>g.startsWith('pilar'),glb:n=>/^PILAR_/.test(n),span:'ejes A1, A2, A3, A4',compl:null},
@@ -270,6 +272,102 @@ function computeSensitivity(){const base=solve({q:100,E:50});ZONES.forEach(z=>{c
   sens20[z.id]={du:r.u_total_max_mm/base.u_total_max_mm-1,ds:r.max_sigma_MPa/base.max_sigma_MPa-1,zoneSig:zs(base),n:M2.els.filter(e=>z.groups(e.group)).length};});}
 function detectability(){const c=MET.inversa.confusion_ruido_0_5,o={};c.labels.forEach((l,i)=>{const row=c.m[i],tot=row.reduce((a,b)=>a+b,0);o[l]=row[i]/tot;});return o;}
 
+/* ================= Modelo C (geometría ajustada a la nube) ================= */
+let MCD=null;
+/* Modelo C en JavaScript: réplica de modelC.py + fe2d.Frame2D.modal (unidades kN, m, s, t). */
+const MC_NSEG=24;
+function mcRibSection(h,n){const b=.25,tf=.05,tw=.04,hw=h-2*tf;const A=2*b*tf+hw*tw;const I=2*(b*tf**3/12+b*tf*((h-tf)/2)**2)+tw*hw**3/12;return [n*A,n*I];}
+function mcPolyval(c,y){return c[0]*y*y+c[1]*y+c[2];}
+function mcBuild(D,pp){
+  const p=Object.assign({},D.nominal,pp||{});const F=D.faces;
+  let [Ar,Ir]=mcRibSection(p.rib_h,p.n_ribs);Ir*=p.I_factor;
+  const nodes=[],mass=[],el=[],E=[],A=[],I=[],grp=[];
+  const addN=(y,z)=>{nodes.push([y,z]);mass.push(0);return nodes.length-1;};
+  const addE=(i,j,e,a,ii,g)=>{el.push([i,j]);E.push(e);A.push(a);I.push(ii);grp.push(g);};
+  const arches=[],springs={};
+  for(const k of ['izq','centro','der']){const c=D.fit[k].coef,yv=-c[1]/(2*c[0]);let a,b;
+    if(k==='izq'){b=F.p1_L;a=p.left_span?b-p.left_span:2*yv-b;}else if(k==='centro'){a=F.p1_R;b=F.p2_L;}else{a=F.p2_R;b=F.abut_R;}
+    const ys=[],zs=[],ids=[];for(let i=0;i<=MC_NSEG;i++){const y=a+(b-a)*i/MC_NSEG;ys.push(y);zs.push(mcPolyval(c,y)+p.rib_h/2);ids.push(addN(y,zs[i]));}
+    for(let i=0;i<MC_NSEG;i++)addE(ids[i],ids[i+1],p.E_ci,Ar,Ir,'arco_'+k);
+    arches.push({k,ids,ys,zs});springs[k]=[ids[0],ids[ids.length-1]];}
+  const r4=v=>Math.round(v*1e4)/1e4;
+  const pc=[r4((F.p1_L+F.p1_R)/2),r4((F.p2_L+F.p2_R)/2)];
+  const yset=new Set();arches.forEach(a=>a.ys.forEach(y=>yset.add(r4(y))));pc.forEach(y=>yset.add(y));
+  const ydeck=[...yset].sort((a,b)=>a-b),deckN={};ydeck.forEach(y=>deckN[y]=addN(y,D.z_deck_axis));
+  const dk=ydeck.map(y=>deckN[y]);for(let i=0;i<dk.length-1;i++)addE(dk[i],dk[i+1],p.E_ci,p.deck_A,p.deck_I,'tablero');
+  arches.forEach(a=>{for(let i=1;i<a.ids.length-1;i++)addE(a.ids[i],deckN[r4(a.ys[i])],p.E_ci,p.post_A,p.post_I,'montante_'+a.k);});
+  const pierA=p.pier_t*p.width,pierI=p.width*p.pier_t**3/12,fixed=[];
+  for(const [pn,kl,kr] of [['p1','izq','centro'],['p2','centro','der']]){
+    const nl=springs[kl][1],nr=springs[kr][0];const [yl,zl]=nodes[nl],[yr,zr]=nodes[nr];
+    const top=addN((yl+yr)/2,(zl+zr)/2),base=addN((yl+yr)/2,D.z_base[pn]);
+    addE(nl,top,p.E_pier*50,pierA,pierI,'pilar_'+pn);addE(top,nr,p.E_pier*50,pierA,pierI,'pilar_'+pn);addE(top,base,p.E_pier,pierA,pierI,'pilar_'+pn);
+    const yd=ydeck.reduce((best,v)=>Math.abs(v-(yl+yr)/2)<Math.abs(best-(yl+yr)/2)?v:best,ydeck[0]);
+    addE(top,deckN[yd],p.E_pier,pierA,pierI,'pilar_'+pn);fixed.push(base);}
+  const fixedFull=[springs.izq[0],springs.der[1]],deckEnd=[dk[0],dk[dk.length-1]];
+  // masas
+  const m=new Float64Array(nodes.length);const n=ydeck.length;
+  const lt=ydeck.map((y,i)=>i===0?(ydeck[1]-ydeck[0])/2:i===n-1?(ydeck[n-1]-ydeck[n-2])/2:(ydeck[i+1]-ydeck[i-1])/2);
+  ydeck.forEach((y,i)=>m[deckN[y]]+=p.w_deck/9.81*lt[i]);
+  el.forEach(([i,j],t)=>{if(grp[t].startsWith('arco')||grp[t].startsWith('montante')){const L=Math.hypot(nodes[j][0]-nodes[i][0],nodes[j][1]-nodes[i][1]);m[i]+=p.rho_ci*A[t]*L/2;m[j]+=p.rho_ci*A[t]*L/2;}});
+  for(let i=0;i<m.length;i++)m[i]=Math.max(m[i],1e-3);
+  const ndof=3*nodes.length,fx=new Uint8Array(ndof);
+  const fixAll=k=>{fx[3*k]=fx[3*k+1]=fx[3*k+2]=1;};fixed.forEach(fixAll);
+  if(p.springing==='fixed')fixedFull.forEach(fixAll);else fixedFull.forEach(k=>{fx[3*k]=fx[3*k+1]=1;});
+  deckEnd.forEach(k=>{fx[3*k]=fx[3*k+1]=1;});
+  return {nodes,el,E,A,I,grp,mass:m,fx,p,ydeck,deckN,arches,springs};
+}
+function mcK(fr){const N=fr.nodes.length,nd=3*N,K=new Float64Array(nd*nd);
+  fr.el.forEach(([i1,i2],j)=>{const dx=fr.nodes[i2][0]-fr.nodes[i1][0],dz=fr.nodes[i2][1]-fr.nodes[i1][1],L=Math.hypot(dx,dz),c=dx/L,s=dz/L;
+    const EA=fr.E[j]*fr.A[j]/L,EI=fr.E[j]*fr.I[j];
+    const k=[[EA,0,0,-EA,0,0],[0,12*EI/L**3,6*EI/L**2,0,-12*EI/L**3,6*EI/L**2],[0,6*EI/L**2,4*EI/L,0,-6*EI/L**2,2*EI/L],[-EA,0,0,EA,0,0],[0,-12*EI/L**3,-6*EI/L**2,0,12*EI/L**3,-6*EI/L**2],[0,6*EI/L**2,2*EI/L,0,-6*EI/L**2,4*EI/L]];
+    const T=[[c,s,0,0,0,0],[-s,c,0,0,0,0],[0,0,1,0,0,0],[0,0,0,c,s,0],[0,0,0,-s,c,0],[0,0,0,0,0,1]];
+    const d=[3*i1,3*i1+1,3*i1+2,3*i2,3*i2+1,3*i2+2];
+    for(let a=0;a<6;a++)for(let b=0;b<6;b++){let v=0;for(let u=0;u<6;u++){if(!T[u][a])continue;for(let w=0;w<6;w++)if(T[w][b])v+=T[u][a]*k[u][w]*T[w][b];}K[d[a]*nd+d[b]]+=v;}});
+  return K;}
+// Jacobi para matrices simétricas pequeñas
+function mcJacobi(Ain,n){const A=Float64Array.from(Ain),V=new Float64Array(n*n);for(let i=0;i<n;i++)V[i*n+i]=1;
+  for(let sweep=0;sweep<60;sweep++){let off=0;for(let i=0;i<n;i++)for(let j=i+1;j<n;j++)off+=A[i*n+j]**2;if(off<1e-22)break;
+    for(let p=0;p<n;p++)for(let q=p+1;q<n;q++){const apq=A[p*n+q];if(Math.abs(apq)<1e-300)continue;
+      const th=(A[q*n+q]-A[p*n+p])/(2*apq),t=Math.sign(th||1)/(Math.abs(th)+Math.sqrt(th*th+1)),c=1/Math.sqrt(t*t+1),s=t*c;
+      for(let k=0;k<n;k++){const akp=A[k*n+p],akq=A[k*n+q];A[k*n+p]=c*akp-s*akq;A[k*n+q]=s*akp+c*akq;}
+      for(let k=0;k<n;k++){const apk=A[p*n+k],aqk=A[q*n+k];A[p*n+k]=c*apk-s*aqk;A[q*n+k]=s*apk+c*aqk;}
+      for(let k=0;k<n;k++){const vkp=V[k*n+p],vkq=V[k*n+q];V[k*n+p]=c*vkp-s*vkq;V[k*n+q]=s*vkp+c*vkq;}}}
+  const ev=[];for(let i=0;i<n;i++)ev.push(A[i*n+i]);return {ev,V};}
+// Modal: problema generalizado K φ = λ M φ (M diagonal, masa rotacional = 1e-4·m), iteración en subespacio
+function mcModal(fr,nmodes=6){
+  const K=mcK(fr),N=fr.nodes.length,nd=3*N,free=[];for(let i=0;i<nd;i++)if(!fr.fx[i])free.push(i);
+  const nf=free.length,Md=new Float64Array(nd);for(let i=0;i<N;i++){Md[3*i]=Md[3*i+1]=fr.mass[i];Md[3*i+2]=fr.mass[i]*1e-4;}
+  const m=free.map(i=>Md[i]),L=new Float64Array(nf*nf);
+  for(let a=0;a<nf;a++)for(let b=0;b<=a;b++)L[a*nf+b]=.5*(K[free[a]*nd+free[b]]+K[free[b]*nd+free[a]]);
+  for(let j=0;j<nf;j++){let s=L[j*nf+j];for(let k=0;k<j;k++)s-=L[j*nf+k]**2;s=Math.sqrt(s);L[j*nf+j]=s;
+    for(let i=j+1;i<nf;i++){let t=L[i*nf+j];for(let k=0;k<j;k++)t-=L[i*nf+k]*L[j*nf+k];L[i*nf+j]=t/s;}}
+  const solve=x=>{const y=new Float64Array(nf);for(let i=0;i<nf;i++){let s=x[i];for(let k=0;k<i;k++)s-=L[i*nf+k]*y[k];y[i]=s/L[i*nf+i];}
+    const z=new Float64Array(nf);for(let i=nf-1;i>=0;i--){let s=y[i];for(let k=i+1;k<nf;k++)s-=L[k*nf+i]*z[k];z[i]=s/L[i*nf+i];}return z;};
+  const q=Math.min(nf,nmodes+8);let seed=12345;const rnd=()=>{seed=(seed*16807)%2147483647;return seed/2147483647-.5;};
+  let X=[];for(let j=0;j<q;j++){const v=new Float64Array(nf);for(let i=0;i<nf;i++)v[i]=rnd()/Math.sqrt(m[i]);X.push(v);}
+  let lam=null,prev=null;
+  for(let it=0;it<300;it++){
+    const MX=X.map(v=>v.map((x,i)=>x*m[i])),Y=MX.map(solve);
+    const Kr=new Float64Array(q*q),Mr=new Float64Array(q*q);
+    for(let a=0;a<q;a++)for(let b=a;b<q;b++){let s=0,t=0;for(let i=0;i<nf;i++){s+=Y[a][i]*MX[b][i];t+=Y[a][i]*Y[b][i]*m[i];}Kr[a*q+b]=Kr[b*q+a]=s;Mr[a*q+b]=Mr[b*q+a]=t;}
+    for(let a=0;a<q;a++)for(let b=a+1;b<q;b++){const v=.5*(Kr[a*q+b]+Kr[b*q+a]);Kr[a*q+b]=Kr[b*q+a]=v;}
+    // Cholesky de Mr y reducción a forma estándar
+    const C=Float64Array.from(Mr);for(let j=0;j<q;j++){let s=C[j*q+j];for(let k=0;k<j;k++)s-=C[j*q+k]**2;s=Math.sqrt(s);C[j*q+j]=s;for(let i=j+1;i<q;i++){let t=C[i*q+j];for(let k=0;k<j;k++)t-=C[i*q+k]*C[j*q+k];C[i*q+j]=t/s;}for(let i=0;i<j;i++)C[i*q+j]=0;}
+    const Ci=new Float64Array(q*q);for(let c=0;c<q;c++){for(let i=0;i<q;i++){let s=i===c?1:0;for(let k=0;k<i;k++)s-=C[i*q+k]*Ci[k*q+c];Ci[i*q+c]=s/C[i*q+i];}}
+    const T=new Float64Array(q*q);for(let a=0;a<q;a++)for(let b=0;b<q;b++){let s=0;for(let k=0;k<q;k++)for(let l=0;l<q;l++)s+=Ci[a*q+k]*Kr[k*q+l]*Ci[b*q+l];T[a*q+b]=s;}
+    for(let a=0;a<q;a++)for(let b=a+1;b<q;b++){const v=.5*(T[a*q+b]+T[b*q+a]);T[a*q+b]=T[b*q+a]=v;}
+    const {ev,V}=mcJacobi(T,q),ord=ev.map((v,i)=>[v,i]).sort((a,b)=>a[0]-b[0]);
+    X=ord.map(([_,c])=>{const z=new Float64Array(q);for(let k=0;k<q;k++){let s=0;for(let l=0;l<q;l++)s+=Ci[l*q+k]*V[l*q+c];z[k]=s;}
+      const v=new Float64Array(nf);for(let k=0;k<q;k++)if(z[k])for(let i=0;i<nf;i++)v[i]+=z[k]*Y[k][i];return v;});
+    lam=ord.map(o=>o[0]);
+    if(prev){let ok=true;for(let j=0;j<nmodes;j++)if(Math.abs(lam[j]-prev[j])>1e-12*lam[j])ok=false;if(ok)break;}prev=lam.slice();}
+  const f=lam.slice(0,nmodes).map(l=>Math.sqrt(Math.max(l,0))/(2*Math.PI));
+  const phi=X.slice(0,nmodes).map(v=>{const u=new Float64Array(nd);free.forEach((g,a)=>u[g]=v[a]);return u;});
+  let mt=0;for(let i=0;i<N;i++)mt+=Md[3*i];
+  const part=phi.map(u=>{let mm=0;for(let i=0;i<nd;i++)mm+=u[i]*u[i]*Md[i];const g=[0,1].map(dd=>{let s=0;for(let i=0;i<N;i++)s+=u[3*i+dd]*Md[3*i+dd];return s/mm;});return {Y:g[0]**2*mm/mt,Z:g[1]**2*mm/mt};});
+  return {f,phi,part};
+}
+
 /* ================= Lámina técnica (SVG) ================= */
 const SHEET={W:1000,H:560};
 let sheetCount=0;
@@ -329,7 +427,7 @@ function elevation({res=null,amp=0,highlight=null,colorBy=null,sensors=false,box
 function legendRow(items,x,y){return items.map(([type,col,label],i)=>{const xx=x,yy=y+i*13;const mk=type==='line'?`<line x1="${xx}" x2="${xx+18}" y1="${yy-3}" y2="${yy-3}" stroke="${col}" stroke-width="2"/>`:`<rect x="${xx}" y="${yy-8}" width="18" height="8" fill="${col}"/>`;return mk+`<text x="${xx+24}" y="${yy}">${label}</text>`;}).join('');}
 
 /* ================= Estado y navegación ================= */
-const VIEWS=['modelo','simulacion','comparacion','inspeccion','validacion','registro'];
+const VIEWS=['modelo','simulacion','comparacion','dinamica','inspeccion','validacion','registro'];
 const S={view:'modelo',zone:'arco_a2_a3',q:100,E:50,target:'arco_a2_a3',pct:.3,noise:.005,m3d:'3d',
   A:{q:100,E:50,target:'sin_danio',pct:0},B:{q:100,E:50,target:'arco_a2_a3',pct:.3},W:{sens:.3,geo:.3,det:.2,dem:.2}};
 let DATA_READY=false,lastSolveMs=0;
@@ -338,7 +436,7 @@ function show(v){if(!VIEWS.includes(v))v='modelo';S.view=v;
   try{history.replaceState(null,'','#'+v);}catch(e){}
   if(DATA_READY)render();}
 document.querySelectorAll('.menu button').forEach(b=>b.addEventListener('click',()=>show(b.dataset.v)));
-function render(){({modelo:vModelo,simulacion:vSim,comparacion:vCmp,inspeccion:vInsp,validacion:vVal,registro:vReg})[S.view]();statusBar();}
+function render(){({modelo:vModelo,simulacion:vSim,comparacion:vCmp,dinamica:vDin,inspeccion:vInsp,validacion:vVal,registro:vReg})[S.view]();statusBar();}
 function statusBar(extra=''){const v=PROV.verificacion;
   $('#status').innerHTML=`<span class="okdot">Solver 2D verificado · OpenSees ${v.opensees} · ${v.cases} casos</span><span>q ${fmt(S.q,0)} kN/m</span><span>E ${fmt(S.E,0)} GPa</span><span>Último cálculo ${fmt(lastSolveMs,0)} ms</span>${extra}<span class="dim">Ñuñuvero · Tarazona · UPC 2026</span>`;}
 function timedSolve(sc){const t=performance.now(),r=solve(sc);lastSolveMs=performance.now()-t;return r;}
@@ -370,6 +468,13 @@ function vModelo(){
    <tr><td>σ máx. en la zona</td><td>${fmt(s.zoneSig,2)} MPa</td></tr>
    <tr><td>Δu con 20 % de daño</td><td>${sgn(s.du)}</td></tr>
    <tr><td>Δσ con 20 % de daño</td><td>${sgn(s.ds)}</td></tr>
+   ${z.arc?(()=>{const g=MCD.geometria[z.arc],c=MCD.completitud.find(r=>r.arch===z.arc);return `<tr><th colspan="2">Geometría medida en la nube</th></tr>
+   <tr><td>Luz entre caras</td><td>${fmt(g.luz,2)} m${z.arc==='izq'?' (simetría)':''}</td></tr>
+   <tr><td>Flecha</td><td>${fmt(g.flecha,2)} m · ${g.flecha_luz}</td></tr>
+   <tr><td>RMS del ajuste</td><td>${fmt(g.rms_cm,2)} cm</td></tr>
+   <tr><td>Intervalos usados</td><td>${g.inliers} de ${g.intervalos}</td></tr>
+   <tr><th colspan="2">Cobertura del intradós</th></tr>
+   <tr><td>Total</td><td>${compl}</td></tr><tr><td>Arranques</td><td>${pct(c.C_springing,0)}</td></tr><tr><td>Riñones</td><td>${pct(c.C_haunch,0)}</td></tr><tr><td>Clave</td><td>${pct(c.C_crown,0)}</td></tr>`;})():''}
    <tr><th colspan="2">Datos de campo</th></tr>
    <tr><td>Cobertura de la nube</td><td>${compl}</td></tr>
    <tr><td>Detección por IA (ruido 0,5 %)</td><td>${pct(det,0)}</td></tr>
@@ -379,14 +484,17 @@ function vModelo(){
   $('#toSim').onclick=()=>{S.target=z.id;if(!S.pct)S.pct=.2;show('simulacion');};$('#toPlan').onclick=()=>show('inspeccion');
   const hl=z.groups;
   if(!$('#vp')){
-    $('#canvas').innerHTML=`<div class="row" style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap"><div class="toggle" role="group" aria-label="Vista"><button data-m="3d">Modelo 3D</button><button data-m="elev">Elevación S-01</button><button data-m="both">Ambas</button></div><span class="mono dim" style="font-size:.74rem">Eje longitudinal z del .glb = eje x del modelo 2D</span></div>
+    $('#canvas').innerHTML=`<div class="row" style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap"><div class="toggle" role="group" aria-label="Vista"><button data-m="3d">Modelo 3D</button><button data-m="elev">Elevación S-01</button><button data-m="both">Ambas</button></div><label style="display:flex;gap:6px;align-items:center;font-size:.82rem"><input type="checkbox" id="ovC" ${S.ovC?'checked':''}> Superponer intradós medido en la nube</label></div>
       <div class="vp" id="vp"><div class="st" id="vpst">Cargando modelo 3D…</div><span class="corner">VISTA LIBRE · arrastrar para girar · rueda para acercar</span></div>
       <div class="sheet" id="elevM"></div>`;
     $('#canvas').querySelectorAll('.toggle button').forEach(b=>b.onclick=()=>{S.m3d=b.dataset.m;applyM3d();});
+    $('#ovC').onchange=e=>{S.ovC=e.target.checked;if(S.ovC&&S.m3d==='3d')S.m3d='both';vModelo();};
     init3d();
   }
-  $('#elevM').innerHTML=sheet({no:'S-01',title:'Elevación del modelo de cálculo',content:elevation({highlight:hl,box:{x:46,y:70,w:900,h:300}}),
-    notes:legendRow([['line',css('--ink'),'Elementos del modelo 2D'],['line',css('--red'),'Componente seleccionado: '+z.name]],40,470)+`<text x="40" y="510">Fuente: salidas_04 · 04_elementos_modelo_2D.csv</text>`});
+  const ov=S.ovC?(X,Z)=>{const blue=css('--blue');let o='';['izq','centro','der'].forEach(k=>{const f=MCD.fit[k],a=f.ymin,b=f.ymax;let d='';for(let i=0;i<=60;i++){const y=a+(b-a)*i/60;d+=(i?'L':'M')+X(y).toFixed(1)+' '+Z(mcPolyval(f.coef,y)).toFixed(1);}o+=`<path d="${d}" fill="none" stroke="${blue}" stroke-width="1.6" stroke-dasharray="5 2.5"/>`;});
+    [MCD.faces.p1_L,MCD.faces.p1_R,MCD.faces.p2_L,MCD.faces.p2_R,MCD.faces.abut_R].forEach(x=>o+=`<line x1="${X(x)}" x2="${X(x)}" y1="${Z(-3.2)}" y2="${Z(-9.3)}" stroke="${blue}" stroke-width=".9" stroke-dasharray="2 2"/>`);return o;}:null;
+  $('#elevM').innerHTML=sheet({no:'S-01',title:'Elevación del modelo de cálculo',content:elevation({highlight:hl,box:{x:46,y:70,w:900,h:300},hatchZones:ov}),
+    notes:legendRow([['line',css('--ink'),'Elementos del modelo 2D (salidas_04)'],['line',css('--red'),'Componente seleccionado: '+z.name]].concat(S.ovC?[['line',css('--blue'),'Intradós y caras de pilares medidos en la nube (modelo C)']]:[]),40,458)+`<text x="40" y="514">${S.ovC?'Los arranques del modelo 2D quedan unos 1,4 m más altos que los medidos.':'Fuente: salidas_04 · 04_elementos_modelo_2D.csv'}</text>`});
   applyM3d();
 }
 function applyM3d(){const m=S.m3d;$('#vp').hidden=m==='elev';$('#elevM').hidden=m==='3d';
@@ -511,7 +619,110 @@ function cmpCompute(){['A','B'].forEach(k=>{const s=S[k];s.target=$('#c'+k+'t').
 function hex(c){c=c.replace('#','');if(c.length===3)c=c.split('').map(x=>x+x).join('');return [0,2,4].map(i=>parseInt(c.slice(i,i+2),16));}
 function mix(a,b,t){const A=hex(a),B=hex(b);return 'rgb('+A.map((v,i)=>Math.round(v+(B[i]-v)*t)).join(',')+')';}
 
-/* ================= 4 · Plan de inspección ================= */
+/* ================= 4 · Dinámica (modelo C) ================= */
+const DIN_P=[ // rangos = los del Monte Carlo de 400 casos (mc_C.csv)
+ {k:'E_ci',l:'Módulo del fierro fundido E',u:'GPa',min:66,max:111,step:1,sc:1e6,note:'diseño 100 GPa; literatura 66–111 GPa'},
+ {k:'w_deck',l:'Peso del tablero',u:'kN/m',min:90,max:150,step:1,sc:1,note:'fierro, relleno, adoquinado y parapetos',sup:true},
+ {k:'n_ribs',l:'Nervios por arco',u:'',min:5,max:8,step:1,sc:1,note:'por contar en campo',sup:true},
+ {k:'rib_h',l:'Peralte del nervio',u:'m',min:.55,max:.85,step:.01,sc:1,note:'por medir en campo',sup:true},
+ {k:'E_pier',l:'Módulo de los pilares de piedra',u:'GPa',min:3,max:10,step:.5,sc:1e6,note:'mampostería'}];
+S.dinP={};S.mode=0;S.fMeas='';S.fTol=0.10;S.fWhich=0;S.showOld=false;
+let dinCache=null;
+function dinParams(){return Object.assign({},S.dinP);}
+function dinSolve(){const key=JSON.stringify(S.dinP);if(dinCache&&dinCache.key===key)return dinCache;
+  const t=performance.now(),fr=mcBuild(MCD,dinParams()),r=mcModal(fr,6);lastSolveMs=performance.now()-t;dinCache={key,fr,...r};return dinCache;}
+function elevC({fr,phi=null,amp=0,showOld=false,box={x:46,y:70,w:900,h:300}}){
+  const ink=css('--ink'),i2=css('--ink-2'),i3=css('--ink-3'),blue=css('--blue'),rule=css('--rule');
+  const x0=28,x1=117,zt=1.5,VX=1.5,sx=box.w/(x1-x0),sz=sx*VX,X=x=>box.x+(x-x0)*sx,Z=z=>box.y+(zt-z)*sz;
+  let s=`<line x1="${X(x0)}" x2="${X(x1)}" y1="${Z(-9.0)}" y2="${Z(-9.0)}" stroke="${i3}" stroke-width=".7" stroke-dasharray="10 3 2 3"/><text x="${X(x0)+4}" y="${Z(-9.0)-4}" font-size="8" fill="${i3}">NIVEL REFERENCIAL DEL RÍO</text>`;
+  if(showOld)M2.els.forEach(e=>{const a=M2.nodes[e.ii],b=M2.nodes[e.jj];s+=`<line x1="${X(a.x)}" y1="${Z(a.z)}" x2="${X(b.x)}" y2="${Z(b.z)}" stroke="${blue}" stroke-width="1" stroke-dasharray="4 2.5" opacity=".9"/>`;});
+  let sc=0;if(phi){for(let i=0;i<fr.nodes.length;i++)sc=Math.max(sc,Math.hypot(phi[3*i],phi[3*i+1]));sc=sc?amp/sc:0;}
+  const P=(i,sg=1)=>{let [y,z]=fr.nodes[i];if(phi){y+=sg*sc*phi[3*i];z+=sg*sc*phi[3*i+1];}return [X(y),Z(z)];};
+  const w=g=>g.startsWith('pilar')?3.2:g.startsWith('montante')?.7:g==='tablero'?1.6:1.8;
+  if(phi){fr.el.forEach(([i,j],t)=>{const [ax,az]=P(i,-1),[bx,bz]=P(j,-1);s+=`<line x1="${ax.toFixed(1)}" y1="${az.toFixed(1)}" x2="${bx.toFixed(1)}" y2="${bz.toFixed(1)}" stroke="${rule}" stroke-width="${w(fr.grp[t])}" stroke-linecap="round"/>`;});}
+  fr.el.forEach(([i,j],t)=>{const [ax,az]=P(i),[bx,bz]=P(j);s+=`<line x1="${ax.toFixed(1)}" y1="${az.toFixed(1)}" x2="${bx.toFixed(1)}" y2="${bz.toFixed(1)}" stroke="${ink}" stroke-width="${w(fr.grp[t])}" stroke-linecap="round"><title>${fr.grp[t]}</title></line>`;});
+  // apoyos: bases de pilares y arranques de estribos
+  fr.fx.forEach((v,d)=>{if(d%3!==1||!v)return;const i=(d-1)/3;if(!fr.grp.some((g,t)=>g.startsWith('pilar')&&fr.el[t][1]===i)&&!Object.values(fr.springs).flat().includes(i))return;
+    const [x,z]=[X(fr.nodes[i][0]),Z(fr.nodes[i][1])];s+=`<line x1="${x-11}" x2="${x+11}" y1="${z+1}" y2="${z+1}" stroke="${ink}" stroke-width="1"/>`;for(let h=-10;h<=10;h+=5)s+=`<line x1="${x+h-3}" y1="${z+7}" x2="${x+h+3}" y2="${z+1}" stroke="${ink}" stroke-width=".6"/>`;});
+  // caras de pilares y estribo medidas en la nube
+  const F=MCD.faces,ax=[['E.I.',fr.nodes[fr.springs.izq[0]][0]],['P1',(F.p1_L+F.p1_R)/2],['P2',(F.p2_L+F.p2_R)/2],['E.D.',F.abut_R]];
+  ax.forEach(([lab,x])=>{s+=`<line x1="${X(x)}" x2="${X(x)}" y1="${box.y-6}" y2="${Z(-10.9)+4}" stroke="${i3}" stroke-width=".5" stroke-dasharray="8 3 1.5 3"/><circle cx="${X(x)}" cy="${box.y-16}" r="10" fill="${css('--sheet')}" stroke="${ink}" stroke-width=".8"/><text x="${X(x)}" y="${box.y-13}" font-size="8" text-anchor="middle" class="cond" font-weight="700">${lab}</text>`;});
+  const yD=Z(-10.9),spans=[['izq',fr.nodes[fr.springs.izq[0]][0],F.p1_L],['centro',F.p1_R,F.p2_L],['der',F.p2_R,F.abut_R]];
+  spans.forEach(([k,a,b])=>{const g=MCD.geometria[k];s+=`<line x1="${X(a)}" x2="${X(b)}" y1="${yD}" y2="${yD}" stroke="${ink}" stroke-width=".6"/>${[a,b].map(x=>`<line x1="${X(x)-4}" x2="${X(x)+4}" y1="${yD+4}" y2="${yD-4}" stroke="${ink}" stroke-width="1"/>`).join('')}<text x="${(X(a)+X(b))/2}" y="${yD-4}" font-size="9" text-anchor="middle">${fmt(g.luz,2)}${k==='izq'?'*':''}</text>`;
+    const c=MCD.fit[k].coef,yk=g.clave_y,zk=mcPolyval(c,yk);if(!phi)s+=`<text x="${X(yk)}" y="${Z(zk)+14}" font-size="8" text-anchor="middle" fill="${i2}">f = ${fmt(g.flecha,2)} m · ${g.flecha_luz}</text>`;});
+  [56.4,59.9,84.4,88.0].forEach(x=>s+=`<text x="${X(x)}" y="${yD+14}" font-size="7.5" text-anchor="middle" fill="${i3}">${fmt(x,1)}</text>`);
+  const sbx=box.x,sby=box.y+box.h+30;for(let i=0;i<4;i++)s+=`<rect x="${sbx+i*5*sx}" y="${sby}" width="${5*sx}" height="4" fill="${i%2?css('--sheet'):ink}" stroke="${ink}" stroke-width=".6"/>`;
+  s+=`<text x="${sbx}" y="${sby+14}" font-size="8">0</text><text x="${sbx+10*sx}" y="${sby+14}" font-size="8" text-anchor="middle">10</text><text x="${sbx+20*sx}" y="${sby+14}" font-size="8" text-anchor="middle">20 m</text>`;
+  return s;}
+function vDin(){
+  $('#left').innerHTML=`<div class="ph">Parámetros del modelo C</div><div class="pb">${DIN_P.map(d=>{const v=(S.dinP[d.k]??MCD.nominal[d.k])/d.sc;return `<label class="f"><span class="lv">${d.l}${d.sup?' <span class="flag warn" style="font-size:.7rem">supuesto</span>':''}<output id="od_${d.k}">${fmt(v,d.step<1?2:0)} ${d.u}</output></span><input type="range" id="id_${d.k}" min="${d.min}" max="${d.max}" step="${d.step}" value="${v}"><span class="help">${d.note}</span></label>`;}).join('')}
+   <label class="f">Arranques de los arcos<select id="id_spr"><option value="fixed">Empotrados (nominal)</option><option value="pinned">Articulados</option></select></label>
+   <button class="btn line" id="dinReset">Valores nominales</button>
+   <p class="help">Rangos iguales a los del Monte Carlo de 400 casos (mc_C.csv). Geometría de arcos ajustada a la nube TLS.</p></div>`;
+  $('#id_spr').value=S.dinP.springing||'fixed';
+  DIN_P.forEach(d=>{const el=$('#id_'+d.k);el.oninput=()=>{$('#od_'+d.k).textContent=fmt(+el.value,d.step<1?2:0)+' '+d.u;};el.onchange=()=>{S.dinP[d.k]=d.k==='n_ribs'?+el.value:+el.value*d.sc;dinCompute();};});
+  $('#id_spr').onchange=e=>{S.dinP.springing=e.target.value;dinCompute();};$('#dinReset').onclick=()=>{S.dinP={};vDin();};
+  $('#canvas').innerHTML=`<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><div class="toggle" role="group" aria-label="Modo" id="modeBtns"></div><label style="display:flex;gap:6px;align-items:center;font-size:.82rem"><input type="checkbox" id="showOld" ${S.showOld?'checked':''}> Superponer geometría del modelo anterior</label></div>
+   <div class="sheet" id="dinSheet"></div><div class="doc" id="calDoc"></div>`;
+  $('#showOld').onchange=e=>{S.showOld=e.target.checked;dinCompute();};
+  dinCompute();}
+function dinCompute(){const r=dinSolve(),fr=r.fr;
+  $('#modeBtns').innerHTML=r.f.map((f,i)=>`<button data-i="${i}" aria-pressed="${i===S.mode}">Modo ${i+1} · ${fmt(f,2)} Hz</button>`).join('');
+  $('#modeBtns').querySelectorAll('button').forEach(b=>b.onclick=()=>{S.mode=+b.dataset.i;dinCompute();});
+  const pz=r.part[S.mode];
+  $('#dinSheet').innerHTML=sheet({no:'S-05',title:`Modelo C · modo ${S.mode+1} · ${fmt(r.f[S.mode],2)} Hz`,scale:'H 1:400 · V ×1,5',
+    content:elevC({fr,phi:r.phi[S.mode],amp:2.2,showOld:S.showOld}),
+    notes:legendRow([['line',css('--ink'),`Forma modal (+), participación Z ${pct(pz.Z,1)} · Y ${pct(pz.Y,1)}`],['line',css('--rule'),'Forma modal (−)']].concat(S.showOld?[['line',css('--blue'),'Geometría del modelo anterior (salidas_04)']]:[]),40,458)+`<text x="40" y="502">Arcos: parábolas ajustadas a la nube (arch_fit.json) · caras de pilares medidas</text><text x="40" y="514">* Luz izquierda por simetría con la clave ajustada</text>`});
+  const old=MCD.anterior.f;
+  $('#right').innerHTML=`<div class="ph">Modos<span class="mono dim" style="letter-spacing:0;text-transform:none">${fmt(lastSolveMs,0)} ms</span></div>
+   <div class="tw"><table class="data"><thead><tr><th>Modo</th><th class="n">f (Hz)</th><th class="n">T (s)</th><th class="n">Part. Z</th><th class="n">Part. Y</th></tr></thead><tbody>${r.f.map((f,i)=>`<tr${i===S.mode?' class="hl"':''}><td class="mono">${i+1}</td><td class="n">${fmt(f,3)}</td><td class="n">${fmt(1/f,4)}</td><td class="n">${pct(r.part[i].Z,1)}</td><td class="n">${pct(r.part[i].Y,1)}</td></tr>`).join('')}</tbody></table></div>
+   <div class="ph" style="border-top:1px solid var(--rule)">Modelo anterior vs modelo C</div>
+   <div class="tw"><table class="data"><thead><tr><th></th><th class="n">Anterior</th><th class="n">Modelo C</th><th class="n">Cambio</th></tr></thead><tbody>${old.map((f,i)=>`<tr><td class="mono">f${i+1}</td><td class="n">${fmt(f,2)}</td><td class="n">${fmt(r.f[i],2)}</td><td class="n">${sgn(r.f[i]/f-1)}</td></tr>`).join('')}</tbody></table></div>
+   <div class="pb help">Anterior: ${esc(MCD.anterior.fuente)}. Cambian a la vez la geometría, el material (E 50 → 100 GPa) y la masa (q 60 → 120 kN/m más peso propio).</div>`;
+  calRender();statusBar();}
+function calRender(){const k=S.fWhich,fm=parseFloat(String(S.fMeas).replace(',','.')),tol=S.fTol,c=MCD.mc.cols,ci=n=>c.indexOf(n);
+  const fs=MCD.mc.rows.map(r=>r[ci('f'+(k+1))]);
+  let res='';
+  if(Number.isFinite(fm)&&fm>0){
+    const acc=MCD.mc.rows.filter(r=>Math.abs(r[ci('f'+(k+1))]-fm)<=tol);
+    // E que reproduce la medición con los demás parámetros del panel
+    let E=(S.dinP.E_ci??MCD.nominal.E_ci),f0=0,it=0;
+    for(;it<6;it++){const r=mcModal(mcBuild(MCD,Object.assign(dinParams(),{E_ci:E})),k+1);f0=r.f[k];if(Math.abs(f0/fm-1)<1e-4)break;E*=(fm/f0)**2;}
+    const q=(arr,p)=>{const a=arr.slice().sort((x,y)=>x-y);return a[Math.min(a.length-1,Math.floor(p*(a.length-1)))];};
+    const col=n=>acc.map(r=>r[ci(n)]);
+    const rng=(n,s,d)=>acc.length?`${fmt(q(col(n),.05)/s,d)} – ${fmt(q(col(n),.95)/s,d)}`:'—';
+    const inRange=E>=66e6&&E<=111e6;
+    res=`<div class="tw"><table class="data"><tbody>
+     <tr><td>E que reproduce f${k+1} = ${fmt(fm,2)} Hz con los demás parámetros del panel</td><td class="n" style="font-weight:600">${fmt(E/1e6,1)} GPa</td><td><span class="flag ${inRange?'ok':'crit'}">${inRange?'dentro de 66–111 GPa':'fuera del rango del fierro fundido'}</span></td></tr>
+     <tr><td>Casos Monte Carlo compatibles (±${fmt(tol,2)} Hz)</td><td class="n">${acc.length} de ${MCD.mc.rows.length}</td><td>${acc.length<10?'<span class="flag warn">pocos casos; amplíe la tolerancia</span>':''}</td></tr>
+     <tr><td>E compatible (p5–p95)</td><td class="n">${rng('E_ci',1e6,0)} GPa</td><td></td></tr>
+     <tr><td>Peso del tablero compatible</td><td class="n">${rng('w_deck',1,0)} kN/m</td><td></td></tr>
+     <tr><td>Peralte del nervio compatible</td><td class="n">${rng('rib_h',1,2)} m</td><td></td></tr>
+     <tr><td>Nervios por arco compatibles</td><td class="n">${acc.length?[...new Set(col('n_ribs'))].sort().join(', '):'—'}</td><td></td></tr>
+     <tr><td>Arranques articulados entre los compatibles</td><td class="n">${acc.length?pct(acc.filter(r=>r[ci('springing')]==='pinned').length/acc.length,0):'—'}</td><td></td></tr></tbody></table></div>
+     <p class="help">Con una sola frecuencia, E, el peso del tablero y la geometría de los nervios se compensan entre sí. Los rangos muestran qué combinaciones del Monte Carlo explican la medición; para separarlas hacen falta más modos medidos o el conteo de nervios en campo.</p>`;
+  }else res=`<p class="help">Aún no hay una frecuencia medida. Ingrese la que obtenga en el puente (por ejemplo, con el acelerómetro del celular y phyphox) para estimar los parámetros compatibles.</p>`;
+  $('#calDoc').innerHTML=`<h2>Calibración con frecuencia medida</h2>
+   <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:end">
+    <label class="f" style="width:140px">Modo comparado<select id="cWhich">${[0,1,2].map(i=>`<option value="${i}" ${i===k?'selected':''}>f${i+1}</option>`).join('')}</select></label>
+    <label class="f" style="width:150px">Frecuencia medida (Hz)<input type="text" id="cF" inputmode="decimal" placeholder="ej. 7,10" value="${esc(S.fMeas)}"></label>
+    <label class="f" style="width:150px">Tolerancia ± (Hz)<input type="number" id="cT" min="0.02" max="1" step="0.02" value="${tol}"></label>
+    <button class="btn" id="cGo">Calibrar</button></div>
+   ${histogram(fs,fm,tol,k)}${res}`;
+  $('#cWhich').onchange=e=>{S.fWhich=+e.target.value;calRender();};$('#cT').onchange=e=>{S.fTol=Math.max(.01,+e.target.value||.1);calRender();};
+  $('#cGo').onclick=()=>{S.fMeas=$('#cF').value.trim();calRender();};$('#cF').onkeydown=e=>{if(e.key==='Enter'){S.fMeas=e.target.value.trim();calRender();}};}
+function histogram(fs,fm,tol,k){const ink=css('--ink'),i3=css('--ink-3'),red=css('--red'),W=760,H=170,pl=40,pr=10,pt=14,pb=30;
+  const lo=Math.floor(Math.min(...fs)*2)/2,hi=Math.ceil(Math.max(...fs)*2)/2,bw=.25,nb=Math.round((hi-lo)/bw),cnt=new Array(nb).fill(0);
+  fs.forEach(f=>cnt[Math.min(nb-1,Math.floor((f-lo)/bw))]++);const cm=Math.max(...cnt),X=f=>pl+(f-lo)/(hi-lo)*(W-pl-pr),Y=c=>H-pb-(c/cm)*(H-pt-pb);
+  let s=`<div class="tw"><svg viewBox="0 0 ${W} ${H}" style="width:100%;min-width:520px;height:auto" role="img" aria-label="Distribución de f${k+1} en el Monte Carlo">`;
+  if(Number.isFinite(fm))s+=`<rect x="${X(Math.max(lo,fm-tol))}" y="${pt}" width="${Math.max(1,X(Math.min(hi,fm+tol))-X(Math.max(lo,fm-tol)))}" height="${H-pt-pb}" fill="${css('--red-bg')}"/><line x1="${X(fm)}" x2="${X(fm)}" y1="${pt}" y2="${H-pb}" stroke="${red}" stroke-width="1.5"/><text x="${X(fm)+4}" y="${pt+9}" font-size="9" fill="${red}">medida ${fmt(fm,2)} Hz</text>`;
+  cnt.forEach((c,i)=>{if(c)s+=`<rect x="${X(lo+i*bw)+1}" y="${Y(c)}" width="${X(lo+bw)-X(lo)-2}" height="${H-pb-Y(c)}" fill="${css('--ink-2')}"><title>${fmt(lo+i*bw,2)}–${fmt(lo+(i+1)*bw,2)} Hz: ${c} casos</title></rect>`;});
+  s+=`<line x1="${pl}" x2="${W-pr}" y1="${H-pb}" y2="${H-pb}" stroke="${ink}" stroke-width=".8"/>`;
+  for(let f=Math.ceil(lo);f<=hi;f++)s+=`<line x1="${X(f)}" x2="${X(f)}" y1="${H-pb}" y2="${H-pb+4}" stroke="${ink}"/><text x="${X(f)}" y="${H-pb+15}" font-size="9" text-anchor="middle" fill="${ink}">${f}</text>`;
+  s+=`<text x="${W-pr}" y="${H-3}" font-size="9" text-anchor="end" fill="${i3}">f${k+1} (Hz) · ${fs.length} casos Monte Carlo, modelo C</text><text x="${pl-6}" y="${Y(cm)+3}" font-size="9" text-anchor="end" fill="${i3}">${cm}</text>`;
+  return s+'</svg></div>';}
+
+/* ================= 5 · Plan de inspección ================= */
 const CRIT=[['sens','Sensibilidad estructural','Cambio de la respuesta si la zona pierde 20 % de rigidez'],['geo','Incertidumbre geométrica','1 − cobertura de la nube en la zona'],['det','Dificultad de detección','1 − aciertos de la IA inversa con ruido de 0,5 %'],['dem','Demanda relativa','σ máx. de la zona / σ máx. del puente']];
 const ACTIONS={
  arco_a2_a3:'Estación TLS adicional en el cauce, a unos 10 m al oeste del vano central (W75), para registrar intradós y clave. Contar los nervios y medir su peralte.',
@@ -610,7 +821,9 @@ function vReg(){const v=PROV.verificacion;
     <tr><td>Nube TLS · Trimble X7</td><td>601 243 puntos tras el filtro SOR</td><td>media 0,291 m · RMSE 0,433 m · 92,85 % a menos de 0,50 m del modelo</td></tr>
     <tr><td>Modelo 2D</td><td>150 nodos · 221 elementos elasticBeamColumn</td><td>reproducido en el navegador con error relativo menor a 1e-11</td></tr>
     <tr><td>Dataset FEM</td><td>${v.cases} casos · ${v.converged} convergidos · OpenSees ${v.opensees}</td><td>residuo de equilibrio máx. ${v.maximum_equilibrium_residual_kN.toExponential(2)} kN</td></tr>
-    <tr><td>Modelo 3D</td><td>puente-balta-v12.glb · 287 objetos</td><td>eje longitudinal en metros, común con el modelo 2D</td></tr></tbody></table></div>
+    <tr><td>Modelo 3D</td><td>puente-balta-v12.glb · 287 objetos</td><td>eje longitudinal en metros, común con el modelo 2D</td></tr>
+    <tr><td>Modelo C (Articulo_v2)</td><td>arcos ajustados a la nube (arch_fit.json), caras de pilares medidas, 156 nodos · 225 elementos</td><td>f1 nominal 7,437 Hz; los 400 casos de mc_C.csv se reproducen con diferencia ≤ 0,05 % frente a un cálculo shift-invert</td></tr>
+    <tr><td>Modelo anterior · modal</td><td>script 08, E = 50 GPa, q = 60 kN/m</td><td>f1 = 11,702 Hz y f2 = 14,267 Hz reproducidos</td></tr></tbody></table></div>
    <h3>Secciones equivalentes</h3>
    <div class="tw"><table class="data"><thead><tr><th>Familia</th><th class="n">A (m²)</th><th class="n">I (m⁴)</th><th class="n">Alto equiv. (m)</th><th class="n">c (m)</th></tr></thead><tbody>${PROV.secciones.map(s=>`<tr><td>${s.name}</td><td class="n">${s.A_m2}</td><td class="n">${s.I_m4}</td><td class="n">${fmt(s.equivalent_height_m,3)}</td><td class="n">${fmt(s.c_m,3)}</td></tr>`).join('')}</tbody></table></div>
    <p class="dim" style="font-size:.84rem">${esc(PROV.hipotesis)}</p>
@@ -619,14 +832,14 @@ function vReg(){const v=PROV.verificacion;
    <h3>Alcance</h3>
    <p style="font-size:.88rem">${esc(PROV.alcance)} El esfuerzo se estima con P/A + M·c/I y fuerzas globales del elemento, igual que el script original. La geometría 2D usa arranques a −5,0 m; el levantamiento indica unos −6,4 m y una primera luz mayor, por lo que el modelo corregido reemplazará esta base.</p>
   </div>`;
-  $('#right').innerHTML=`<div class="ph">Archivos publicados</div><table class="props"><tbody>${['modelo_2d.json','fem_525.csv','rf_surrogate.json','svm_inverse.json','metrics_ia.json','procedencia.json'].map(f=>`<tr><td colspan="2" style="font-family:var(--f-mono);font-size:.76rem;color:var(--ink)">data/${f}</td></tr>`).join('')}</tbody></table><div class="pb help">El código para regenerar los modelos de IA está en la carpeta codigo/ del repositorio.</div>`;}
+  $('#right').innerHTML=`<div class="ph">Archivos publicados</div><table class="props"><tbody>${['modelo_2d.json','fem_525.csv','rf_surrogate.json','svm_inverse.json','metrics_ia.json','procedencia.json','modelo_c.json'].map(f=>`<tr><td colspan="2" style="font-family:var(--f-mono);font-size:.76rem;color:var(--ink)">data/${f}</td></tr>`).join('')}</tbody></table><div class="pb help">El código para regenerar los modelos de IA está en la carpeta codigo/ del repositorio.</div>`;}
 
 /* ================= Arranque ================= */
 function parseCSV(t){const [h,...ls]=t.trim().split(/\r?\n/);const k=h.split(',');return ls.map(l=>{const v=l.split(',');const o={};k.forEach((kk,i)=>{const n=+v[i];o[kk]=v[i]!==''&&Number.isFinite(n)?n:v[i];});return o;});}
 (async()=>{
   try{const get=p=>fetch(p).then(r=>{if(!r.ok)throw new Error(p);return r;});
-    const [m,rf,svm,met,prov,fem]=await Promise.all([get('data/modelo_2d.json').then(r=>r.json()),get('data/rf_surrogate.json').then(r=>r.json()),get('data/svm_inverse.json').then(r=>r.json()),get('data/metrics_ia.json').then(r=>r.json()),get('data/procedencia.json').then(r=>r.json()),get('data/fem_525.csv').then(r=>r.text())]);
-    M2=prepModel(m);RF=rf;SVM=svm;MET=met;PROV=prov;FEM=parseCSV(fem);computeSensitivity();DATA_READY=true;
+    const [m,rf,svm,met,prov,fem,mcd]=await Promise.all([get('data/modelo_2d.json').then(r=>r.json()),get('data/rf_surrogate.json').then(r=>r.json()),get('data/svm_inverse.json').then(r=>r.json()),get('data/metrics_ia.json').then(r=>r.json()),get('data/procedencia.json').then(r=>r.json()),get('data/fem_525.csv').then(r=>r.text()),get('data/modelo_c.json').then(r=>r.json())]);
+    M2=prepModel(m);RF=rf;SVM=svm;MET=met;PROV=prov;FEM=parseCSV(fem);MCD=mcd;computeSensitivity();DATA_READY=true;
     const h=(location.hash||'').slice(1);show(VIEWS.includes(h)?h:'modelo');
   }catch(e){$('#canvas').innerHTML=`<div class="msg crit"><b>No se pudieron cargar los datos.</b> Falta el archivo ${esc(e.message)}; publique la carpeta data/ junto a la página.</div>`;}
 })();
