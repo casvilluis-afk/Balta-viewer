@@ -125,6 +125,11 @@ table.data tr.hl td{background:var(--red-bg)}
 .sheet-tools .btn{padding:3px 9px}
 .sheet-tools:has(+ .sheet[hidden]){display:none}
 [hidden]{display:none!important}
+#protoBar{position:fixed;left:0;right:0;bottom:calc(27px + env(safe-area-inset-bottom,0px));z-index:15;background:var(--surface);border-top:2px solid var(--red);box-shadow:0 -6px 18px -12px rgba(0,0,0,.4);padding-left:max(12px,env(safe-area-inset-left,0px));padding-right:max(12px,env(safe-area-inset-right,0px))}
+#protoBar .pb-in{display:flex;gap:10px;align-items:center;flex-wrap:wrap;padding-block:8px;font-size:.86rem}
+#protoBar .btn{padding:4px 10px}
+body:has(#protoBar) .canvas,body:has(#protoBar) .side{padding-bottom:150px}
+details summary::-webkit-details-marker{color:var(--ink-3)}
 .report{white-space:pre-wrap;font:400 .76rem/1.55 var(--f-mono);border:1px solid var(--rule);padding:12px;max-height:340px;overflow:auto;background:var(--surface)}
 
 /* ---------- Visor 3D ---------- */
@@ -146,7 +151,7 @@ table.data tr.hl td{background:var(--red-bg)}
 
 <div class="app">
   <header class="bar">
-    <div class="mark"><b>Puente Balta</b><span>Plataforma de inspección · v1.4</span></div>
+    <div class="mark"><b>Puente Balta</b><span>Plataforma de inspección · v1.5</span></div>
     <nav class="menu" role="tablist" aria-label="Herramientas">
       <button role="tab" data-v="modelo"><span class="k">1</span>Modelo</button>
       <button role="tab" data-v="simulacion"><span class="k">2</span>Simulación</button>
@@ -859,16 +864,24 @@ new MutationObserver(()=>addSheetTools()).observe(document.getElementById('canva
 const SUS_Q=['Creo que me gustaría usar esta plataforma con frecuencia.','Encontré la plataforma innecesariamente compleja.','Pensé que la plataforma era fácil de usar.','Creo que necesitaría ayuda de una persona técnica para poder usarla.','Las distintas funciones de la plataforma están bien integradas.','Pensé que había demasiadas inconsistencias en la plataforma.','Imagino que la mayoría de las personas aprendería a usarla muy rápido.','Encontré la plataforma muy engorrosa de usar.','Me sentí muy seguro al usar la plataforma.','Necesité aprender muchas cosas antes de poder usarla.'];
 let concResult=null;
 function vVal(){
+  if(!S.valTab)S.valTab='tecnica';
   const t=[];for(let i=0;i<5;i++){const a=performance.now();solve({q:100,E:50,target:'arco_a2_a3',pct:.3});t.push(performance.now()-a);}
   const t2=[];for(let i=0;i<50;i++){const a=performance.now();surrogate({q:100,E:50,target:'arco_a2_a3',pct:.3});t2.push(performance.now()-a);}
-  const med=a=>a.slice().sort((x,y)=>x-y)[a.length>>1];
+  const med=a=>a.slice().sort((x,y)=>x-y)[a.length>>1];S.qMs=med(t);
+  const agg=aggregate(allSessions());
   $('#left').innerHTML=`<div class="ph">Indicadores OE6</div><table class="props"><tbody>
     <tr><th colspan="2">Concordancia</th></tr><tr><td>Casos con carga</td><td>450</td></tr><tr><td>Error relativo máx.</td><td id="kErr">${concResult?concResult.worst.toExponential(1):'sin ejecutar'}</td></tr>
-    <tr><th colspan="2">Tiempo de consulta</th></tr><tr><td>Modelo 2D</td><td>${fmt(med(t),0)} ms</td></tr><tr><td>Sustituto IA</td><td>${fmt(med(t2),2)} ms</td></tr>
+    <tr><th colspan="2">Tiempo de cálculo</th></tr><tr><td>Modelo 2D</td><td>${fmt(med(t),0)} ms</td></tr><tr><td>Sustituto IA</td><td>${fmt(med(t2),2)} ms</td></tr>
     <tr><th colspan="2">IA</th></tr><tr><td>R² sustituto (sin q = 75)</td><td>${fmt(MET.sustituto.validaciones.sin_q75.fisico.u_total_max_mm.r2,3)}</td></tr><tr><td>F1 inverso (ruido 0,5 %)</td><td>${fmt(MET.inversa.por_ruido['0.005'].f1_macro,3)}</td></tr><tr><td>Detección fuera de dominio</td><td>${pct(MET.inversa.fuera_de_dominio.deteccion_ruido_10,0)}</td></tr>
-    <tr><th colspan="2">Usabilidad</th></tr><tr><td>SUS de esta sesión</td><td id="kSus">—</td></tr></tbody></table>`;
-  const v=MET.sustituto.validaciones,nm={aleatorio_80_20:'Partición aleatoria 80/20',sin_q75:'Sin el nivel q = 75 kN/m',sin_q150:'Sin el nivel q = 150 kN/m',sin_E50:'Sin E = 50 GPa'},p=MET.inversa.por_ruido;
-  $('#canvas').innerHTML=`<div class="doc">
+    <tr><th colspan="2">Prueba con evaluadores</th></tr><tr><td>Sesiones plataforma</td><td>${agg.plataforma.n}</td></tr><tr><td>Sesiones línea base</td><td>${agg.base.n}</td></tr><tr><td>SUS medio</td><td>${agg.plataforma.sus.length?fmt(mean(agg.plataforma.sus),1):'—'}</td></tr></tbody></table>`;
+  $('#canvas').innerHTML=`<div class="toggle" role="group" aria-label="Sección"><button data-t="tecnica" aria-pressed="${S.valTab==='tecnica'}">Evidencia técnica</button><button data-t="usuarios" aria-pressed="${S.valTab==='usuarios'}">Prueba con evaluadores</button></div><div id="valBody" style="display:grid;gap:14px"></div>`;
+  $('#canvas').querySelectorAll('.toggle button').forEach(b=>b.onclick=()=>{S.valTab=b.dataset.t;vVal();});
+  if(S.valTab==='tecnica')valTech();else valUsers();
+  $('#right').innerHTML=S.valTab==='tecnica'?`<div class="ph">Línea base</div><div class="pb" style="font-size:.84rem"><p>La plataforma se compara con el flujo de archivos separados de la primera parte: scripts de Python, OpenSees, CSV y Blender.</p><p class="help">Los indicadores se recalculan en cada visita a esta pestaña.</p></div>`
+   :`<div class="ph">Cómo aplicar la prueba</div><div class="pb" style="font-size:.84rem"><p>1. Cada evaluador hace las ${TASKS.length} tareas dos veces: con la plataforma y con los archivos de la línea base, en orden alternado entre evaluadores.</p><p>2. Al iniciar, una barra inferior queda visible en todas las pestañas con la tarea y el cronómetro.</p><p>3. Las respuestas se comparan con el valor que calcula la plataforma; el evaluador no lo ve.</p><p>4. En la condición plataforma, el evaluador completa el SUS al final.</p><p>5. Exporte el CSV de cada laptop e impórtelos juntos para obtener la tabla final.</p></div>`;
+}
+function valTech(){const v=MET.sustituto.validaciones,nm={aleatorio_80_20:'Partición aleatoria 80/20',sin_q75:'Sin el nivel q = 75 kN/m',sin_q150:'Sin el nivel q = 150 kN/m',sin_E50:'Sin E = 50 GPa'},p=MET.inversa.por_ruido;
+  $('#valBody').innerHTML=`<div class="doc">
    <h2>Concordancia con OpenSees 3.8.0</h2>
    <p>Se recalculan en este navegador los 450 casos con carga del dataset y se comparan con los resultados archivados de OpenSees.</p>
    <div><button class="btn" id="runConc">Ejecutar 450 casos</button></div><div id="concOut" class="tw"></div>
@@ -878,23 +891,95 @@ function vVal(){
    <h3>Diagnóstico inverso SVM-RBF según el ruido</h3>
    <p class="dim" style="font-size:.86rem">${esc(MET.inversa.datos)}. Entradas: ${esc(MET.inversa.entradas)}.</p>
    <div class="tw"><table class="data"><thead><tr><th>Ruido</th><th class="n">Exactitud</th><th class="n">F1 macro</th><th class="n">Daño 20–40 %</th><th class="n">Daño 5–20 %</th><th class="n">Falsa alarma</th><th class="n">Concluyentes</th><th class="n">MAE severidad</th></tr></thead><tbody>${Object.entries(p).map(([k,o])=>`<tr><td class="mono">${pct(+k,1)}</td><td class="n">${pct(o.exactitud)}</td><td class="n">${fmt(o.f1_macro,3)}</td><td class="n">${pct(o.exactitud_dano_20_40)}</td><td class="n">${pct(o.exactitud_dano_5_20)}</td><td class="n">${pct(o.falsa_alarma)}</td><td class="n">${pct(o.cobertura_concluyente)}</td><td class="n">${fmt(100*o.mae_severidad,1)} pp</td></tr>`).join('')}</tbody></table></div>
-   <p style="font-size:.86rem">Con flechas casi exactas la IA localiza el daño. Desde 0,5 % de ruido pierde confiabilidad para daños menores a 20 % y suben las falsas alarmas; por eso la plataforma marca los resultados no concluyentes.</p>
-   <h3>Tiempo de consulta</h3>
-   <p style="font-size:.86rem">Consulta de referencia: cambio de flecha y esfuerzo si el arco central pierde 30 % de rigidez. En la plataforma: ${fmt(med(t),0)} ms. En la línea base hay que editar el script, ejecutar OpenSees y leer el CSV; cronometre ese flujo con los evaluadores.</p>
-   <h3>Cuestionario SUS</h3>
-   <p style="font-size:.86rem">De 1 (totalmente en desacuerdo) a 5 (totalmente de acuerdo). Cada evaluador responde y copia su fila.</p>
-   <div class="likert" id="sus">${SUS_Q.map((q,i)=>`<div class="q"><span class="mono dim">${String(i+1).padStart(2,'0')}</span><span>${q}</span><span class="opts" role="radiogroup" aria-label="Afirmación ${i+1}">${[1,2,3,4,5].map(x=>`<input type="radio" name="sus${i}" id="sus${i}_${x}" value="${x}"><label for="sus${i}_${x}">${x}</label>`).join('')}</span></div>`).join('')}</div>
-   <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center"><input type="text" id="susName" placeholder="Código del evaluador, p. ej. EV-03" style="max-width:260px"><button class="btn" id="copySus" disabled>Copiar fila CSV</button><span id="susScore" class="flag na">0 de 10 respondidas</span></div>
-  </div>`;
-  $('#right').innerHTML=`<div class="ph">Línea base</div><div class="pb" style="font-size:.84rem"><p>La plataforma se compara con el flujo de archivos separados de la primera parte: scripts de Python, OpenSees, CSV y Blender.</p><p class="help">Los indicadores del panel izquierdo se recalculan en cada visita a esta pestaña.</p></div>`;
-  if(concResult)showConc();
-  $('#runConc').onclick=runConcordance;$('#sus').addEventListener('change',susScore);
-  $('#copySus').onclick=e=>{const a=susAnswers();copyText([$('#susName').value||'EV',...a,susCalc(a)].join(','),e.target);};
-}
+   <p style="font-size:.86rem">Con flechas casi exactas la IA localiza el daño. Desde 0,5 % de ruido pierde confiabilidad para daños menores a 20 % y suben las falsas alarmas; por eso la plataforma marca los resultados no concluyentes.</p></div>`;
+  if(concResult)showConc();$('#runConc').onclick=runConcordance;}
+
+/* ---------- Protocolo de tareas cronometradas ---------- */
+// Las respuestas correctas se calculan en vivo con los modelos de la plataforma.
+const TASKS=[
+ {id:'T1',area:'Trazabilidad',q:'¿Cuántos elementos del modelo 2D representan el arco del vano central y qué cobertura tiene su intradós en la nube?',
+  f:[['n','Elementos',''],['c','Cobertura','%']],key:()=>({n:sens20.arco_a2_a3.n,c:100*ZONES.find(z=>z.id==='arco_a2_a3').compl}),
+  ok:(a,k)=>Math.round(a.n)===k.n&&Math.abs(a.c-k.c)<=1,show:k=>`${k.n} elementos · ${fmt(k.c,1)} %`},
+ {id:'T2',area:'Simulación',q:'Si el arco del vano central pierde 30 % de rigidez (q = 100 kN/m, E = 50 GPa), ¿cuál es el desplazamiento máximo del puente?',
+  f:[['u','Desplazamiento','mm']],key:()=>({u:solve({q:100,E:50,target:'arco_a2_a3',pct:.3}).u_total_max_mm}),ok:(a,k)=>Math.abs(a.u/k.u-1)<=.01,show:k=>`${fmt(k.u,3)} mm`},
+ {id:'T3',area:'Comparación',q:'Entre el puente intacto y el arco central con 30 % menos rigidez (q = 100 kN/m, E = 50 GPa), ¿qué elemento del modelo 2D cambia más su esfuerzo?',
+  f:[['e','Elemento','E…']],key:()=>{const a=solve({q:100,E:50}),b=solve({q:100,E:50,target:'arco_a2_a3',pct:.3});let i=0,d=0;a.sig.forEach((v,t)=>{const r=Math.abs(b.sig[t]-v)/Math.max(v,1e-6);if(r>d){d=r;i=t;}});return {e:M2.els[i].id};},
+  ok:(a,k)=>Math.round(a.e)===k.e,show:k=>`E${k.e}`},
+ {id:'T4',area:'Dinámica',q:'¿Cuál es la frecuencia del primer modo del modelo C con sus parámetros nominales?',
+  f:[['f','Frecuencia','Hz']],key:()=>({f:mcModal(mcBuild(MCD,{}),1).f[0]}),ok:(a,k)=>Math.abs(a.f-k.f)<=.02,show:k=>`${fmt(k.f,3)} Hz`},
+ {id:'T5',area:'Plan de inspección',q:'Con los pesos por defecto y sin registros de campo, ¿qué zona debe verificarse primero?',
+  f:[['z','Zona','zona']],key:()=>{const W0=S.W,F0=FIELD;S.W={sens:.3,geo:.3,det:.2,dem:.2,cond:.2};FIELD=[];const z=priorities()[0].z.id;S.W=W0;FIELD=F0;return {z};},
+  ok:(a,k)=>a.z===k.z,show:k=>ZONES.find(z=>z.id===k.z).long},
+ {id:'T6',area:'IA',q:'Con 1 % de ruido en las mediciones, ¿qué exactitud global tiene el diagnóstico inverso de la IA?',
+  f:[['x','Exactitud','%']],key:()=>({x:100*MET.inversa.por_ruido['0.01'].exactitud}),ok:(a,k)=>Math.abs(a.x-k.x)<=1,show:k=>`${fmt(k.x,1)} %`}];
+const VKEY='balta_validacion_v1',PKEY='balta_protocolo_activo_v1';
+function lsGet(k,d){try{const v=JSON.parse(localStorage.getItem(k));return v??d;}catch(e){return d;}}
+function lsSet(k,v){try{localStorage.setItem(k,JSON.stringify(v));return true;}catch(e){return false;}}
+let SESS=lsGet(VKEY,[]),IMPORTED=[];S.proto=lsGet(PKEY,null);
+const allSessions=()=>{const ids=new Set();return [...SESS,...IMPORTED].filter(x=>!ids.has(x.id)&&ids.add(x.id));};
+const mean=a=>a.reduce((s,x)=>s+x,0)/a.length,sd=a=>Math.sqrt(a.reduce((s,x)=>s+(x-mean(a))**2,0)/Math.max(1,a.length-1)),median=a=>{const b=a.slice().sort((x,y)=>x-y),m=b.length>>1;return b.length%2?b[m]:(b[m-1]+b[m])/2;};
+function aggregate(list){const o={};for(const c of ['plataforma','base']){const L=list.filter(x=>x.cond===c);o[c]={n:L.length,sus:L.filter(x=>Number.isFinite(x.susScore)).map(x=>x.susScore),tasks:{}};
+  TASKS.forEach(T=>{const r=L.map(x=>x.res.find(y=>y.id===T.id)).filter(Boolean);o[c].tasks[T.id]={n:r.length,times:r.map(y=>y.t),ok:r.filter(y=>y.ok).length};});}return o;}
+function protoStart(){const ev=$('#pEval').value.trim(),cond=$('#pCond').value;if(!ev){toast('Escriba el código del evaluador.');return;}
+  S.proto={id:Date.now().toString(36),eval:ev,cond,fecha:new Date().toISOString().slice(0,10),idx:0,t0:null,res:[],keys:{}};
+  TASKS.forEach(T=>S.proto.keys[T.id]=T.key());lsSet(PKEY,S.proto);protoBar();valUsers();}
+function protoBar(){let bar=$('#protoBar');const P=S.proto;
+  if(!P){if(bar)bar.remove();clearInterval(window.__ptick);return;}
+  if(!bar){bar=document.createElement('div');bar.id='protoBar';document.querySelector('.app').append(bar);}
+  if(P.idx>=TASKS.length){bar.innerHTML=`<div class="pb-in"><b>Tareas terminadas.</b> ${P.cond==='plataforma'?'Complete el cuestionario SUS en Validación → Prueba con evaluadores y guarde la sesión.':'Guarde la sesión en Validación → Prueba con evaluadores.'} <button class="btn" id="pGo">Ir a guardar</button></div>`;
+    $('#pGo').onclick=()=>{S.valTab='usuarios';show('validacion');};clearInterval(window.__ptick);return;}
+  const T=TASKS[P.idx];
+  bar.innerHTML=`<div class="pb-in"><span class="mono dim">${P.eval} · ${P.cond==='plataforma'?'plataforma':'línea base'} · ${T.id} de ${TASKS.length}</span>
+   ${P.t0==null?`<span><b>${T.area}.</b> Pulse iniciar cuando esté listo para leer la tarea.</span><button class="btn" id="pBegin">Iniciar ${T.id}</button>`
+   :`<span style="flex:1 1 320px"><b>${T.area}.</b> ${T.q}</span><form id="pForm" style="display:flex;gap:6px;align-items:end;flex-wrap:wrap">${T.f.map(([k,l,u])=>u==='zona'?`<label class="f">${l}<select id="pa_${k}">${ZONES.map(z=>`<option value="${z.id}">${z.long}</option>`).join('')}</select></label>`:`<label class="f" style="width:110px">${l}${u&&u!=='E…'?' ('+u+')':''}<input type="text" inputmode="decimal" id="pa_${k}" placeholder="${u==='E…'?'número':''}" required></label>`).join('')}
+     <span class="mono" id="pClock" style="min-width:56px;text-align:right">0 s</span><button class="btn" type="submit">Registrar</button><button class="btn line" type="button" id="pSkip">No la encontré</button></form>`}
+   <button class="btn line" id="pAbort" title="Cancelar la sesión">Cancelar</button></div>`;
+  if(P.t0==null){$('#pBegin').onclick=()=>{P.t0=Date.now();lsSet(PKEY,P);protoBar();};}
+  else{clearInterval(window.__ptick);window.__ptick=setInterval(()=>{const c=$('#pClock');if(c)c.textContent=Math.round((Date.now()-P.t0)/1000)+' s';},500);
+    const rec=(ans,skipped)=>{const tsec=(Date.now()-P.t0)/1000,k=P.keys[T.id];let ok=false;if(!skipped){try{ok=T.ok(ans,k);}catch(e){}}
+      P.res.push({id:T.id,t:Math.round(tsec*10)/10,ans:skipped?'':T.f.map(([kk])=>ans[kk]).join(' | '),ok});P.idx++;P.t0=null;lsSet(PKEY,P);protoBar();if(S.view==='validacion'&&S.valTab==='usuarios')valUsers();};
+    $('#pForm').onsubmit=e=>{e.preventDefault();const ans={};for(const [k,,u] of T.f){const v=$('#pa_'+k).value.trim();ans[k]=u==='zona'?v:parseFloat(v.replace(',','.').replace(/^E/i,''));if(u!=='zona'&&!Number.isFinite(ans[k])){toast('Escriba un número.');return;}}rec(ans,false);};
+    $('#pSkip').onclick=()=>rec({},true);}
+  $('#pAbort').onclick=()=>{if($('#pAbort').dataset.c){S.proto=null;lsSet(PKEY,null);protoBar();if(S.view==='validacion')valUsers();}else{$('#pAbort').dataset.c=1;$('#pAbort').textContent='¿Cancelar? Pulse otra vez';}};}
+function valUsers(){const P=S.proto,agg=aggregate(allSessions()),done=P&&P.idx>=TASKS.length;
+  const tRow=(c)=>TASKS.map(T=>{const x=agg[c].tasks[T.id];return x.n?`${fmt(median(x.times),0)} s · ${x.ok}/${x.n}`:'—';});
+  $('#valBody').innerHTML=`<div class="doc">
+   <h2>Prueba con evaluadores</h2>
+   ${!P?`<p style="font-size:.86rem">Inicie una sesión por evaluador y condición. Las ${TASKS.length} tareas cubren trazabilidad, simulación, comparación, dinámica, plan de inspección e IA.</p>
+    <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:end"><label class="f" style="width:200px">Código del evaluador<input type="text" id="pEval" placeholder="EV-01"></label>
+     <label class="f" style="width:220px">Condición<select id="pCond"><option value="plataforma">Plataforma</option><option value="base">Línea base (archivos separados)</option></select></label><button class="btn" id="pStart">Iniciar sesión</button></div>`
+   :`<p style="font-size:.86rem">Sesión en curso: <b>${esc(P.eval)}</b> · ${P.cond==='plataforma'?'plataforma':'línea base'} · ${P.res.length} de ${TASKS.length} tareas registradas. Use la barra inferior.</p>`}
+   ${done&&P.cond==='plataforma'?`<h3>Cuestionario SUS</h3><p style="font-size:.86rem">De 1 (totalmente en desacuerdo) a 5 (totalmente de acuerdo).</p>
+    <div class="likert" id="sus">${SUS_Q.map((q,i)=>`<div class="q"><span class="mono dim">${String(i+1).padStart(2,'0')}</span><span>${q}</span><span class="opts" role="radiogroup" aria-label="Afirmación ${i+1}">${[1,2,3,4,5].map(x=>`<input type="radio" name="sus${i}" id="sus${i}_${x}" value="${x}"><label for="sus${i}_${x}">${x}</label>`).join('')}</span></div>`).join('')}</div>
+    <span id="susScore" class="flag na">0 de 10 respondidas</span>`:''}
+   ${done?`<div><button class="btn" id="pSave" ${P.cond==='plataforma'?'disabled':''}>Guardar sesión</button></div>`:''}
+   <h3>Resultados</h3>
+   <div class="tw"><table class="data"><thead><tr><th>Condición</th><th class="n">Sesiones</th>${TASKS.map(T=>`<th class="n" title="${esc(T.q)}">${T.id}</th>`).join('')}<th class="n">SUS</th></tr></thead><tbody>
+    <tr><td>Plataforma</td><td class="n">${agg.plataforma.n}</td>${tRow('plataforma').map(x=>`<td class="n">${x}</td>`).join('')}<td class="n">${agg.plataforma.sus.length?`${fmt(mean(agg.plataforma.sus),1)} ± ${fmt(sd(agg.plataforma.sus),1)}`:'—'}</td></tr>
+    <tr><td>Línea base</td><td class="n">${agg.base.n}</td>${tRow('base').map(x=>`<td class="n">${x}</td>`).join('')}<td class="n">—</td></tr>
+    <tr><td>Base / plataforma</td><td></td>${TASKS.map(T=>{const a=agg.plataforma.tasks[T.id],b=agg.base.tasks[T.id];return `<td class="n">${a.n&&b.n?fmt(median(b.times)/median(a.times),1)+'×':'—'}</td>`;}).join('')}<td></td></tr></tbody></table></div>
+   <p class="help">Celdas: mediana del tiempo · respuestas correctas / sesiones. SUS: media ± desviación estándar. Sin sesiones registradas, la tabla queda vacía.</p>
+   <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center"><button class="btn line" id="vCsv">Exportar CSV</button><label class="btn line" style="display:inline-flex;align-items:center">Importar CSV<input type="file" id="vImp" accept=".csv,text/csv" multiple hidden></label><span class="help" id="vMsg">${SESS.length} sesiones en este navegador${IMPORTED.length?` · ${IMPORTED.length} importadas`:''}</span></div>
+   ${allSessions().length?`<div class="tw"><table class="data"><thead><tr><th>Sesión</th><th>Evaluador</th><th>Condición</th><th>Fecha</th>${TASKS.map(T=>`<th class="n">${T.id}</th>`).join('')}<th class="n">SUS</th></tr></thead><tbody>${allSessions().map(x=>`<tr><td class="mono">${esc(x.id)}</td><td>${esc(x.eval)}</td><td>${x.cond==='plataforma'?'Plataforma':'Línea base'}</td><td class="mono">${esc(x.fecha)}</td>${TASKS.map(T=>{const r=x.res.find(y=>y.id===T.id);return `<td class="n">${r?`${fmt(r.t,0)} s ${r.ok?'✓':'✗'}`:'—'}</td>`;}).join('')}<td class="n">${Number.isFinite(x.susScore)?fmt(x.susScore,1):'—'}</td></tr>`).join('')}</tbody></table></div>`:''}
+   <h3>Tareas y respuestas de referencia</h3>
+   <details><summary style="cursor:pointer;font-size:.86rem">Mostrar (solo para el investigador; no lo abra frente al evaluador)</summary><div class="tw"><table class="data"><tbody>${TASKS.map(T=>`<tr><td class="mono">${T.id}</td><td>${T.q}</td><td class="n">${esc(T.show(T.key()))}</td></tr>`).join('')}</tbody></table></div></details></div>`;
+  if(!P)$('#pStart').onclick=protoStart;
+  if(done&&P.cond==='plataforma')$('#sus').addEventListener('change',()=>{const a=susAnswers(),n=a.filter(v=>v!=null).length;if(n<10){$('#susScore').textContent=`${n} de 10 respondidas`;$('#pSave').disabled=true;return;}const s=susCalc(a);$('#susScore').className='flag '+(s>=68?'ok':s>=51?'warn':'crit');$('#susScore').textContent=`SUS = ${fmt(s,1)}`;$('#pSave').disabled=false;});
+  if(done)$('#pSave').onclick=()=>{const a=P.cond==='plataforma'?susAnswers():null;SESS.push({id:P.id,eval:P.eval,cond:P.cond,fecha:P.fecha,res:P.res,sus:a,susScore:a?susCalc(a):null});lsSet(VKEY,SESS);S.proto=null;lsSet(PKEY,null);protoBar();vVal();toast('Sesión guardada.');};
+  $('#vCsv').onclick=()=>download('validacion_balta.csv','text/csv',sessionsCSV(allSessions()));
+  $('#vImp').onchange=e=>{const files=[...e.target.files];let n=0,bad=0;Promise.all(files.map(f=>f.text())).then(txts=>{txts.forEach(t=>{const r=parseSessionsCSV(t);n+=r.ok.length;bad+=r.bad;r.ok.forEach(x=>{if(!allSessions().some(y=>y.id===x.id))IMPORTED.push(x);});});vVal();toast(`${n} sesiones leídas${bad?`, ${bad} filas descartadas`:''}.`);});};}
 function susAnswers(){return SUS_Q.map((_,i)=>{const c=document.querySelector(`input[name=sus${i}]:checked`);return c?+c.value:null;});}
 function susCalc(a){return 2.5*a.reduce((s,v,i)=>s+(i%2===0?v-1:5-v),0);}
-function susScore(){const a=susAnswers(),n=a.filter(v=>v!=null).length;if(n<10){$('#susScore').className='flag na';$('#susScore').textContent=`${n} de 10 respondidas`;$('#copySus').disabled=true;return;}
-  const s=susCalc(a);$('#susScore').className='flag '+(s>=68?'ok':s>=51?'warn':'crit');$('#susScore').textContent=`SUS = ${fmt(s,1)} · ${s>=80.3?'excelente':s>=68?'sobre el promedio':s>=51?'aceptable':'bajo'}`;$('#kSus').textContent=fmt(s,1);$('#copySus').disabled=false;}
+function sessionsCSV(list){const h=['sesion','evaluador','condicion','fecha',...TASKS.flatMap(T=>[T.id+'_s',T.id+'_correcta',T.id+'_respuesta']),...SUS_Q.map((_,i)=>'SUS'+(i+1)),'SUS'];
+  const q=v=>'"'+String(v??'').replace(/"/g,'""')+'"';
+  return [h.join(','),...list.map(x=>[x.id,x.eval,x.cond,x.fecha,...TASKS.flatMap(T=>{const r=x.res.find(y=>y.id===T.id);return r?[r.t,r.ok?1:0,r.ans]:['','',''];}),...(x.sus||new Array(10).fill('')),x.susScore??''].map(q).join(','))].join('\n');}
+function parseSessionsCSV(t){const rows=[];let cur=[],f='',inq=false;for(let i=0;i<t.length;i++){const ch=t[i];if(inq){if(ch==='"'){if(t[i+1]==='"'){f+='"';i++;}else inq=false;}else f+=ch;}else if(ch==='"')inq=true;else if(ch===','){cur.push(f);f='';}else if(ch==='\n'||ch==='\r'){if(ch==='\r'&&t[i+1]==='\n')i++;cur.push(f);rows.push(cur);cur=[];f='';}else f+=ch;}if(f||cur.length){cur.push(f);rows.push(cur);}
+  const h=rows.shift()||[],ix=k=>h.indexOf(k),ok=[];let bad=0;
+  rows.filter(r=>r.length>1).forEach(r=>{const g=k=>r[ix(k)];if(ix('sesion')<0||!g('sesion')||!['plataforma','base'].includes(g('condicion'))){bad++;return;}
+    const res=TASKS.map(T=>g(T.id+'_s')===''||g(T.id+'_s')==null?null:{id:T.id,t:+g(T.id+'_s'),ok:g(T.id+'_correcta')==='1',ans:g(T.id+'_respuesta')||''}).filter(x=>x&&Number.isFinite(x.t));
+    const sus=SUS_Q.map((_,i)=>g('SUS'+(i+1))).map(v=>v===''?null:+v);const ss=g('SUS')===''?null:+g('SUS');
+    ok.push({id:g('sesion'),eval:g('evaluador'),cond:g('condicion'),fecha:g('fecha'),res,sus:sus.every(v=>v!=null)?sus:null,susScore:Number.isFinite(ss)?ss:null});});
+  return {ok,bad};}
 async function runConcordance(){const btn=$('#runConc');btn.disabled=true;btn.textContent='Calculando…';await new Promise(r=>setTimeout(r,30));
   const rows=FEM.filter(r=>r.q_kN_m>0),keys=['u_total_max_mm','ux_max_abs_mm','max_sigma_MPa','max_sigma_tablero_MPa','max_sigma_pilar_MPa'],err={};keys.forEach(k=>err[k]=0);
   const t0=performance.now();for(let i=0;i<rows.length;i++){const r=rows[i],o=solve({q:r.q_kN_m,E:r.E_GPa,target:r.damage_target,pct:r.damage_pct});keys.forEach(k=>err[k]=Math.max(err[k],Math.abs(o[k]-r[k])/Math.max(Math.abs(r[k]),1e-9)));
@@ -938,7 +1023,7 @@ function parseCSV(t){const [h,...ls]=t.trim().split(/\r?\n/);const k=h.split(','
   try{const get=p=>fetch(p).then(r=>{if(!r.ok)throw new Error(p);return r;});
     const [m,rf,svm,met,prov,fem,mcd]=await Promise.all([get('data/modelo_2d.json').then(r=>r.json()),get('data/rf_surrogate.json').then(r=>r.json()),get('data/svm_inverse.json').then(r=>r.json()),get('data/metrics_ia.json').then(r=>r.json()),get('data/procedencia.json').then(r=>r.json()),get('data/fem_525.csv').then(r=>r.text()),get('data/modelo_c.json').then(r=>r.json())]);
     M2=prepModel(m);RF=rf;SVM=svm;MET=met;PROV=prov;FEM=parseCSV(fem);MCD=mcd;computeSensitivity();DATA_READY=true;
-    const h=(location.hash||'').slice(1);show(VIEWS.includes(h)?h:'modelo');
+    const h=(location.hash||'').slice(1);show(VIEWS.includes(h)?h:'modelo');if(S.proto)protoBar();
   }catch(e){$('#canvas').innerHTML=`<div class="msg crit"><b>No se pudieron cargar los datos.</b> Falta el archivo ${esc(e.message)}; publique la carpeta data/ junto a la página.</div>`;}
 })();
 </script>
