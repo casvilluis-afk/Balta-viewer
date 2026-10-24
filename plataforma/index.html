@@ -658,7 +658,7 @@ function vDin(){
   $('#left').innerHTML=`<div class="ph">Parámetros del modelo C</div><div class="pb">${DIN_P.map(d=>{const v=(S.dinP[d.k]??MCD.nominal[d.k])/d.sc;return `<label class="f"><span class="lv">${d.l}${d.sup?' <span class="flag warn" style="font-size:.7rem">supuesto</span>':''}<output id="od_${d.k}">${fmt(v,d.step<1?2:0)} ${d.u}</output></span><input type="range" id="id_${d.k}" min="${d.min}" max="${d.max}" step="${d.step}" value="${v}"><span class="help">${d.note}</span></label>`;}).join('')}
    <label class="f">Arranques de los arcos<select id="id_spr"><option value="fixed">Empotrados (nominal)</option><option value="pinned">Articulados</option></select></label>
    <button class="btn line" id="dinReset">Valores nominales</button>
-   <p class="help">Rangos iguales a los del Monte Carlo de 400 casos (mc_C.csv). Geometría de arcos ajustada a la nube TLS.</p></div>`;
+   <p class="help">Rangos iguales a los del Monte Carlo de 400 casos (mc_C.csv, recalculado por desplazamiento-inversión). Geometría de arcos ajustada a la nube TLS.</p></div>`;
   $('#id_spr').value=S.dinP.springing||'fixed';
   DIN_P.forEach(d=>{const el=$('#id_'+d.k);el.oninput=()=>{$('#od_'+d.k).textContent=fmt(+el.value,d.step<1?2:0)+' '+d.u;};el.onchange=()=>{S.dinP[d.k]=d.k==='n_ribs'?+el.value:+el.value*d.sc;dinCompute();};});
   $('#id_spr').onchange=e=>{S.dinP.springing=e.target.value;dinCompute();};$('#dinReset').onclick=()=>{S.dinP={};vDin();};
@@ -822,7 +822,7 @@ function vReg(){const v=PROV.verificacion;
     <tr><td>Modelo 2D</td><td>150 nodos · 221 elementos elasticBeamColumn</td><td>reproducido en el navegador con error relativo menor a 1e-11</td></tr>
     <tr><td>Dataset FEM</td><td>${v.cases} casos · ${v.converged} convergidos · OpenSees ${v.opensees}</td><td>residuo de equilibrio máx. ${v.maximum_equilibrium_residual_kN.toExponential(2)} kN</td></tr>
     <tr><td>Modelo 3D</td><td>puente-balta-v12.glb · 287 objetos</td><td>eje longitudinal en metros, común con el modelo 2D</td></tr>
-    <tr><td>Modelo C (Articulo_v2)</td><td>arcos ajustados a la nube (arch_fit.json), caras de pilares medidas, 156 nodos · 225 elementos</td><td>f1 nominal 7,437 Hz; los 400 casos de mc_C.csv se reproducen con diferencia ≤ 0,05 % frente a un cálculo shift-invert</td></tr>
+    <tr><td>Modelo C (Articulo_v2)</td><td>arcos ajustados a la nube (arch_fit.json), caras de pilares medidas, 156 nodos · 225 elementos</td><td>f1 nominal 7,437 Hz; Monte Carlo de 400 casos (mc_C.csv) recalculado por desplazamiento-inversión; el navegador lo reproduce con diferencia ≤ 0,05 %</td></tr>
     <tr><td>Modelo anterior · modal</td><td>script 08, E = 50 GPa, q = 60 kN/m</td><td>f1 = 11,702 Hz y f2 = 14,267 Hz reproducidos</td></tr></tbody></table></div>
    <h3>Secciones equivalentes</h3>
    <div class="tw"><table class="data"><thead><tr><th>Familia</th><th class="n">A (m²)</th><th class="n">I (m⁴)</th><th class="n">Alto equiv. (m)</th><th class="n">c (m)</th></tr></thead><tbody>${PROV.secciones.map(s=>`<tr><td>${s.name}</td><td class="n">${s.A_m2}</td><td class="n">${s.I_m4}</td><td class="n">${fmt(s.equivalent_height_m,3)}</td><td class="n">${fmt(s.c_m,3)}</td></tr>`).join('')}</tbody></table></div>
