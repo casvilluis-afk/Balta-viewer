@@ -146,7 +146,7 @@ table.data tr.hl td{background:var(--red-bg)}
 
 <div class="app">
   <header class="bar">
-    <div class="mark"><b>Puente Balta</b><span>Plataforma de inspección · v1.3</span></div>
+    <div class="mark"><b>Puente Balta</b><span>Plataforma de inspección · v1.4</span></div>
     <nav class="menu" role="tablist" aria-label="Herramientas">
       <button role="tab" data-v="modelo"><span class="k">1</span>Modelo</button>
       <button role="tab" data-v="simulacion"><span class="k">2</span>Simulación</button>
@@ -497,10 +497,16 @@ function vModelo(){
   const hl=z.groups;
   if(!$('#vp')){
     $('#canvas').innerHTML=`<div class="row" style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap"><div class="toggle" role="group" aria-label="Vista"><button data-m="3d">Modelo 3D</button><button data-m="elev">Elevación S-01</button><button data-m="both">Ambas</button></div><label style="display:flex;gap:6px;align-items:center;font-size:.82rem"><input type="checkbox" id="ovC" ${S.ovC?'checked':''}> Superponer intradós medido en la nube</label></div>
+      <div id="cloudBar" style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;font-size:.82rem"><label style="display:flex;gap:6px;align-items:center"><input type="checkbox" id="cOn"> Nube TLS (186 442 puntos)</label>
+       <label style="display:flex;gap:6px;align-items:center">Color<select id="cMode" style="width:auto"><option value="rgb">Color real</option><option value="int">Intensidad</option><option value="z">Altura</option></select></label>
+       <label style="display:flex;gap:6px;align-items:center"><input type="checkbox" id="cOnly"> Ocultar modelo 3D</label><span class="mono dim" id="cInfo" style="font-size:.74rem"></span></div>
       <div class="vp" id="vp"><div class="st" id="vpst">Cargando modelo 3D…</div><span class="corner">VISTA LIBRE · arrastrar para girar · rueda para acercar</span></div>
       <div class="sheet" id="elevM"></div>`;
     $('#canvas').querySelectorAll('.toggle button').forEach(b=>b.onclick=()=>{S.m3d=b.dataset.m;applyM3d();});
     $('#ovC').onchange=e=>{S.ovC=e.target.checked;if(S.ovC&&S.m3d==='3d')S.m3d='both';vModelo();};
+    const cUpd=()=>{S.cloud={on:$('#cOn').checked,mode:$('#cMode').value,only:$('#cOnly').checked};if(S.m3d==='elev'&&S.cloud.on){S.m3d='3d';applyM3d();}if(window.__cloud)window.__cloud(S.cloud);};
+    ['cOn','cMode','cOnly'].forEach(id=>$('#'+id).onchange=cUpd);
+    if(S.cloud){$('#cOn').checked=S.cloud.on;$('#cMode').value=S.cloud.mode;$('#cOnly').checked=S.cloud.only;}
     init3d();
   }
   const ov=S.ovC?(X,Z)=>{const blue=css('--blue');let o='';['izq','centro','der'].forEach(k=>{const f=MCD.fit[k],a=f.ymin,b=f.ymax;let d='';for(let i=0;i<=60;i++){const y=a+(b-a)*i/60;d+=(i?'L':'M')+X(y).toFixed(1)+' '+Z(mcPolyval(f.coef,y)).toFixed(1);}o+=`<path d="${d}" fill="none" stroke="${blue}" stroke-width="1.6" stroke-dasharray="5 2.5"/>`;});
@@ -538,11 +544,31 @@ function init3d(){
         ptr.set((e.clientX-r.left)/r.width*2-1,-(e.clientY-r.top)/r.height*2+1);ray.setFromCamera(ptr,cam);const hit=ray.intersectObjects(viewer3d.pick,false).find(h=>h.object.userData.zone);
         if(hit&&S.view==='modelo'){S.zone=hit.object.userData.zone;vModelo();window.__hl3d(S.zone);}});
       (function loop(){requestAnimationFrame(loop);if(!viewer3d.renderer.domElement.isConnected)return;ctl.update();renderer.render(scene,cam);})();
+      // Nube TLS: ejes de la nube (x transversal, y longitudinal, z vertical) → mundo = (−x, z, y), según la transformación guardada en el .glb
+      let cloudPts=null,cloudData=null,cloudLoading=null;
+      window.__cloud=async st=>{const info=$('#cInfo');
+        if(st.on&&!cloudPts){if(!cloudLoading){if(info)info.textContent='Cargando nube (2,5 MB)…';
+            cloudLoading=fetch('data/nube_balta.json').then(r=>{if(!r.ok)throw new Error();return r.json();});}
+          try{cloudData=await cloudLoading;}catch(e){if(info)info.textContent='No se pudo cargar data/nube_balta.json.';cloudLoading=null;return;}
+          if(!cloudPts){const b64=t=>Uint8Array.from(atob(t),c=>c.charCodeAt(0));const q=new Uint16Array(b64(cloudData.pos).buffer),n=cloudData.n,lo=cloudData.lo,hi=cloudData.hi;
+            const pos=new Float32Array(3*n);for(let i=0;i<n;i++){const x=lo[0]+q[3*i]/65535*(hi[0]-lo[0]),y=lo[1]+q[3*i+1]/65535*(hi[1]-lo[1]),z=lo[2]+q[3*i+2]/65535*(hi[2]-lo[2]);pos[3*i]=-x;pos[3*i+1]=z;pos[3*i+2]=y;}
+            cloudData._rgb=b64(cloudData.rgb);cloudData._int=b64(cloudData.inten);cloudData._z=pos.filter((_,i)=>i%3===1);
+            const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.BufferAttribute(pos,3));g.setAttribute('color',new THREE.BufferAttribute(new Float32Array(3*n),3));
+            cloudPts=new THREE.Points(g,new THREE.PointsMaterial({size:.07,sizeAttenuation:true,vertexColors:true}));scene.add(cloudPts);}}
+        if(cloudPts){cloudPts.visible=st.on;
+          if(st.on&&cloudPts.userData.mode!==st.mode){const c=cloudPts.geometry.attributes.color.array,n=cloudData.n;
+            if(st.mode==='rgb')for(let i=0;i<3*n;i++)c[i]=cloudData._rgb[i]/255;
+            else if(st.mode==='int')for(let i=0;i<n;i++){const v=.15+.85*cloudData._int[i]/255;c[3*i]=c[3*i+1]=c[3*i+2]=v;}
+            else{const z=cloudData._z,a=-9.4,b=1.5,A=new THREE.Color(css('--blue')),B=new THREE.Color(css('--warn'));for(let i=0;i<n;i++){const t=Math.max(0,Math.min(1,(z[i]-a)/(b-a)));c[3*i]=A.r+(B.r-A.r)*t;c[3*i+1]=A.g+(B.g-A.g)*t;c[3*i+2]=A.b+(B.b-A.b)*t;}}
+            cloudPts.geometry.attributes.color.needsUpdate=true;cloudPts.userData.mode=st.mode;}}
+        viewer3d.pick.forEach(o=>o.visible=!(st.on&&st.only));
+        if(info)info.textContent=st.on&&cloudData?`vóxel ${fmt(cloudData.voxel_m,2)} m · ${cloudData.n.toLocaleString('es-PE')} de ${cloudData.n_original.toLocaleString('es-PE')} puntos`:'';};
     }
     const host=$('#vp');host.prepend(viewer3d.renderer.domElement);
     window.__resize3d=()=>{const h=$('#vp');if(!h||h.hidden)return;const w=h.clientWidth,hh=h.clientHeight;viewer3d.renderer.setSize(w,hh,false);viewer3d.cam.aspect=w/hh;viewer3d.cam.updateProjectionMatrix();};
     new ResizeObserver(()=>window.__resize3d()).observe(host);
     if(viewer3d.loaded){const st=$('#vpst');if(st)st.remove();window.__hl3d(S.zone);}
+    if(S.cloud&&window.__cloud)window.__cloud(S.cloud);
     window.__resize3d();};
   if(window.BaltaThree)go();else{window.addEventListener('three-ready',go,{once:true});setTimeout(()=>{const st=$('#vpst');if(st&&!window.BaltaThree)st.textContent='No se pudo cargar la librería 3D. Use la vista Elevación.';},9000);}
 }
@@ -892,6 +918,7 @@ function vReg(){const v=PROV.verificacion;
     <tr><td>Nube TLS · Trimble X7</td><td>601 243 puntos tras el filtro SOR</td><td>media 0,291 m · RMSE 0,433 m · 92,85 % a menos de 0,50 m del modelo</td></tr>
     <tr><td>Modelo 2D</td><td>150 nodos · 221 elementos elasticBeamColumn</td><td>reproducido en el navegador con error relativo menor a 1e-11</td></tr>
     <tr><td>Dataset FEM</td><td>${v.cases} casos · ${v.converged} convergidos · OpenSees ${v.opensees}</td><td>residuo de equilibrio máx. ${v.maximum_equilibrium_residual_kN.toExponential(2)} kN</td></tr>
+    <tr><td>Nube en el visor</td><td>186 442 puntos originales, uno por vóxel de 0,12 m (de 601 243)</td><td>sin promediar; cuantización de 16 bits con error máx. 1,1 mm; SHA-256 de puente_balta_clean.ply: c53ca9cd5e2969d1…</td></tr>
     <tr><td>Modelo 3D</td><td>puente-balta-v12.glb · 287 objetos</td><td>eje longitudinal en metros, común con el modelo 2D</td></tr>
     <tr><td>Modelo C (Articulo_v2)</td><td>arcos ajustados a la nube (arch_fit.json), caras de pilares medidas, 156 nodos · 225 elementos</td><td>f1 nominal 7,437 Hz; Monte Carlo de 400 casos (mc_C.csv) recalculado por desplazamiento-inversión; el navegador lo reproduce con diferencia ≤ 0,05 %</td></tr>
     <tr><td>Modelo anterior · modal</td><td>script 08, E = 50 GPa, q = 60 kN/m</td><td>f1 = 11,702 Hz y f2 = 14,267 Hz reproducidos</td></tr></tbody></table></div>
@@ -903,7 +930,7 @@ function vReg(){const v=PROV.verificacion;
    <h3>Alcance</h3>
    <p style="font-size:.88rem">${esc(PROV.alcance)} El esfuerzo se estima con P/A + M·c/I y fuerzas globales del elemento, igual que el script original. La geometría 2D usa arranques a −5,0 m; el levantamiento indica unos −6,4 m y una primera luz mayor, por lo que el modelo corregido reemplazará esta base.</p>
   </div>`;
-  $('#right').innerHTML=`<div class="ph">Archivos publicados</div><table class="props"><tbody>${['modelo_2d.json','fem_525.csv','rf_surrogate.json','svm_inverse.json','metrics_ia.json','procedencia.json','modelo_c.json'].map(f=>`<tr><td colspan="2" style="font-family:var(--f-mono);font-size:.76rem;color:var(--ink)">data/${f}</td></tr>`).join('')}</tbody></table><div class="pb help">El código para regenerar los modelos de IA está en la carpeta codigo/ del repositorio.</div>`;}
+  $('#right').innerHTML=`<div class="ph">Archivos publicados</div><table class="props"><tbody>${['modelo_2d.json','fem_525.csv','rf_surrogate.json','svm_inverse.json','metrics_ia.json','procedencia.json','modelo_c.json','nube_balta.json'].map(f=>`<tr><td colspan="2" style="font-family:var(--f-mono);font-size:.76rem;color:var(--ink)">data/${f}</td></tr>`).join('')}</tbody></table><div class="pb help">El código para regenerar los modelos de IA está en la carpeta codigo/ del repositorio.</div>`;}
 
 /* ================= Arranque ================= */
 function parseCSV(t){const [h,...ls]=t.trim().split(/\r?\n/);const k=h.split(',');return ls.map(l=>{const v=l.split(',');const o={};k.forEach((kk,i)=>{const n=+v[i];o[kk]=v[i]!==''&&Number.isFinite(n)?n:v[i];});return o;});}
