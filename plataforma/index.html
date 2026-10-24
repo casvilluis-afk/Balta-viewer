@@ -151,7 +151,7 @@ details summary::-webkit-details-marker{color:var(--ink-3)}
 
 <div class="app">
   <header class="bar">
-    <div class="mark"><b>Puente Balta</b><span>Plataforma de inspección · v1.6</span></div>
+    <div class="mark"><b>Puente Balta</b><span>Plataforma de inspección · v1.7</span></div>
     <nav class="menu" role="tablist" aria-label="Herramientas">
       <button role="tab" data-v="modelo"><span class="k">1</span>Modelo</button>
       <button role="tab" data-v="simulacion"><span class="k">2</span>Simulación</button>
@@ -643,40 +643,78 @@ function svmC(x){const M=IAC,z=x.map((v,i)=>(v-M.mean[i])/M.scale[i]);
   const sc=votes.map((v,i)=>v+conf[i]/(3*(Math.abs(conf[i])+1))),o=sc.map((s,i)=>[s,i]).sort((a,b)=>b[0]-a[0]);
   let dm=Infinity;for(const t of M.train){let d=0;for(let i=0;i<z.length;i++)d+=(z[i]-t[i])**2;dm=Math.min(dm,d);}
   const cls=M.classes[o[0][1]];let sev=null;if(cls>=0){const oh=new Array(18).fill(0);oh[cls]=1;sev=M.severity_trees.reduce((acc,t)=>acc+treePredict(t,[...x,...oh]),0)/M.severity_trees.length;}
-  return {cls,second:M.classes[o[1][1]],margin:o[0][0]-o[1][0],dist:Math.sqrt(dm),ood:Math.sqrt(dm)>M.ood_threshold,sev};}
+  return {cls,second:M.classes[o[1][1]],margin:o[0][0]-o[1][0],dist:Math.sqrt(dm),ood:Math.sqrt(dm)>M.ood_threshold,sev,votes:o.slice(0,4).map(([sc,i])=>({cls:M.classes[i],v:votes[i]}))};}
 async function dxInit(){const d=$('#dxDoc');d.dataset.ok=1;d.innerHTML='<h2>Diagnóstico de daño por vibración</h2><p class="help">Cargando la IA del modelo C…</p>';
   try{if(!IAC){IAC=await fetch('data/ia_modelo_c.json').then(r=>{if(!r.ok)throw 0;return r.json();});}}catch(e){d.innerHTML='<div class="msg crit"><b>No se pudo cargar la IA del modelo C.</b> Falta data/ia_modelo_c.json.</div>';return;}
   if(!S.dx)S.dx={zone:7,sev:.3,lev:1};dxRender();}
-function dxRender(){const X=S.dx;
-  $('#dxDoc').innerHTML=`<div style="display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;align-items:baseline"><h2>Diagnóstico de daño por vibración</h2><span class="mono dim" style="font-size:.74rem">modelo C · 9 sensores · 8 modos</span></div>
-   <p style="font-size:.86rem">Se simula un daño en el modelo C y se “mide” como lo haría un ensayo de vibración: variación de 8 frecuencias y formas de 4 modos en los 9 sensores del tablero, con ruido. El SVM-RBF propone la zona y el Random Forest la severidad, sin conocer el escenario.</p>
-   <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,200px),1fr));gap:10px;align-items:end">
+function mulberry(seed){let a=seed>>>0;return ()=>{a=(a+0x6D2B79F5)>>>0;let t=a;t=Math.imul(t^(t>>>15),t|1);t^=t+Math.imul(t^(t>>>7),t|61);return ((t^(t>>>14))>>>0)/4294967296;};}
+function gaussR(r){let u=0,v=0;while(!u)u=r();while(!v)v=r();return Math.sqrt(-2*Math.log(u))*Math.cos(2*Math.PI*v);}
+function dxClean(){const X=S.dx,key=X.zone+'|'+X.sev;if(S.dxC&&S.dxC.key===key)return S.dxC;const B=dxBase(),t0=performance.now();
+  const esc=new Float64Array(B.fr.el.length).fill(1);if(X.zone>=0)B.zones.forEach((z,t)=>{if(z===X.zone)esc[t]=1-X.sev;});
+  const r=mcModal(B.fr,8,esc);S.dxC={key,clean:mcFeatures(r.f,r.phi,B.f0,B.phi0,B.sens.map(s=>s.dof)),ms:performance.now()-t0};return S.dxC;}
+function dxMeasure(clean,L,n){const r=mulberry(1000003*n+7919);return clean.map((v,i)=>v+gaussR(r)*(i<8?L.sf:L.ss));}
+const dxSpan=z=>z<0?-1:z>=15?z-15:Math.floor(z/5);
+function dxVerdict(d,truth){return d.ood?['crit','Medición fuera de dominio']:d.margin<1?['warn','No concluyente']:d.cls===truth?['ok','Zona correcta']:dxSpan(d.cls)===dxSpan(truth)?['warn','Vano correcto, zona distinta']:['crit','No coincide'];}
+function dxRender(){const X=S.dx;if(!X.n)X.n=1;
+  $('#dxDoc').innerHTML=`<div style="display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;align-items:baseline"><h2>IA · Diagnóstico de daño por vibración</h2><span class="mono dim" style="font-size:.74rem">modelo C · 9 sensores · 8 modos</span></div>
+   <div class="tw"><table class="data" style="font-size:.8rem"><tbody><tr>
+    <td><b>1 · Medición</b><br><span class="dim">8 frecuencias y 4 formas modales en S1–S9, con ruido</span></td>
+    <td><b>2 · Rasgos</b><br><span class="dim">44 valores: Δf de 8 modos y 36 ordenadas modales</span></td>
+    <td><b>3 · SVM-RBF</b><br><span class="dim">elige la zona entre 19 clases por votación</span></td>
+    <td><b>4 · Random Forest</b><br><span class="dim">estima la severidad en la zona elegida</span></td>
+    <td><b>5 · Confianza</b><br><span class="dim">margen de votos y distancia al dominio de entrenamiento</span></td></tr></tbody></table></div>
+   <p style="font-size:.86rem">Elija un escenario. La plataforma calcula el modelo C dañado y simula la medición; la IA no conoce el escenario. Cada medición tiene un número: el mismo número da siempre el mismo resultado. Para saber qué tan confiable es la IA en ese escenario, repita 100 mediciones.</p>
+   <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,190px),1fr));gap:10px;align-items:end">
     <label class="f">Zona dañada<select id="dxZ"><option value="-1">Sin daño</option>${IAC.zonas.map((_,i)=>`<option value="${i}" ${i===X.zone?'selected':''}>${zlab(i)}</option>`).join('')}</select></label>
     <label class="f"><span class="lv">Pérdida de rigidez <output id="dxSo">${Math.round(X.sev*100)} %</output></span><input type="range" id="dxS" min="5" max="60" step="1" value="${Math.round(X.sev*100)}"></label>
     <label class="f">Ruido de medición<select id="dxL">${NLEV.map((l,i)=>`<option value="${i}" ${i===X.lev?'selected':''}>${l.l}</option>`).join('')}</select></label>
-    <button class="btn line" id="dxGo">Nueva medición</button></div><div id="dxOut"><p class="help">Calculando…</p></div>`;
+    <label class="f">Medición n.º<input type="number" id="dxN" min="1" max="99999" step="1" value="${X.n}"></label></div>
+   <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px"><button class="btn line" id="dxGo">Nueva medición</button><button class="btn" id="dxRep">Repetir 100 mediciones</button></div>
+   <div id="dxOut"><p class="help">Calculando…</p></div><div id="dxStats"></div>`;
   $('#dxZ').value=X.zone;$('#dxS').disabled=X.zone<0;
-  $('#dxZ').onchange=e=>{X.zone=+e.target.value;$('#dxS').disabled=X.zone<0;dxRun();};$('#dxS').oninput=e=>{$('#dxSo').textContent=e.target.value+' %';};$('#dxS').onchange=e=>{X.sev=e.target.value/100;dxRun();};
-  $('#dxL').onchange=e=>{X.lev=+e.target.value;dxRun();};$('#dxGo').onclick=dxRun;setTimeout(dxRun,20);}
-function dxRun(){const X=S.dx,B=dxBase(),L=NLEV[X.lev],t0=performance.now();
-  const esc=new Float64Array(B.fr.el.length).fill(1);if(X.zone>=0)B.zones.forEach((z,t)=>{if(z===X.zone)esc[t]=1-X.sev;});
-  const r=mcModal(B.fr,8,esc),clean=mcFeatures(r.f,r.phi,B.f0,B.phi0,B.sens.map(s=>s.dof));lastSolveMs=performance.now()-t0;
-  const x=clean.map((v,i)=>v+gauss()*(i<8?L.sf:L.ss)),d=svmC(x),truth=X.zone,M=MIAC.por_ruido[L.k];
-  const span=z=>z<0?-1:z>=15?z-15:Math.floor(z/5),hit=d.cls===truth,spanHit=span(d.cls)===span(truth);
-  const verdict=d.ood?['crit','Medición fuera de dominio']:d.margin<1?['warn','No concluyente']:hit?['ok','Zona correcta']:spanHit?['warn','Vano correcto, zona distinta']:['crit','No coincide'];
-  $('#dxOut').innerHTML=`<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),1fr));gap:18px;margin-top:6px">
+  const reset=()=>{X.n=1;$('#dxN').value=1;$('#dxStats').innerHTML='';dxRun();};
+  $('#dxZ').onchange=e=>{X.zone=+e.target.value;$('#dxS').disabled=X.zone<0;reset();};$('#dxS').oninput=e=>{$('#dxSo').textContent=e.target.value+' %';};$('#dxS').onchange=e=>{X.sev=e.target.value/100;reset();};
+  $('#dxL').onchange=e=>{X.lev=+e.target.value;reset();};$('#dxN').onchange=e=>{X.n=Math.max(1,Math.round(+e.target.value||1));e.target.value=X.n;dxRun();};
+  $('#dxGo').onclick=()=>{X.n++;$('#dxN').value=X.n;dxRun();};$('#dxRep').onclick=dxRepeat;setTimeout(dxRun,20);}
+function dxRun(){const X=S.dx,B=dxBase(),L=NLEV[X.lev],C=dxClean();lastSolveMs=C.ms;
+  const clean=C.clean,x=dxMeasure(clean,L,X.n),d=svmC(x),truth=X.zone,M=MIAC.por_ruido[L.k],verdict=dxVerdict(d,truth);
+  $('#dxOut').innerHTML=`<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),1fr));gap:18px;margin-top:10px">
    <div class="tw"><table class="data"><tbody>
-    <tr><td>Resultado</td><td class="n"><span class="flag ${verdict[0]}">${verdict[1]}</span></td></tr>
+    <tr><td>Medición n.º ${X.n}</td><td class="n"><span class="flag ${verdict[0]}">${verdict[1]}</span></td></tr>
     <tr><td>Zona propuesta (SVM-RBF)</td><td class="n" style="font-weight:600">${zlab(d.cls)}</td></tr>
-    <tr><td>Segunda opción</td><td class="n">${zlab(d.second)}</td></tr>
     <tr><td>Severidad estimada (RF)</td><td class="n">${d.sev==null?'—':pct(Math.max(0,d.sev),0)} <span class="dim">(real ${truth<0?'0 %':pct(X.sev,0)})</span></td></tr>
     <tr><td>Margen de votos</td><td class="n">${fmt(d.margin,2)} <span class="dim">/ mín. 1,0</span></td></tr>
     <tr><td>Distancia al dominio</td><td class="n">${fmt(d.dist,2)} <span class="dim">/ umbral ${fmt(IAC.ood_threshold,2)}</span></td></tr></tbody></table>
-    <p class="help" style="margin-top:6px">Validación con este ruido: localización ${pct(M.localizacion_acc,0)}, vano ${pct(M.vano_acc,0)}, falsas alarmas ${pct(M.falsa_alarma,0)}; daños de 5–15 %: ${pct(M['loc_acc_d5-15'],0)}.</p></div>
-   <div class="tw"><table class="data"><thead><tr><th>Modo</th><th class="n">f₀ (Hz)</th><th class="n">Δf sin ruido</th><th class="n">Δf medido</th></tr></thead><tbody>${clean.slice(0,8).map((v,i)=>`<tr><td class="mono">${i+1}</td><td class="n">${fmt(B.f0[i],3)}</td><td class="n">${sgn(v,2)}</td><td class="n">${sgn(x[i],2)}</td></tr>`).join('')}</tbody></table></div></div>`;
+    <h3 style="margin-top:12px">Votos del SVM en esta medición</h3>
+    <div class="tw"><table class="data"><tbody>${d.votes.map(v=>`<tr${v.cls===truth?' class="hl"':''}><td>${zlab(v.cls)}${v.cls===truth?' <span class="dim">(real)</span>':''}</td><td style="width:45%"><div class="meter"><i style="width:${100*v.v/18}%"></i></div></td><td class="n">${v.v} de 18</td></tr>`).join('')}</tbody></table></div>
+    <p class="help" style="margin-top:6px">Cada clase se enfrenta a las otras 18; gana la que reúne más victorias. Si las dos primeras empatan o casi, el resultado es no concluyente.</p></div>
+   <div class="tw"><table class="data"><thead><tr><th>Modo</th><th class="n">f₀ (Hz)</th><th class="n">Δf sin ruido</th><th class="n">Δf medido</th></tr></thead><tbody>${clean.slice(0,8).map((v,i)=>`<tr><td class="mono">${i+1}</td><td class="n">${fmt(B.f0[i],3)}</td><td class="n">${sgn(v,2)}</td><td class="n">${sgn(x[i],2)}</td></tr>`).join('')}</tbody></table>
+    <p class="help" style="margin-top:6px">Δf sin ruido es la respuesta verdadera del puente dañado; Δf medido incluye el error del instrumento. Validación general con este ruido: localización ${pct(M.localizacion_acc,0)}, vano ${pct(M.vano_acc,0)}, falsas alarmas ${pct(M.falsa_alarma,0)}.</p></div></div>`;
   const red=css('--red'),blue=css('--blue');
-  $('#dxSheet').innerHTML=sheet({no:'S-06',title:`Diagnóstico · ${zlab(truth)}${truth>=0?' −'+Math.round(X.sev*100)+' %':''}`,content:elevC({fr:B.fr,hl:t=>B.zones[t]===d.cls&&d.cls>=0?red:B.zones[t]===truth&&truth>=0?blue:null})+B.sens.map((s,k)=>{const xx=46+(s.y-28)*900/89,zz=70+(1.5-B.fr.nodes[s.node][1])*900/89*1.5;return `<path d="M${xx} ${zz-3}l-4 -7h8z" fill="${css('--sheet')}" stroke="${css('--ink')}" stroke-width=".8"/><text x="${xx}" y="${zz-13}" font-size="7.5" text-anchor="middle">S${k+1}</text>`;}).join(''),
+  $('#dxSheet').innerHTML=sheet({no:'S-06',title:`Diagnóstico · ${zlab(truth)}${truth>=0?' −'+Math.round(X.sev*100)+' %':''} · medición ${X.n}`,content:elevC({fr:B.fr,hl:t=>B.zones[t]===d.cls&&d.cls>=0?red:B.zones[t]===truth&&truth>=0?blue:null})+B.sens.map((s,k)=>{const xx=46+(s.y-28)*900/89,zz=70+(1.5-B.fr.nodes[s.node][1])*900/89*1.5;return `<path d="M${xx} ${zz-3}l-4 -7h8z" fill="${css('--sheet')}" stroke="${css('--ink')}" stroke-width=".8"/><text x="${xx}" y="${zz-13}" font-size="7.5" text-anchor="middle">S${k+1}</text>`;}).join(''),
     notes:legendRow([['line',blue,'Zona dañada en la simulación'],['line',red,'Zona propuesta por la IA (si coincide, solo rojo)']],40,462)+`<text x="40" y="510">Ruido: ${L.l} · ${fmt(lastSolveMs,0)} ms de cálculo</text>`});
+  statusBar();}
+async function dxRepeat(){const X=S.dx,L=NLEV[X.lev],clean=dxClean().clean,truth=X.zone,N=100,btn=$('#dxRep');btn.disabled=true;
+  const R=[];for(let n=1;n<=N;n++){R.push(svmC(dxMeasure(clean,L,n)));if(n%10===0){btn.textContent=`Midiendo… ${n}/${N}`;await new Promise(r=>setTimeout(r,0));}}
+  btn.textContent='Repetir 100 mediciones';btn.disabled=false;
+  const cnt=new Map();R.forEach(d=>cnt.set(d.cls,(cnt.get(d.cls)||0)+1));const top=[...cnt].sort((a,b)=>b[1]-a[1]);
+  const ok=R.filter(d=>d.cls===truth).length,spanOk=R.filter(d=>dxSpan(d.cls)===dxSpan(truth)).length,conc=R.filter(d=>!d.ood&&d.margin>=1),concOk=conc.filter(d=>d.cls===truth).length,ood=R.filter(d=>d.ood).length;
+  const sv=R.filter(d=>d.cls===truth&&d.sev!=null).map(d=>d.sev).sort((a,b)=>a-b),q=p=>sv[Math.min(sv.length-1,Math.floor(p*(sv.length-1)))];
+  const shown=top.slice(0,6),rest=top.slice(6).reduce((s,x)=>s+x[1],0);
+  const lvl=ok>=80?['ok','Alta']:ok>=50?['warn','Media']:['crit','Baja'];
+  $('#dxStats').innerHTML=`<div style="margin-top:14px;border-top:1.5px solid var(--ink);padding-top:10px">
+   <div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;align-items:baseline"><h3 style="margin:0">Confiabilidad de la IA en este escenario · ${N} mediciones</h3><span class="flag ${lvl[0]}">Confiabilidad ${lvl[1].toLowerCase()}</span></div>
+   <p class="help">${zlab(truth)}${truth>=0?` con ${pct(X.sev,0)} de pérdida de rigidez`:''} · ruido ${L.l.split(' · ')[0].toLowerCase()} · mediciones n.º 1 a ${N}</p>
+   <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),1fr));gap:18px">
+    <div class="tw"><table class="data"><tbody>
+     <tr><td>Zona correcta</td><td class="n" style="font-weight:600">${ok} de ${N}</td></tr>
+     <tr><td>Vano correcto</td><td class="n">${spanOk} de ${N}</td></tr>
+     <tr><td>Resultados concluyentes</td><td class="n">${conc.length} de ${N}</td></tr>
+     <tr><td>Aciertos entre los concluyentes</td><td class="n">${conc.length?pct(concOk/conc.length,0):'—'}</td></tr>
+     <tr><td>Mediciones fuera de dominio</td><td class="n">${ood}</td></tr>
+     <tr><td>Severidad estimada cuando acierta la zona</td><td class="n">${sv.length?`${pct(Math.max(0,q(.5)),0)} <span class="dim">(p5–p95: ${pct(Math.max(0,q(.05)),0)}–${pct(Math.max(0,q(.95)),0)})</span>`:'—'}</td></tr></tbody></table></div>
+    <div class="tw"><table class="data"><thead><tr><th>Zona elegida por la IA</th><th></th><th class="n">Veces</th></tr></thead><tbody>${shown.map(([c,k])=>`<tr${c===truth?' class="hl"':''}><td>${zlab(c)}${c===truth?' <span class="dim">(real)</span>':''}</td><td style="width:40%"><div class="meter"><i style="width:${k}%;${c===truth?'background:var(--ok)':''}"></i></div></td><td class="n">${k}</td></tr>`).join('')}${rest?`<tr><td class="dim">Otras zonas</td><td></td><td class="n">${rest}</td></tr>`:''}</tbody></table></div></div>
+   <p style="font-size:.86rem;margin-top:8px">${ok>=80?'La IA identifica esta zona de forma consistente; un solo ensayo bastaría para orientar la inspección.':ok>=50?'La IA acierta la mayoría de las veces, pero conviene repetir la medición o confirmar en campo antes de concluir.':'Con este nivel de ruido la IA no distingue bien esta zona; el resultado debe tomarse como indicio y verificarse en campo.'} Las confusiones suelen ocurrir con zonas vecinas del mismo vano.</p></div>`;
   statusBar();}
 function nearestNoise(nl){const keys=Object.keys(MET.inversa.por_ruido).map(Number);const k=keys.reduce((a,b)=>Math.abs(b-nl)<Math.abs(a-nl)?b:a);return MET.inversa.por_ruido[String(k)];}
 
