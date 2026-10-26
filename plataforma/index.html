@@ -194,7 +194,7 @@ import {OrbitControls} from 'three/addons/controls/OrbitControls.js';
 window.BaltaThree={THREE,GLTFLoader,OrbitControls};
 window.dispatchEvent(new Event('three-ready'));
 </script>
-<script src="v3d.js?v=2.2.0"></script>
+<script src="v3d.js?v=2.2.1"></script>
 <script src="op_core.js?v=2.1.0"></script>
 <script src="op_ui.js?v=2.1.0"></script>
 <script>
@@ -1141,7 +1141,7 @@ function vReg(){const v=PROV.verificacion;
 /* ================= Vista 3D a pantalla completa ================= */
 // Cada vista trae su panel de parámetros: al cambiarlos se recalcula y el puente se actualiza sin salir del 3D.
 const meshZone=m=>(ZONES.find(z=>z.glb(m.name))||{}).id;
-const live3d=fn=>{let p=0;return()=>{if(!p)p=requestAnimationFrame(()=>{p=0;fn();});};};
+const live3d=fn=>{let p=0;return()=>{if(!p)p=setTimeout(()=>{p=0;fn();},16);};};
 const kSel=(id,lab,opts,val)=>`<label class="f">${lab}<select id="${id}">${opts.map(([v,l])=>`<option value="${v}"${String(v)===String(val)?' selected':''}>${l}</option>`).join('')}</select></label>`;
 const kRng=(id,lab,min,max,step,val,out)=>`<label class="f"><span class="lv">${lab} <output id="${id}o">${out}</output></span><input type="range" id="${id}" min="${min}" max="${max}" step="${step}" value="${val}"></label>`;
 const back3d=()=>show(S.view);
