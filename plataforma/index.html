@@ -189,7 +189,7 @@ import {OrbitControls} from 'three/addons/controls/OrbitControls.js';
 window.BaltaThree={THREE,GLTFLoader,OrbitControls};
 window.dispatchEvent(new Event('three-ready'));
 </script>
-<script src="v3d.js?v=2.1.0"></script>
+<script src="v3d.js?v=2.1.1"></script>
 <script src="op_core.js?v=2.1.0"></script>
 <script src="op_ui.js?v=2.1.0"></script>
 <script>
@@ -1132,7 +1132,7 @@ function open3dMod(){const z=ZONES.find(z=>z.id===S.zone),red=V3D.rgb(css('--red
   V3D.open({title:'Modelo 3D · '+z.long,sub:'Componente seleccionado en rojo · arrastre para girar, rueda para acercar',colorAt:m=>meshZone(m)===S.zone?red:null,
     legend:V3D.legendCats([[css('--red'),z.name],[css('--m-arco'),'Arcos'],[css('--m-tablero'),'Tablero y vigas'],[css('--m-montante'),'Montantes'],[css('--m-pilar'),'Pilares y estribos']])});}
 function stressSpec(res,base,title,sub,lblA){const A=V3D.adaptM2(M2),look=V3D.elemLookup(A);
-  const ch=base?res.sig.map((v,t)=>v/Math.max(base.sig[t],1e-6)-1):null;let lim=.05;if(ch)ch.forEach(v=>{if(Math.abs(v)>lim)lim=Math.abs(v);});lim=Math.min(lim,.5);
+  const ch=base?res.sig.map((v,t)=>v/Math.max(base.sig[t],1e-6)-1):null;let lim=.05;if(ch){const a=ch.map(Math.abs).sort((x,y)=>x-y);lim=Math.min(.5,Math.max(.05,a[Math.floor(a.length*.95)]));}
   const div=V3D.diverging(lim),seq=V3D.sequential(),smax=Math.max(...res.sig);
   return {title,sub,disp:V3D.dispField(A,res.U),animate:'static',physical:true,ampDefault:1.5,
     colorAt:(m,i)=>{const t=look(m,i);if(t<0)return null;return ch?div(ch[t]):seq(res.sig[t]/smax);},

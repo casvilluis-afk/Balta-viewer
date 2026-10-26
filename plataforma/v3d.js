@@ -18,11 +18,11 @@ const V3D = (() => {
       const { THREE, GLTFLoader, OrbitControls } = await ready3();
       const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true }); renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
       const scene = new THREE.Scene(), cam = new THREE.PerspectiveCamera(30, 1, .1, 3000);
-      scene.add(new THREE.HemisphereLight(0xffffff, 0x5c656d, 1.35)); const dl = new THREE.DirectionalLight(0xffffff, 1.5); dl.position.set(60, 90, -30); scene.add(dl); const dl2 = new THREE.DirectionalLight(0xffffff, .5); dl2.position.set(-50, 20, 80); scene.add(dl2);
+      scene.add(new THREE.HemisphereLight(0xffffff, 0x8a9399, 1.1)); const dl = new THREE.DirectionalLight(0xffffff, 1.5); dl.position.set(60, 90, -30); scene.add(dl); const dl2 = new THREE.DirectionalLight(0xffffff, .5); dl2.position.set(-50, 20, 80); scene.add(dl2);
       const ctl = new OrbitControls(cam, renderer.domElement); ctl.enableDamping = true;
       const g = await new Promise((res, rej) => new GLTFLoader().load(MODEL_URL, res, ev => { if (onProg && ev.total) onProg(ev.loaded / ev.total); }, () => rej(new Error('No se pudo cargar el modelo 3D.'))));
       const root = g.scene; root.rotation.z = Math.PI; scene.add(root); root.updateMatrixWorld(true);
-      const mat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: .72, metalness: .18 });
+      const mat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: .8, metalness: .02 });
       const meshes = [], v = new THREE.Vector3();
       root.traverse(o => { if (!o.isMesh) return; const f = famOf(o.name); if (!f || /^PUSH_/.test(o.name)) { o.visible = false; return; }
         const geo = o.geometry = o.geometry.clone(), pos = geo.attributes.position, n = pos.count, s = new Float32Array(n), h = new Float32Array(n);
@@ -33,8 +33,8 @@ const V3D = (() => {
         o.material = mat; meshes.push({ o, name: o.name, fam: f, arch: archOf(o.name), s, h, hmin, hmax, base: Float32Array.from(pos.array), inv, disp: null });
       });
       const box = new THREE.Box3(); meshes.forEach(m => box.expandByObject(m.o)); const c = box.getCenter(new THREE.Vector3()), sz = box.getSize(new THREE.Vector3());
-      ctl.target.copy(c); cam.position.set(c.x + sz.z * .55, c.y + sz.z * .05, c.z - sz.z * .42); cam.far = sz.z * 12; cam.updateProjectionMatrix();
-      E = { THREE, renderer, scene, cam, ctl, meshes, home: { p: cam.position.clone(), t: c.clone() } }; return E;
+      ctl.target.copy(c); cam.position.set(c.x + sz.z * .46, c.y - sz.y * .12, c.z - sz.z * .30); ctl.target.y = c.y - sz.y * .1; cam.far = sz.z * 12; cam.updateProjectionMatrix();
+      E = { THREE, renderer, scene, cam, ctl, meshes, home: { p: cam.position.clone(), t: ctl.target.clone() } }; return E;
     })();
     try { return await loading; } catch (e) { loading = null; throw e; }
   }
