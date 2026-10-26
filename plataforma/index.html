@@ -130,6 +130,16 @@ table.data tr.hl td{background:var(--red-bg)}
 #protoBar .btn{padding:4px 10px}
 body:has(#protoBar) .canvas,body:has(#protoBar) .side{padding-bottom:150px}
 details summary::-webkit-details-marker{color:var(--ink-3)}
+.row3d{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.b3d{background:var(--red);border-color:var(--red)}
+#v3d{position:fixed;inset:0;z-index:40;background:var(--viewport);display:grid;grid-template-rows:auto minmax(0,1fr) auto;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+.v3d-bar{display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;align-items:center;background:var(--surface);border-bottom:1px solid var(--rule);padding:8px max(12px,env(safe-area-inset-right,0px)) 8px max(12px,env(safe-area-inset-left,0px))}
+.v3d-t{display:grid;gap:2px;min-width:0}.v3d-t b{font:700 1.02rem var(--f-cond);letter-spacing:.06em;text-transform:uppercase}.v3d-t span{font-size:.8rem}
+.v3d-c,#v3dAnim{display:flex;gap:8px;align-items:end;flex-wrap:wrap}
+.v3d-stage{position:relative;min-height:0;overflow:hidden}.v3d-stage canvas{display:block;width:100%;height:100%;touch-action:none}
+.v3d-st{position:absolute;inset:0;display:grid;place-items:center;font:.85rem var(--f-mono);color:var(--ink-2)}
+.v3d-leg{background:var(--surface);border-top:1px solid var(--rule);padding:8px max(12px,env(safe-area-inset-right,0px)) 8px max(12px,env(safe-area-inset-left,0px));font-size:.8rem;display:grid;gap:4px}
+.v3d-grad{display:grid;gap:3px;width:min(460px,100%)}.v3d-grad i{display:block;height:10px}.v3d-grad div{display:flex;justify-content:space-between;font:.72rem var(--f-mono);color:var(--ink-2)}
 .report{white-space:pre-wrap;font:400 .76rem/1.55 var(--f-mono);border:1px solid var(--rule);padding:12px;max-height:340px;overflow:auto;background:var(--surface)}
 
 /* ---------- Visor 3D ---------- */
@@ -151,7 +161,7 @@ details summary::-webkit-details-marker{color:var(--ink-3)}
 
 <div class="app">
   <header class="bar">
-    <div class="mark"><b>Puente Balta</b><span>Plataforma de inspección · v2.0</span></div>
+    <div class="mark"><b>Puente Balta</b><span>Plataforma de inspección · v2.1</span></div>
     <nav class="menu" role="tablist" aria-label="Herramientas">
       <button role="tab" data-v="modelo"><span class="k">1</span>Modelo</button>
       <button role="tab" data-v="simulacion"><span class="k">2</span>Simulación</button>
@@ -179,8 +189,9 @@ import {OrbitControls} from 'three/addons/controls/OrbitControls.js';
 window.BaltaThree={THREE,GLTFLoader,OrbitControls};
 window.dispatchEvent(new Event('three-ready'));
 </script>
-<script src="op_core.js?v=2.0.2"></script>
-<script src="op_ui.js?v=2.0.2"></script>
+<script src="v3d.js?v=2.1.0"></script>
+<script src="op_core.js?v=2.1.0"></script>
+<script src="op_ui.js?v=2.1.0"></script>
 <script>
 "use strict";
 const MODEL_URL='../models/puente-balta-v12.glb';
@@ -522,14 +533,14 @@ function vModelo(){
       <div id="cloudBar" style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;font-size:.82rem"><label style="display:flex;gap:6px;align-items:center"><input type="checkbox" id="cOn"> Nube TLS (186 442 puntos)</label>
        <label style="display:flex;gap:6px;align-items:center">Color<select id="cMode" style="width:auto"><option value="rgb">Color real</option><option value="int">Intensidad</option><option value="z">Altura</option></select></label>
        <label style="display:flex;gap:6px;align-items:center"><input type="checkbox" id="cOnly"> Ocultar modelo 3D</label><span class="mono dim" id="cInfo" style="font-size:.74rem"></span></div>
-      <div class="vp" id="vp"><div class="st" id="vpst">Cargando modelo 3D…</div><span class="corner">VISTA LIBRE · arrastrar para girar · rueda para acercar</span></div>
+      <div class="vp" id="vp"><div class="st" id="vpst">Cargando modelo 3D…</div><span class="corner">VISTA LIBRE · arrastrar para girar · rueda para acercar</span><button class="btn b3d" id="b3dMod" style="position:absolute;right:8px;bottom:8px">Pantalla completa</button></div>
       <div class="sheet" id="elevM"></div>`;
     $('#canvas').querySelectorAll('.toggle button').forEach(b=>b.onclick=()=>{S.m3d=b.dataset.m;applyM3d();});
     $('#ovC').onchange=e=>{S.ovC=e.target.checked;if(S.ovC&&S.m3d==='3d')S.m3d='both';vModelo();};
     const cUpd=()=>{S.cloud={on:$('#cOn').checked,mode:$('#cMode').value,only:$('#cOnly').checked};if(S.m3d==='elev'&&S.cloud.on){S.m3d='3d';applyM3d();}if(window.__cloud)window.__cloud(S.cloud);};
     ['cOn','cMode','cOnly'].forEach(id=>$('#'+id).onchange=cUpd);
     if(S.cloud){$('#cOn').checked=S.cloud.on;$('#cMode').value=S.cloud.mode;$('#cOnly').checked=S.cloud.only;}
-    init3d();
+    init3d();$('#b3dMod').onclick=open3dMod;
   }
   const ov=S.ovC?(X,Z)=>{const blue=css('--blue');let o='';['izq','centro','der'].forEach(k=>{const f=MCD.fit[k],a=f.ymin,b=f.ymax;let d='';for(let i=0;i<=60;i++){const y=a+(b-a)*i/60;d+=(i?'L':'M')+X(y).toFixed(1)+' '+Z(mcPolyval(f.coef,y)).toFixed(1);}o+=`<path d="${d}" fill="none" stroke="${blue}" stroke-width="1.6" stroke-dasharray="5 2.5"/>`;});
     [MCD.faces.p1_L,MCD.faces.p1_R,MCD.faces.p2_L,MCD.faces.p2_R,MCD.faces.abut_R].forEach(x=>o+=`<line x1="${X(x)}" x2="${X(x)}" y1="${Z(-3.2)}" y2="${Z(-9.3)}" stroke="${blue}" stroke-width=".9" stroke-dasharray="2 2"/>`);return o;}:null;
@@ -607,7 +618,8 @@ function vSim(){
   t.bind($('#left'));
   $('#iP').value=S.pct*100;$('#iQ').value=S.q;$('#iE').value=S.E;
   $('#iP').oninput=e=>{S.pct=e.target.value/100;simCompute();};$('#iQ').oninput=e=>{S.q=+e.target.value;simCompute();};$('#iE').oninput=e=>{S.E=+e.target.value;simCompute();};
-  $('#canvas').innerHTML=`<div class="sheet" id="simSheet"></div><div class="doc" id="dxDoc"></div><div class="sheet" id="dxSheet"></div>`;
+  $('#canvas').innerHTML=`<div class="row3d">${'<button class="btn b3d" id="b3dSim">Ver en 3D a pantalla completa</button>'}<span class="help">Esfuerzos y deformada del modelo 2D sobre el puente</span></div><div class="sheet" id="simSheet"></div><div class="doc" id="dxDoc"></div><div class="sheet" id="dxSheet"></div>`;
+  $('#b3dSim').onclick=open3dSim;
   simCompute();
 }
 function simCompute(){
@@ -673,14 +685,15 @@ function dxRender(){const X=S.dx;if(!X.n)X.n=1;
     <label class="f">Ruido de medición<select id="dxL">${NLEV.map((l,i)=>`<option value="${i}" ${i===X.lev?'selected':''}>${l.l}</option>`).join('')}</select></label>
     <label class="f">Medición n.º<input type="number" id="dxN" min="1" max="99999" step="1" value="${X.n}"></label></div>
    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px"><button class="btn line" id="dxGo">Nueva medición</button><button class="btn" id="dxRep">Repetir 100 mediciones</button></div>
-   <div id="dxOut"><p class="help">Calculando…</p></div><div id="dxStats"></div>`;
+   <div style="margin-top:8px"><button class="btn b3d" id="b3dDx">Ver en 3D a pantalla completa</button></div><div id="dxOut"><p class="help">Calculando…</p></div><div id="dxStats"></div>`;
+  $('#b3dDx').onclick=()=>open3dDx(false);
   $('#dxZ').value=X.zone;$('#dxS').disabled=X.zone<0;
   const reset=()=>{X.n=1;$('#dxN').value=1;$('#dxStats').innerHTML='';dxRun();};
   $('#dxZ').onchange=e=>{X.zone=+e.target.value;$('#dxS').disabled=X.zone<0;reset();};$('#dxS').oninput=e=>{$('#dxSo').textContent=e.target.value+' %';};$('#dxS').onchange=e=>{X.sev=e.target.value/100;reset();};
   $('#dxL').onchange=e=>{X.lev=+e.target.value;reset();};$('#dxN').onchange=e=>{X.n=Math.max(1,Math.round(+e.target.value||1));e.target.value=X.n;dxRun();};
   $('#dxGo').onclick=()=>{X.n++;$('#dxN').value=X.n;dxRun();};$('#dxRep').onclick=dxRepeat;setTimeout(dxRun,20);}
 function dxRun(){const X=S.dx,B=dxBase(),L=NLEV[X.lev],C=dxClean();lastSolveMs=C.ms;
-  const clean=C.clean,x=dxMeasure(clean,L,X.n),d=svmC(x),truth=X.zone,M=MIAC.por_ruido[L.k],verdict=dxVerdict(d,truth);
+  const clean=C.clean,x=dxMeasure(clean,L,X.n),d=svmC(x),truth=X.zone,M=MIAC.por_ruido[L.k],verdict=dxVerdict(d,truth);S.dxLast={pred:d.cls,truth,n:X.n,verdict,sev:X.sev};
   $('#dxOut').innerHTML=`<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),1fr));gap:18px;margin-top:10px">
    <div class="tw"><table class="data"><tbody>
     <tr><td>Medición n.º ${X.n}</td><td class="n"><span class="flag ${verdict[0]}">${verdict[1]}</span></td></tr>
@@ -705,7 +718,8 @@ async function dxRepeat(){const X=S.dx,L=NLEV[X.lev],clean=dxClean().clean,truth
   const sv=R.filter(d=>d.cls===truth&&d.sev!=null).map(d=>d.sev).sort((a,b)=>a-b),q=p=>sv[Math.min(sv.length-1,Math.floor(p*(sv.length-1)))];
   const shown=top.slice(0,6),rest=top.slice(6).reduce((s,x)=>s+x[1],0);
   const lvl=ok>=80?['ok','Alta']:ok>=50?['warn','Media']:['crit','Baja'];
-  $('#dxStats').innerHTML=`<div style="margin-top:14px;border-top:1.5px solid var(--ink);padding-top:10px">
+  S.dxCnt={cnt,truth,N,ok};
+  $('#dxStats').innerHTML=`<div style="margin-top:14px;border-top:1.5px solid var(--ink);padding-top:10px"><div style="margin-bottom:8px"><button class="btn b3d" onclick="open3dDx(true)">Ver en 3D dónde vota la IA</button></div>
    <div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;align-items:baseline"><h3 style="margin:0">Confiabilidad de la IA en este escenario · ${N} mediciones</h3><span class="flag ${lvl[0]}">Confiabilidad ${lvl[1].toLowerCase()}</span></div>
    <p class="help">${zlab(truth)}${truth>=0?` con ${pct(X.sev,0)} de pérdida de rigidez`:''} · ruido ${L.l.split(' · ')[0].toLowerCase()} · mediciones n.º 1 a ${N}</p>
    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),1fr));gap:18px">
@@ -728,7 +742,8 @@ function vCmp(){
    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px"><label class="f">Daño %<input type="number" id="c${k}p" min="0" max="90" step="5" value="${Math.round(s.pct*100)}"></label><label class="f">q kN/m<input type="number" id="c${k}q" min="5" max="400" step="5" value="${s.q}"></label><label class="f">E GPa<input type="number" id="c${k}E" min="20" max="150" step="1" value="${s.E}"></label></div></div>`;};
   $('#left').innerHTML=card('A')+card('B');
   $('#left').querySelectorAll('input,select').forEach(el=>el.addEventListener('input',cmpCompute));
-  $('#canvas').innerHTML=`<div class="sheet" id="cmpSheet"></div><div class="doc"><h2>Diferencias B − A</h2><div class="tw" id="cmpTbl"></div></div>`;
+  $('#canvas').innerHTML=`<div class="row3d"><button class="btn b3d" id="b3dCmp">Ver en 3D a pantalla completa</button><span class="help">Cambio de esfuerzo de A a B sobre el puente</span></div><div class="sheet" id="cmpSheet"></div><div class="doc"><h2>Diferencias B − A</h2><div class="tw" id="cmpTbl"></div></div>`;
+  $('#b3dCmp').onclick=open3dCmp;
   cmpCompute();
 }
 function cmpCompute(){['A','B'].forEach(k=>{const s=S[k];s.target=$('#c'+k+'t').value;s.pct=s.target==='sin_danio'?0:Math.min(.95,(+$('#c'+k+'p').value||0)/100);s.q=Math.max(1,+$('#c'+k+'q').value||1);s.E=Math.max(1,+$('#c'+k+'E').value||1);});
@@ -796,9 +811,9 @@ function vDin(){
   $('#id_geo').onchange=e=>{if(e.target.value==='anterior')S.dinP.geo='anterior';else delete S.dinP.geo;dinCompute();};
   DIN_P.forEach(d=>{const el=$('#id_'+d.k);el.oninput=()=>{$('#od_'+d.k).textContent=fmt(+el.value,d.step<1?2:0)+' '+d.u;};el.onchange=()=>{S.dinP[d.k]=d.k==='n_ribs'?+el.value:+el.value*d.sc;dinCompute();};});
   $('#id_spr').onchange=e=>{S.dinP.springing=e.target.value;dinCompute();};$('#dinReset').onclick=()=>{S.dinP={};vDin();};
-  $('#canvas').innerHTML=`<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><div class="toggle" role="group" aria-label="Modo" id="modeBtns"></div><label style="display:flex;gap:6px;align-items:center;font-size:.82rem"><input type="checkbox" id="showOld" ${S.showOld?'checked':''}> Superponer geometría del modelo anterior</label></div>
+  $('#canvas').innerHTML=`<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><div class="toggle" role="group" aria-label="Modo" id="modeBtns"></div><label style="display:flex;gap:6px;align-items:center;font-size:.82rem"><input type="checkbox" id="showOld" ${S.showOld?'checked':''}> Superponer geometría del modelo anterior</label><button class="btn b3d" id="b3dDin">Ver en 3D a pantalla completa</button></div>
    <div class="sheet" id="dinSheet"></div><div class="doc" id="calDoc"></div>`;
-  $('#showOld').onchange=e=>{S.showOld=e.target.checked;dinCompute();};
+  $('#showOld').onchange=e=>{S.showOld=e.target.checked;dinCompute();};$('#b3dDin').onclick=open3dDin;
   dinCompute();}
 function dinCompute(){const r=dinSolve(),fr=r.fr;
   $('#modeBtns').innerHTML=r.f.map((f,i)=>`<button data-i="${i}" aria-pressed="${i===S.mode}">Modo ${i+1} · ${fmt(f,2)} Hz</button>`).join('');
@@ -885,7 +900,7 @@ function vInsp(){
   $('#left').innerHTML=`<div class="ph">Pesos de los criterios</div><div class="pb">${CRIT.map(([k,l,d])=>`<label class="f"><span class="lv">${l} <output id="o${k}">${S.W[k].toFixed(2)}</output></span><input type="range" id="w${k}" min="0" max="1" step="0.05" value="${S.W[k]}"><span class="help">${d}${k==='cond'?'. Se activa cuando hay al menos un registro de campo.':''}</span></label>`).join('')}<button class="btn line" id="wReset">Restablecer pesos</button></div>`;
   CRIT.forEach(([k])=>$('#w'+k).oninput=e=>{S.W[k]=+e.target.value;$('#o'+k).textContent=S.W[k].toFixed(2);inspCompute();});
   $('#wReset').onclick=()=>{S.W={sens:.3,geo:.3,det:.2,dem:.2,cond:.2};vInsp();};
-  $('#canvas').innerHTML=`<div class="sheet" id="inspSheet"></div><div class="doc"><h2>Orden de verificación</h2><div class="tw" id="inspTbl"></div><p class="help" id="inspHelp"></p></div><div class="doc" id="fieldDoc"></div>`;
+  $('#canvas').innerHTML=`<div class="row3d"><button class="btn b3d" id="b3dInsp">Ver en 3D a pantalla completa</button><span class="help">Prioridad de verificación por componente</span></div><div class="sheet" id="inspSheet"></div><div class="doc"><h2>Orden de verificación</h2><div class="tw" id="inspTbl"></div><p class="help" id="inspHelp"></p></div><div class="doc" id="fieldDoc"></div>`;
   $('#right').innerHTML=`<div class="ph">Reporte<button class="btn" id="copyRep" style="padding:3px 9px">Copiar</button></div><div class="pb"><div class="report" id="report" tabindex="0"></div></div>`;
   $('#copyRep').onclick=e=>copyText($('#report').textContent,e.target,$('#report'));
   renderField();inspCompute();}
@@ -913,7 +928,8 @@ function renderField(){const today=new Date().toISOString().slice(0,10);
       const valid=a.filter(r=>r&&ZONES.some(z=>z.id===r.zona)&&/^\d{4}-\d{2}-\d{2}$/.test(r.fecha)&&Number.isInteger(r.nbi)&&r.nbi>=0&&r.nbi<=9);
       const ids=new Set(FIELD.map(r=>r.id));valid.forEach(r=>{if(!ids.has(r.id))FIELD.push({id:String(r.id||Date.now().toString(36)),zona:r.zona,fecha:r.fecha,inspector:String(r.inspector||''),nbi:r.nbi,corrosion:String(r.corrosion||''),fisuras:String(r.fisuras||''),uniones:String(r.uniones||''),obs:String(r.obs||'')});});
       saveField(FIELD);renderField();inspCompute();$('#fMsg').textContent=`${valid.length} registros importados${valid.length<a.length?`; ${a.length-valid.length} descartados por datos incompletos`:''}.`;}catch(err){$('#fMsg').textContent='El archivo no es un registro de campo válido.';}};rd.readAsText(f);};}
-function inspCompute(){const P=priorities(),rank={};P.forEach((o,i)=>rank[o.z.id]={i:i+1,o});const useCond=FIELD.length>0;
+function inspBind3d(){const b=$('#b3dInsp');if(b)b.onclick=open3dInsp;}
+function inspCompute(){inspBind3d();const P=priorities(),rank={};P.forEach((o,i)=>rank[o.z.id]={i:i+1,o});const useCond=FIELD.length>0;
   const lvlCol={Alta:css('--red'),Media:css('--warn'),Baja:css('--ink-3')};
   const hatch=(X,Z)=>{let s=`<defs>${['Alta','Media','Baja'].map(l=>`<pattern id="h${l}" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><line x1="0" y1="0" x2="0" y2="6" stroke="${lvlCol[l]}" stroke-width="${l==='Alta'?2:1}" opacity="${l==='Baja'?.35:.55}"/></pattern>`).join('')}</defs>`;
     const spans=[['arco_a1_a2',36.4,58.2],['arco_a2_a3',58.2,86.3],['arco_a3_a4',86.3,113.5]];
@@ -1109,6 +1125,40 @@ function vReg(){const v=PROV.verificacion;
    <p style="font-size:.88rem">${esc(PROV.alcance)} El esfuerzo se estima con P/A + M·c/I y fuerzas globales del elemento, igual que el script original. La geometría 2D usa arranques a −5,0 m; el levantamiento indica unos −6,4 m y una primera luz mayor, por lo que el modelo corregido reemplazará esta base.</p>
   </div>`;
   $('#right').innerHTML=`<div class="ph">Archivos publicados</div><table class="props"><tbody>${['modelo_2d.json','fem_525.csv','rf_surrogate.json','svm_inverse.json','metrics_ia.json','procedencia.json','modelo_c.json','nube_balta.json'].map(f=>`<tr><td colspan="2" style="font-family:var(--f-mono);font-size:.76rem;color:var(--ink)">data/${f}</td></tr>`).join('')}</tbody></table><div class="pb help">El código para regenerar los modelos de IA está en la carpeta codigo/ del repositorio.</div>`;}
+
+/* ================= Vista 3D a pantalla completa ================= */
+const meshZone=m=>(ZONES.find(z=>z.glb(m.name))||{}).id;
+function open3dMod(){const z=ZONES.find(z=>z.id===S.zone),red=V3D.rgb(css('--red'));
+  V3D.open({title:'Modelo 3D · '+z.long,sub:'Componente seleccionado en rojo · arrastre para girar, rueda para acercar',colorAt:m=>meshZone(m)===S.zone?red:null,
+    legend:V3D.legendCats([[css('--red'),z.name],[css('--m-arco'),'Arcos'],[css('--m-tablero'),'Tablero y vigas'],[css('--m-montante'),'Montantes'],[css('--m-pilar'),'Pilares y estribos']])});}
+function stressSpec(res,base,title,sub,lblA){const A=V3D.adaptM2(M2),look=V3D.elemLookup(A);
+  const ch=base?res.sig.map((v,t)=>v/Math.max(base.sig[t],1e-6)-1):null;let lim=.05;if(ch)ch.forEach(v=>{if(Math.abs(v)>lim)lim=Math.abs(v);});lim=Math.min(lim,.5);
+  const div=V3D.diverging(lim),seq=V3D.sequential(),smax=Math.max(...res.sig);
+  return {title,sub,disp:V3D.dispField(A,res.U),animate:'static',physical:true,ampDefault:1.5,
+    colorAt:(m,i)=>{const t=look(m,i);if(t<0)return null;return ch?div(ch[t]):seq(res.sig[t]/smax);},
+    legend:(ch?V3D.legendGradient([css('--blue'),'#c7cccf',css('--red')],[`−${pct(lim,0)} o menos`,`sin cambio`,`+${pct(lim,0)} o más`])+`<span class="help">${lblA}. Deformada amplificada; use el control superior.</span>`
+      :V3D.legendGradient(['#d1d6db',css('--warn'),css('--red')],['0 MPa',fmt(smax/2,1)+' MPa',fmt(smax,1)+' MPa'])+'<span class="help">Esfuerzo normal estimado (P/A + M·c/I). Deformada amplificada.</span>')};}
+function open3dSim(){const sc={q:S.q,E:S.E,target:S.target,pct:S.target==='sin_danio'?0:S.pct},res=solve(sc),dmg=sc.pct>0,base=dmg?solve({q:sc.q,E:sc.E}):null;
+  V3D.open(stressSpec(res,base,`Simulación · ${TARGET_LABEL[sc.target]}${dmg?' −'+Math.round(sc.pct*100)+' % de rigidez':''}`,`Modelo 2D verificado con OpenSees · q = ${fmt(sc.q,0)} kN/m · E = ${fmt(sc.E,0)} GPa`,'Cambio de esfuerzo respecto del puente intacto'));}
+function open3dCmp(){const a=solve(S.A),b=solve(S.B),lab=x=>`${TARGET_LABEL[x.target]}${x.pct?' −'+Math.round(x.pct*100)+' %':''}`;
+  V3D.open(stressSpec(b,a,`Comparación · A: ${lab(S.A)} → B: ${lab(S.B)}`,`Deformada del escenario B · q ${fmt(S.B.q,0)} kN/m · E ${fmt(S.B.E,0)} GPa`,'Cambio de esfuerzo de A a B'));}
+function open3dDin(){const r=dinSolve(),fr=r.fr,A=V3D.adaptMC(fr),seq=V3D.sequential();
+  V3D.open({title:`Modo ${S.mode+1} · ${fmt(r.f[S.mode],2)} Hz`,sub:`Modelo C${S.dinP.geo==='anterior'?' con arcos del modelo anterior':''} · participación vertical ${pct(r.part[S.mode].Z,1)} · forma modal animada`,
+    disp:V3D.dispField(A,r.phi[S.mode]),animate:true,ampDefault:1.5,colorAt:m=>null,
+    legend:V3D.legendCats([[css('--m-arco'),'Arcos'],[css('--m-tablero'),'Tablero'],[css('--m-montante'),'Montantes'],[css('--m-pilar'),'Pilares']])+'<span class="help">La amplitud de un modo es arbitraria: el control superior fija cuánto se dibuja. Los pilares se muestran fijos.</span>'});}
+function open3dDx(stats){const B=dxBase(),A=V3D.adaptMC(B.fr),look=V3D.elemLookup(A),zAt=(m,i)=>{const t=look(m,i);return t<0?-1:B.zones[t];};
+  const red=V3D.rgb(css('--red')),blue=V3D.rgb(css('--blue')),ok=V3D.rgb(css('--ok')),seq=V3D.sequential();
+  if(stats&&S.dxCnt){const C=S.dxCnt,mx=Math.max(...[...C.cnt.values()]);
+    V3D.open({title:`IA · ${C.N} mediciones · ${zlab(C.truth)}`,sub:`La IA eligió la zona real ${C.ok} de ${C.N} veces · color según cuántas veces eligió cada zona`,
+      colorAt:(m,i)=>{const z=zAt(m,i);if(z<0)return null;const c=C.cnt.get(z)||0;return c?seq(c/mx):z===C.truth?blue:null;},
+      legend:V3D.legendGradient(['#d1d6db',css('--warn'),css('--red')],['pocas veces','',`${mx} de ${C.N}`])+V3D.legendCats([[css('--blue'),'Zona dañada real (si la IA no la eligió nunca)']])});return;}
+  const L=S.dxLast;if(!L)return;
+  V3D.open({title:`IA · ${L.verdict[1]}`,sub:`Medición n.º ${L.n} · daño real: ${zlab(L.truth)}${L.truth>=0?' −'+Math.round(L.sev*100)+' %':''} · IA: ${zlab(L.pred)}`,
+    colorAt:(m,i)=>{const z=zAt(m,i);if(z<0)return null;if(z===L.truth&&z===L.pred)return ok;if(z===L.pred)return red;if(z===L.truth)return blue;return null;},
+    legend:V3D.legendCats([[css('--ok'),'La IA acertó la zona'],[css('--blue'),'Zona dañada real'],[css('--red'),'Zona propuesta por la IA']])+'<span class="help">Las zonas del modelo C se proyectan sobre el modelo 3D por su posición a lo largo del puente.</span>'});}
+function open3dInsp(){const P=priorities(),lv={};P.forEach((o,i)=>lv[o.z.id]={o,i:i+1});const col={Alta:V3D.rgb(css('--red')),Media:V3D.rgb(css('--warn')),Baja:[.72,.76,.79]};
+  V3D.open({title:'Plan de verificación en campo',sub:P.slice(0,3).map((o,i)=>`${i+1}.º ${o.z.long}`).join(' · '),colorAt:m=>{const z=meshZone(m)||({montante:'montantes',pilar:'pilares',tablero:'tablero'})[m.fam];return z&&lv[z]?col[lv[z].o.level]:null;},
+    legend:V3D.legendCats([[css('--red'),'Prioridad alta'],[css('--warn'),'Prioridad media'],['#b8c2c9','Prioridad baja']])});}
 
 /* ================= Arranque ================= */
 function parseCSV(t){const [h,...ls]=t.trim().split(/\r?\n/);const k=h.split(',');return ls.map(l=>{const v=l.split(',');const o={};k.forEach((kk,i)=>{const n=+v[i];o[kk]=v[i]!==''&&Number.isFinite(n)?n:v[i];});return o;});}
