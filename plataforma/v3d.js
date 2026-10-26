@@ -106,7 +106,7 @@ const V3D = (() => {
   let realMax = 0; function upAmp() { const o = document.getElementById('v3dAo'); if (o) o.textContent = fmt(amp, 1) + ' m' + (realMax ? ` (×${Math.round(amp / realMax)})` : ''); }
   // vista inicial: misma dirección, distancia para que todo el puente quepa en el ancho de la pantalla
   function fitHome() { if (!E) return; const { cam, ctl, home } = E, dir = home.p.clone().sub(home.t).normalize(), vf = cam.fov * Math.PI / 360, hf = Math.atan(Math.tan(vf) * cam.aspect);
-    const d = Math.max(home.L * .5 * 1.04 / Math.tan(hf), home.L * .16 / Math.tan(vf)); ctl.target.copy(home.t); cam.position.copy(home.t).addScaledVector(dir, d * .78); ctl.update(); }
+    const d = Math.max(home.L * .5 * 1.04 / Math.tan(hf), home.L * .16 / Math.tan(vf)); ctl.target.copy(home.t); cam.position.copy(home.t).addScaledVector(dir, d * .92); ctl.update(); }
   function resize() { if (!E) return; const st = document.getElementById('v3dStage'); if (!st || !st.clientWidth) return; E.renderer.setSize(st.clientWidth, st.clientHeight, false); E.cam.aspect = st.clientWidth / st.clientHeight; E.cam.updateProjectionMatrix(); }
   function close() { const ov = document.getElementById('v3d'); if (ov) ov.hidden = true; cancelAnimationFrame(raf); raf = 0; document.body.style.overflow = ''; if (spec && spec.onClose) spec.onClose(); spec = null; }
 
