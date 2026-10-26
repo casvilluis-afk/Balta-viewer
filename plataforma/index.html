@@ -145,6 +145,9 @@ details summary::-webkit-details-marker{color:var(--ink-3)}
 
 /* ---------- Visor 3D ---------- */
 .vp{position:relative;height:min(64vh,620px);min-height:300px;background:var(--viewport);border:1px solid var(--rule);overflow:hidden}
+.vp.full{position:fixed;inset:0;z-index:40;height:auto;border:0;padding-top:env(safe-area-inset-top,0px)}
+.vpbar{position:absolute;left:8px;bottom:8px;right:150px;background:var(--surface);border:1px solid var(--rule);padding:6px 10px}
+.vp.full .corner{top:max(8px,env(safe-area-inset-top,0px))}
 .vp canvas{display:block;width:100%;height:100%;touch-action:none}
 .vp .st{position:absolute;inset:0;display:grid;place-items:center;font:400 .82rem var(--f-mono);color:var(--ink-2);text-align:center;padding:16px}
 .vp .corner{position:absolute;left:8px;top:8px;font:400 .7rem var(--f-mono);color:var(--ink-2);background:var(--surface);border:1px solid var(--rule);padding:3px 7px}
@@ -190,7 +193,7 @@ import {OrbitControls} from 'three/addons/controls/OrbitControls.js';
 window.BaltaThree={THREE,GLTFLoader,OrbitControls};
 window.dispatchEvent(new Event('three-ready'));
 </script>
-<script src="v3d.js?v=2.1.4"></script>
+<script src="v3d.js?v=2.1.5"></script>
 <script src="op_core.js?v=2.1.0"></script>
 <script src="op_ui.js?v=2.1.0"></script>
 <script>
@@ -477,7 +480,7 @@ const VIEWS=['modelo','simulacion','comparacion','dinamica','inspeccion','valida
 const S={view:'modelo',zone:'arco_a2_a3',q:100,E:50,target:'arco_a2_a3',pct:.3,noise:.005,m3d:'3d',
   A:{q:100,E:50,target:'sin_danio',pct:0},B:{q:100,E:50,target:'arco_a2_a3',pct:.3},W:{sens:.3,geo:.3,det:.2,dem:.2,cond:.2}};
 let DATA_READY=false,lastSolveMs=0;
-function show(v){if(!VIEWS.includes(v))v='modelo';S.view=v;
+function show(v){if(!VIEWS.includes(v))v='modelo';S.view=v;if(S.vpFull){S.vpFull=false;document.body.style.overflow='';}
   document.querySelectorAll('.menu button').forEach(b=>b.setAttribute('aria-selected',b.dataset.v===v));
   try{history.replaceState(null,'','#'+v);}catch(e){}
   if(DATA_READY)render();}
@@ -541,7 +544,7 @@ function vModelo(){
     const cUpd=()=>{S.cloud={on:$('#cOn').checked,mode:$('#cMode').value,only:$('#cOnly').checked};if(S.m3d==='elev'&&S.cloud.on){S.m3d='3d';applyM3d();}if(window.__cloud)window.__cloud(S.cloud);};
     ['cOn','cMode','cOnly'].forEach(id=>$('#'+id).onchange=cUpd);
     if(S.cloud){$('#cOn').checked=S.cloud.on;$('#cMode').value=S.cloud.mode;$('#cOnly').checked=S.cloud.only;}
-    init3d();$('#b3dMod').onclick=open3dMod;
+    init3d();$('#b3dMod').onclick=()=>vpFull(true);if(S.vpFull)vpFull(true);
   }
   const ov=S.ovC?(X,Z)=>{const blue=css('--blue');let o='';['izq','centro','der'].forEach(k=>{const f=MCD.fit[k],a=f.ymin,b=f.ymax;let d='';for(let i=0;i<=60;i++){const y=a+(b-a)*i/60;d+=(i?'L':'M')+X(y).toFixed(1)+' '+Z(mcPolyval(f.coef,y)).toFixed(1);}o+=`<path d="${d}" fill="none" stroke="${blue}" stroke-width="1.6" stroke-dasharray="5 2.5"/>`;});
     [MCD.faces.p1_L,MCD.faces.p1_R,MCD.faces.p2_L,MCD.faces.p2_R,MCD.faces.abut_R].forEach(x=>o+=`<line x1="${X(x)}" x2="${X(x)}" y1="${Z(-3.2)}" y2="${Z(-9.3)}" stroke="${blue}" stroke-width=".9" stroke-dasharray="2 2"/>`);return o;}:null;
@@ -552,6 +555,13 @@ function vModelo(){
 function applyM3d(){const m=S.m3d;$('#vp').hidden=m==='elev';$('#elevM').hidden=m==='3d';
   $('#canvas').querySelectorAll('.toggle button').forEach(b=>b.setAttribute('aria-pressed',b.dataset.m===m));if(window.__resize3d)window.__resize3d();}
 let viewer3d=null;
+// Pantalla completa del visor de Modelo: es el mismo visor (modelo, nube, modo de color y «ocultar modelo» se conservan)
+function vpFull(on){const vp=$('#vp'),bar=$('#cloudBar'),b=$('#b3dMod');if(!vp)return;
+  S.vpFull=on;vp.classList.toggle('full',on);document.body.style.overflow=on?'hidden':'';
+  if(on){vp.append(bar);bar.classList.add('vpbar');b.textContent='Salir · Esc';b.onclick=()=>vpFull(false);}
+  else{vp.before(bar);bar.classList.remove('vpbar');b.textContent='Pantalla completa';b.onclick=()=>vpFull(true);}
+  if(window.__resize3d)window.__resize3d();}
+document.addEventListener('keydown',e=>{if(e.key==='Escape'&&$('#vp.full'))vpFull(false);});
 function init3d(){
   const go=()=>{const {THREE,GLTFLoader,OrbitControls}=window.BaltaThree;
     if(!viewer3d){
