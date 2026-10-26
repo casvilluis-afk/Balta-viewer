@@ -34,7 +34,7 @@ const V3D = (() => {
       });
       const box = new THREE.Box3(); meshes.forEach(m => box.expandByObject(m.o)); const c = box.getCenter(new THREE.Vector3()), sz = box.getSize(new THREE.Vector3());
       ctl.target.copy(c); cam.position.set(c.x + sz.z * .46, c.y - sz.y * .12, c.z - sz.z * .30); ctl.target.y = c.y - sz.y * .1; cam.far = sz.z * 12; cam.updateProjectionMatrix();
-      E = { THREE, renderer, scene, cam, ctl, meshes, home: { p: cam.position.clone(), t: ctl.target.clone() } }; return E;
+      E = { THREE, renderer, scene, cam, ctl, meshes, home: { p: cam.position.clone(), t: ctl.target.clone(), L: sz.z } }; return E;
     })();
     try { return await loading; } catch (e) { loading = null; throw e; }
   }
@@ -96,7 +96,7 @@ const V3D = (() => {
       <button class="btn line" id="v3dHome">Vista inicial</button><button class="btn" id="v3dClose">Cerrar · Esc</button></div></div>
       <div class="v3d-stage" id="v3dStage"><div class="v3d-st" id="v3dSt">Cargando modelo 3D…</div></div><div class="v3d-leg" id="v3dLeg"></div>`;
     document.body.append(ov);
-    ov.querySelector('#v3dClose').onclick = close; ov.querySelector('#v3dHome').onclick = () => { if (!E) return; E.cam.position.copy(E.home.p); E.ctl.target.copy(E.home.t); };
+    ov.querySelector('#v3dClose').onclick = close; ov.querySelector('#v3dHome').onclick = fitHome;
     ov.querySelector('#v3dPlay').onclick = e => { playing = !playing; e.target.textContent = playing ? 'Pausar' : 'Animar'; };
     ov.querySelector('#v3dAmp').oninput = e => { amp = +e.target.value; upAmp(); };
     document.addEventListener('keydown', e => { if (e.key === 'Escape' && !ov.hidden) close(); });
@@ -104,6 +104,9 @@ const V3D = (() => {
     return ov;
   }
   let realMax = 0; function upAmp() { const o = document.getElementById('v3dAo'); if (o) o.textContent = fmt(amp, 1) + ' m' + (realMax ? ` (×${Math.round(amp / realMax)})` : ''); }
+  // vista inicial: misma dirección, distancia para que todo el puente quepa en el ancho de la pantalla
+  function fitHome() { if (!E) return; const { cam, ctl, home } = E, dir = home.p.clone().sub(home.t).normalize(), vf = cam.fov * Math.PI / 360, hf = Math.atan(Math.tan(vf) * cam.aspect);
+    const d = Math.max(home.L * .5 * 1.04 / Math.tan(hf), home.L * .16 / Math.tan(vf)); ctl.target.copy(home.t); cam.position.copy(home.t).addScaledVector(dir, d * .78); ctl.update(); }
   function resize() { if (!E) return; const st = document.getElementById('v3dStage'); if (!st || !st.clientWidth) return; E.renderer.setSize(st.clientWidth, st.clientHeight, false); E.cam.aspect = st.clientWidth / st.clientHeight; E.cam.updateProjectionMatrix(); }
   function close() { const ov = document.getElementById('v3d'); if (ov) ov.hidden = true; cancelAnimationFrame(raf); raf = 0; document.body.style.overflow = ''; if (spec && spec.onClose) spec.onClose(); spec = null; }
 
@@ -116,7 +119,7 @@ const V3D = (() => {
     let eng; try { eng = await engine(q => { const s = document.getElementById('v3dSt'); if (s) s.textContent = `Cargando modelo 3D… ${Math.round(100 * q)} %`; }); }
     catch (e) { document.getElementById('v3dSt').textContent = e.message; return; }
     if (spec !== sp) return;
-    const stg = document.getElementById('v3dStage'), st = document.getElementById('v3dSt'); if (st) st.remove(); stg.prepend(eng.renderer.domElement); resize();
+    const stg = document.getElementById('v3dStage'), st = document.getElementById('v3dSt'); if (st) st.remove(); stg.prepend(eng.renderer.domElement); resize(); fitHome();
     const base = famBase();
     eng.meshes.forEach(m => { m.disp = hasDisp ? sp.disp(m) : null; if (!hasDisp) { m.o.geometry.attributes.position.array.set(m.base); m.o.geometry.attributes.position.needsUpdate = true; m.o.geometry.computeVertexNormals(); } });
     if (hasDisp) { let mx = 0; eng.meshes.forEach(m => { const D = m.disp; for (let i = 0; i < D.length; i += 2) mx = Math.max(mx, Math.hypot(D[i], D[i + 1])); });
