@@ -140,6 +140,7 @@ details summary::-webkit-details-marker{color:var(--ink-3)}
 .v3d-st{position:absolute;inset:0;display:grid;place-items:center;font:.85rem var(--f-mono);color:var(--ink-2)}
 .v3d-leg{background:var(--surface);border-top:1px solid var(--rule);padding:8px max(12px,env(safe-area-inset-right,0px)) 8px max(12px,env(safe-area-inset-left,0px));font-size:.8rem;display:grid;gap:4px}
 .v3d-leg .legend{display:flex;gap:6px 16px;flex-wrap:wrap}.v3d-leg .legend span{display:inline-flex;gap:6px;align-items:center}.v3d-leg .legend i{display:inline-block;width:12px;height:12px;border-radius:2px}
+.v3d-ctl{position:absolute;left:10px;top:10px;width:min(270px,calc(100% - 20px));max-height:calc(100% - 20px);overflow:auto;background:var(--surface);border:1px solid var(--rule);padding:10px 12px;display:grid;gap:10px;font-size:.82rem;z-index:2}.v3d-ctl[hidden]{display:none}.v3d-ph{font:600 .72rem var(--f-mono);text-transform:uppercase;letter-spacing:.05em;color:var(--ink-2)}.v3d-ctl .help{margin:0}.k3row{display:flex;gap:8px;flex-wrap:wrap}
 .v3d-grad{display:grid;gap:3px;width:min(460px,100%)}.v3d-grad i{display:block;height:10px}.v3d-grad div{display:flex;justify-content:space-between;font:.72rem var(--f-mono);color:var(--ink-2)}
 .report{white-space:pre-wrap;font:400 .76rem/1.55 var(--f-mono);border:1px solid var(--rule);padding:12px;max-height:340px;overflow:auto;background:var(--surface)}
 
@@ -193,7 +194,7 @@ import {OrbitControls} from 'three/addons/controls/OrbitControls.js';
 window.BaltaThree={THREE,GLTFLoader,OrbitControls};
 window.dispatchEvent(new Event('three-ready'));
 </script>
-<script src="v3d.js?v=2.1.5"></script>
+<script src="v3d.js?v=2.2.0"></script>
 <script src="op_core.js?v=2.1.0"></script>
 <script src="op_ui.js?v=2.1.0"></script>
 <script>
@@ -1138,37 +1139,71 @@ function vReg(){const v=PROV.verificacion;
   $('#right').innerHTML=`<div class="ph">Archivos publicados</div><table class="props"><tbody>${['modelo_2d.json','fem_525.csv','rf_surrogate.json','svm_inverse.json','metrics_ia.json','procedencia.json','modelo_c.json','nube_balta.json'].map(f=>`<tr><td colspan="2" style="font-family:var(--f-mono);font-size:.76rem;color:var(--ink)">data/${f}</td></tr>`).join('')}</tbody></table><div class="pb help">El código para regenerar los modelos de IA está en la carpeta codigo/ del repositorio.</div>`;}
 
 /* ================= Vista 3D a pantalla completa ================= */
+// Cada vista trae su panel de parámetros: al cambiarlos se recalcula y el puente se actualiza sin salir del 3D.
 const meshZone=m=>(ZONES.find(z=>z.glb(m.name))||{}).id;
-function open3dMod(){const z=ZONES.find(z=>z.id===S.zone),red=V3D.rgb(css('--red'));
-  V3D.open({focus:true,title:'Modelo 3D · '+z.long,sub:'Componente seleccionado en rojo · arrastre para girar, rueda para acercar',colorAt:m=>meshZone(m)===S.zone?red:null,
-    legend:V3D.legendCats([[css('--red'),z.name],[css('--m-arco'),'Arcos'],[css('--m-tablero'),'Tablero y vigas'],[css('--m-montante'),'Montantes'],[css('--m-pilar'),'Pilares y estribos']])});}
+const live3d=fn=>{let p=0;return()=>{if(!p)p=requestAnimationFrame(()=>{p=0;fn();});};};
+const kSel=(id,lab,opts,val)=>`<label class="f">${lab}<select id="${id}">${opts.map(([v,l])=>`<option value="${v}"${String(v)===String(val)?' selected':''}>${l}</option>`).join('')}</select></label>`;
+const kRng=(id,lab,min,max,step,val,out)=>`<label class="f"><span class="lv">${lab} <output id="${id}o">${out}</output></span><input type="range" id="${id}" min="${min}" max="${max}" step="${step}" value="${val}"></label>`;
+const back3d=()=>show(S.view);
 function stressSpec(res,base,title,sub,lblA){const A=V3D.adaptM2(M2),look=V3D.elemLookup(A);
   const ch=base?res.sig.map((v,t)=>v/Math.max(base.sig[t],1e-6)-1):null;let lim=.05;if(ch){const a=ch.map(Math.abs).sort((x,y)=>x-y);lim=Math.min(.5,Math.max(.05,a[Math.floor(a.length*.95)]));}
   const div=V3D.diverging(lim),seq=V3D.sequential(),smax=Math.max(...res.sig);
-  return {title,sub,disp:V3D.dispField(A,res.U),animate:'static',physical:true,ampDefault:1.5,
+  return {title,sub,disp:V3D.dispField(A,res.U),animate:'static',physical:true,ampDefault:1.5,onClose:back3d,
     colorAt:(m,i)=>{const t=look(m,i);if(t<0)return null;return ch?div(ch[t]):seq(res.sig[t]/smax);},
     legend:(ch?V3D.legendGradient([css('--blue'),'#c7cccf',css('--red')],[`−${pct(lim,0)} o menos`,`sin cambio`,`+${pct(lim,0)} o más`])+`<span class="help">${lblA}. Deformada amplificada; use el control superior.</span>`
       :V3D.legendGradient(['#d1d6db',css('--warn'),css('--red')],['0 MPa',fmt(smax/2,1)+' MPa',fmt(smax,1)+' MPa'])+'<span class="help">Esfuerzo normal estimado (P/A + M·c/I). Deformada amplificada.</span>')};}
+// controles de un escenario estático (Simulación usa S; Comparación usa S.B)
+function scenCtl(key,get,set,redo){const o=get();
+  return {key,html:kSel('kT','Componente dañado',Object.entries(TARGET_LABEL),o.target)+kRng('kP','Pérdida de rigidez',0,60,1,Math.round(o.pct*100),Math.round(o.pct*100)+' %')
+      +kRng('kQ','Carga distribuida q',5,300,5,o.q,fmt(o.q,0)+' kN/m')+kRng('kE','Módulo E',30,120,1,o.E,fmt(o.E,0)+' GPa'),
+    bind:el=>{const q=id=>el.querySelector('#'+id),go=live3d(redo);q('kP').disabled=o.target==='sin_danio';
+      q('kT').onchange=e=>{const v=e.target.value,c=get();set({target:v});if(v!=='sin_danio'&&!c.pct){set({pct:.2});q('kP').value=20;q('kPo').textContent='20 %';}q('kP').disabled=v==='sin_danio';go();};
+      q('kP').oninput=e=>{set({pct:e.target.value/100});q('kPo').textContent=e.target.value+' %';go();};
+      q('kQ').oninput=e=>{set({q:+e.target.value});q('kQo').textContent=fmt(+e.target.value,0)+' kN/m';go();};
+      q('kE').oninput=e=>{set({E:+e.target.value});q('kEo').textContent=fmt(+e.target.value,0)+' GPa';go();};}};}
+function open3dMod(){const z=ZONES.find(z=>z.id===S.zone),red=V3D.rgb(css('--red'));
+  V3D.open({focus:true,refocus:true,onClose:back3d,title:'Modelo 3D · '+z.long,sub:'Componente seleccionado en rojo · arrastre para girar, rueda para acercar',colorAt:m=>meshZone(m)===S.zone?red:null,
+    controls:{key:'mod',html:kSel('kZ','Componente',ZONES.map(z=>[z.id,z.long]),S.zone),bind:el=>{el.querySelector('#kZ').onchange=e=>{S.zone=e.target.value;open3dMod();};}},
+    legend:V3D.legendCats([[css('--red'),z.name],[css('--m-arco'),'Arcos'],[css('--m-tablero'),'Tablero y vigas'],[css('--m-montante'),'Montantes'],[css('--m-pilar'),'Pilares y estribos']])});}
 function open3dSim(){const sc={q:S.q,E:S.E,target:S.target,pct:S.target==='sin_danio'?0:S.pct},res=solve(sc),dmg=sc.pct>0,base=dmg?solve({q:sc.q,E:sc.E}):null;
-  V3D.open(stressSpec(res,base,`Simulación · ${TARGET_LABEL[sc.target]}${dmg?' −'+Math.round(sc.pct*100)+' % de rigidez':''}`,`Modelo 2D verificado con OpenSees · q = ${fmt(sc.q,0)} kN/m · E = ${fmt(sc.E,0)} GPa`,'Cambio de esfuerzo respecto del puente intacto'));}
-function open3dCmp(){const a=solve(S.A),b=solve(S.B),lab=x=>`${TARGET_LABEL[x.target]}${x.pct?' −'+Math.round(x.pct*100)+' %':''}`;
-  V3D.open(stressSpec(b,a,`Comparación · A: ${lab(S.A)} → B: ${lab(S.B)}`,`Deformada del escenario B · q ${fmt(S.B.q,0)} kN/m · E ${fmt(S.B.E,0)} GPa`,'Cambio de esfuerzo de A a B'));}
+  const sp=stressSpec(res,base,`Simulación · ${TARGET_LABEL[sc.target]}${dmg?' −'+Math.round(sc.pct*100)+' % de rigidez':''}`,`Modelo 2D verificado con OpenSees · q = ${fmt(sc.q,0)} kN/m · E = ${fmt(sc.E,0)} GPa · desplazamiento máx. ${fmt(res.u_total_max_mm,2)} mm · σ máx. ${fmt(res.max_sigma_MPa,1)} MPa`,'Cambio de esfuerzo respecto del puente intacto');
+  sp.controls=scenCtl('sim',()=>({target:S.target,pct:S.pct||0,q:S.q,E:S.E}),o=>{if('target'in o)S.target=o.target;if('pct'in o)S.pct=o.pct;if('q'in o)S.q=o.q;if('E'in o)S.E=o.E;},open3dSim);V3D.open(sp);}
+function open3dCmp(){const a=solve(S.A),b=solve(S.B),lab=x=>`${TARGET_LABEL[x.target]}${x.pct&&x.target!=='sin_danio'?' −'+Math.round(x.pct*100)+' %':''}`;
+  const sp=stressSpec(b,a,`Comparación · A: ${lab(S.A)} → B: ${lab(S.B)}`,`Deformada del escenario B · q ${fmt(S.B.q,0)} kN/m · E ${fmt(S.B.E,0)} GPa · desplazamiento máx. A ${fmt(a.u_total_max_mm,2)} → B ${fmt(b.u_total_max_mm,2)} mm`,'Cambio de esfuerzo de A a B');
+  sp.controls=scenCtl('cmp',()=>S.B,o=>Object.assign(S.B,o),open3dCmp);sp.controls.html='<p class="help">Escenario B (A queda fijo: '+lab(S.A)+')</p>'+sp.controls.html;V3D.open(sp);}
 function open3dDin(){const r=dinSolve(),fr=r.fr,A=V3D.adaptMC(fr),seq=V3D.sequential();
-  V3D.open({title:`Modo ${S.mode+1} · ${fmt(r.f[S.mode],2)} Hz`,sub:`Modelo C${S.dinP.geo==='anterior'?' con arcos del modelo anterior':''} · participación vertical ${pct(r.part[S.mode].Z,1)} · forma modal animada`,
+  const modeOpts=()=>{const rr=dinSolve();return rr.f.map((f,i)=>[i,`Modo ${i+1} · ${fmt(f,2)} Hz`]);};
+  V3D.open({title:`Modo ${S.mode+1} · ${fmt(r.f[S.mode],2)} Hz`,sub:`Modelo C${S.dinP.geo==='anterior'?' con arcos del modelo anterior':''} · participación vertical ${pct(r.part[S.mode].Z,1)} · forma modal animada`,onClose:back3d,
     disp:V3D.dispField(A,r.phi[S.mode]),animate:true,ampDefault:1.5,colorAt:(m,i)=>m.disp?seq(Math.hypot(m.disp[2*i],m.disp[2*i+1])):null,
+    controls:{key:'din',html:kSel('kM','Modo',modeOpts(),S.mode)+kSel('kG','Geometría de los arcos',[['medida','Medida en la nube (modelo C)'],['anterior','Modelo anterior (salidas_04)']],S.dinP.geo||'medida'),
+      bind:el=>{const q=id=>el.querySelector('#'+id);q('kM').onchange=e=>{S.mode=+e.target.value;open3dDin();};
+        q('kG').onchange=e=>{if(e.target.value==='anterior')S.dinP.geo='anterior';else delete S.dinP.geo;q('kM').innerHTML=modeOpts().map(([v,l])=>`<option value="${v}"${v===S.mode?' selected':''}>${l}</option>`).join('');open3dDin();};}},
     legend:V3D.legendGradient(['#d1d6db',css('--warn'),css('--red')],['sin movimiento','','máximo del modo'])+'<span class="help">La amplitud de un modo es arbitraria: el control superior fija cuánto se dibuja. Los pilares se muestran fijos.</span>'});}
+function dxCtl(){const X=S.dx;
+  return {key:'dx',html:kSel('kZ','Zona dañada',[[-1,'Sin daño'],...IAC.zonas.map((_,i)=>[i,zlab(i)])],X.zone)+kRng('kS','Pérdida de rigidez',5,60,1,Math.round(X.sev*100),Math.round(X.sev*100)+' %')
+      +kSel('kL','Ruido de medición',NLEV.map((l,i)=>[i,l.l]),X.lev)+`<div class="k3row"><button class="btn line" id="kGo">Nueva medición</button><button class="btn" id="kRep">Repetir 100</button></div><p class="help" id="kInfo">Medición n.º ${X.n}</p>`,
+    bind:el=>{const q=id=>el.querySelector('#'+id),sync=()=>{if($('#dxZ')){$('#dxZ').value=X.zone;$('#dxS').value=Math.round(X.sev*100);$('#dxSo').textContent=Math.round(X.sev*100)+' %';$('#dxL').value=X.lev;$('#dxN').value=X.n;$('#dxStats').innerHTML='';}};
+      const run=rf=>{S.dxCnt=null;S._rf=rf;sync();dxRun();q('kInfo').textContent='Medición n.º '+X.n;open3dDx(false);};
+      q('kS').disabled=X.zone<0;
+      q('kZ').onchange=e=>{X.zone=+e.target.value;X.n=1;q('kS').disabled=X.zone<0;run(true);};
+      q('kS').oninput=e=>q('kSo').textContent=e.target.value+' %';q('kS').onchange=e=>{X.sev=e.target.value/100;X.n=1;run(false);};
+      q('kL').onchange=e=>{X.lev=+e.target.value;X.n=1;run(false);};
+      q('kGo').onclick=()=>{X.n++;run(false);};
+      q('kRep').onclick=async e=>{const b=e.target;b.disabled=true;b.textContent='Midiendo…';await dxRepeat();b.disabled=false;b.textContent='Repetir 100';open3dDx(true);};}};}
 function open3dDx(stats){const B=dxBase(),A=V3D.adaptMC(B.fr),look=V3D.elemLookup(A),zAt=(m,i)=>{const t=look(m,i);return t<0?-1:B.zones[t];};
-  const red=V3D.rgb(css('--red')),blue=V3D.rgb(css('--blue')),ok=V3D.rgb(css('--ok')),seq=V3D.sequential();
+  const red=V3D.rgb(css('--red')),blue=V3D.rgb(css('--blue')),ok=V3D.rgb(css('--ok')),seq=V3D.sequential(),rf=!!S._rf;S._rf=false;
   if(stats&&S.dxCnt){const C=S.dxCnt,mx=Math.max(...[...C.cnt.values()]);
-    V3D.open({title:`IA · ${C.N} mediciones · ${zlab(C.truth)}`,sub:`La IA eligió la zona real ${C.ok} de ${C.N} veces · color según cuántas veces eligió cada zona`,
+    V3D.open({onClose:back3d,controls:dxCtl(),title:`IA · ${C.N} mediciones · ${zlab(C.truth)}`,sub:`La IA eligió la zona real ${C.ok} de ${C.N} veces · color según cuántas veces eligió cada zona`,
       colorAt:(m,i)=>{const z=zAt(m,i);if(z<0)return null;const c=C.cnt.get(z)||0;return c?seq(c/mx):z===C.truth?blue:null;},
       legend:V3D.legendGradient(['#d1d6db',css('--warn'),css('--red')],['pocas veces','',`${mx} de ${C.N}`])+V3D.legendCats([[css('--blue'),'Zona dañada real (si la IA no la eligió nunca)']])});return;}
   const L=S.dxLast;if(!L)return;
-  V3D.open({focus:true,title:`IA · ${L.verdict[1]}`,sub:`Medición n.º ${L.n} · daño real: ${zlab(L.truth)}${L.truth>=0?' −'+Math.round(L.sev*100)+' %':''} · IA: ${zlab(L.pred)}`,
+  V3D.open({focus:true,refocus:rf,onClose:back3d,controls:dxCtl(),title:`IA · ${L.verdict[1]}`,sub:`Medición n.º ${L.n} · daño real: ${zlab(L.truth)}${L.truth>=0?' −'+Math.round(L.sev*100)+' %':''} · IA: ${zlab(L.pred)}`,
     colorAt:(m,i)=>{const z=zAt(m,i);if(z<0)return null;if(z===L.truth&&z===L.pred)return ok;if(z===L.pred)return red;if(z===L.truth)return blue;return null;},
     legend:V3D.legendCats([[css('--ok'),'La IA acertó la zona'],[css('--blue'),'Zona dañada real'],[css('--red'),'Zona propuesta por la IA']])+'<span class="help">Las zonas del modelo C se proyectan sobre el modelo 3D por su posición a lo largo del puente.</span>'});}
 function open3dInsp(){const P=priorities(),lv={};P.forEach((o,i)=>lv[o.z.id]={o,i:i+1});const col={Alta:V3D.rgb(css('--red')),Media:V3D.rgb(css('--warn')),Baja:[.72,.76,.79]};
-  V3D.open({title:'Plan de verificación en campo',sub:P.slice(0,3).map((o,i)=>`${i+1}.º ${o.z.long}`).join(' · '),colorAt:m=>{const z=meshZone(m)||({montante:'montantes',pilar:'pilares',tablero:'tablero'})[m.fam];return z&&lv[z]?col[lv[z].o.level]:null;},
+  V3D.open({onClose:back3d,title:'Plan de verificación en campo',sub:P.slice(0,3).map((o,i)=>`${i+1}.º ${o.z.long} (${o.score.toFixed(2)})`).join(' · '),colorAt:m=>{const z=meshZone(m)||({montante:'montantes',pilar:'pilares',tablero:'tablero'})[m.fam];return z&&lv[z]?col[lv[z].o.level]:null;},
+    controls:{key:'insp',html:'<p class="help">Pesos de los criterios</p>'+CRIT.map(([k,l])=>kRng('kW'+k,l,0,1,.05,S.W[k],S.W[k].toFixed(2))).join(''),
+      bind:el=>{const go=live3d(open3dInsp);CRIT.forEach(([k])=>{const i=el.querySelector('#kW'+k);i.oninput=e=>{S.W[k]=+e.target.value;el.querySelector('#kW'+k+'o').textContent=S.W[k].toFixed(2);go();};});}},
     legend:V3D.legendCats([[css('--red'),'Prioridad alta'],[css('--warn'),'Prioridad media'],['#b8c2c9','Prioridad baja']])});}
 
 /* ================= Arranque ================= */

@@ -93,10 +93,10 @@ const V3D = (() => {
     ov = document.createElement('div'); ov.id = 'v3d'; ov.setAttribute('role', 'dialog'); ov.setAttribute('aria-modal', 'true'); ov.setAttribute('aria-label', 'Vista 3D'); ov.hidden = true;
     ov.innerHTML = `<div class="v3d-bar"><div class="v3d-t"><b id="v3dTitle"></b><span id="v3dSub" class="dim"></span></div>
       <div class="v3d-c"><span id="v3dAnim"><button class="btn line" id="v3dPlay">Pausar</button><label class="f" style="width:190px"><span class="lv">Desplazamiento dibujado <output id="v3dAo"></output></span><input type="range" id="v3dAmp" min="0" max="5" step="0.1"></label></span>
-      <button class="btn line" id="v3dHome">Vista inicial</button><button class="btn" id="v3dClose">Cerrar · Esc</button></div></div>
-      <div class="v3d-stage" id="v3dStage"><div class="v3d-st" id="v3dSt">Cargando modelo 3D…</div></div><div class="v3d-leg" id="v3dLeg"></div>`;
+      <button class="btn line" id="v3dCtlB" hidden aria-expanded="true">Parámetros</button><button class="btn line" id="v3dHome">Vista inicial</button><button class="btn" id="v3dClose">Cerrar · Esc</button></div></div>
+      <div class="v3d-stage" id="v3dStage"><div class="v3d-st" id="v3dSt">Cargando modelo 3D…</div><div class="v3d-ctl" id="v3dCtl" hidden></div></div><div class="v3d-leg" id="v3dLeg"></div>`;
     document.body.append(ov);
-    ov.querySelector('#v3dClose').onclick = close; ov.querySelector('#v3dHome').onclick = fitHome;
+    ov.querySelector('#v3dClose').onclick = close; ov.querySelector('#v3dCtlB').onclick = e => { const p = document.getElementById('v3dCtl'), sh = p.hidden; p.hidden = !sh; e.target.setAttribute('aria-expanded', sh); }; ov.querySelector('#v3dHome').onclick = fitHome;
     ov.querySelector('#v3dPlay').onclick = e => { playing = !playing; e.target.textContent = playing ? 'Pausar' : 'Animar'; };
     ov.querySelector('#v3dAmp').oninput = e => { amp = +e.target.value; upAmp(); };
     document.addEventListener('keydown', e => { if (e.key === 'Escape' && !ov.hidden) close(); });
@@ -115,14 +115,18 @@ const V3D = (() => {
 
   // spec: { title, sub, colorAt(m,i)→[r,g,b]|null, disp: (m)→Float32Array(2n)|null (unidades del modelo, se multiplica por amp), ampDefault, animate, legend: html }
   async function open(sp) {
-    spec = sp; const ov = overlay(); ov.hidden = false; document.body.style.overflow = 'hidden';
+    const ov = overlay(), wasOpen = !ov.hidden && !!spec, prevKey = spec && spec.controls && spec.controls.key; spec = sp; ov.hidden = false; document.body.style.overflow = 'hidden';
+    // panel de parámetros: se construye una sola vez por vista para no interrumpir un deslizador en uso
+    const pc = document.getElementById('v3dCtl'), pb = document.getElementById('v3dCtlB');
+    if (!sp.controls) { pc.hidden = true; pc.innerHTML = ''; pb.hidden = true; }
+    else if (!wasOpen || sp.controls.key !== prevKey) { pc.innerHTML = '<div class="v3d-ph">Parámetros · el puente se actualiza al cambiarlos</div>' + sp.controls.html; pc.hidden = false; pb.hidden = false; pb.setAttribute('aria-expanded', 'true'); sp.controls.bind(pc); }
     document.getElementById('v3dTitle').textContent = sp.title; document.getElementById('v3dSub').textContent = sp.sub || ''; document.getElementById('v3dLeg').innerHTML = sp.legend || '';
     const hasDisp = !!sp.disp; document.getElementById('v3dAnim').hidden = !hasDisp; playing = sp.animate !== false; document.getElementById('v3dPlay').textContent = playing ? 'Pausar' : 'Animar';
-    amp = sp.ampDefault || 1.5; document.getElementById('v3dAmp').value = amp; realMax = 0;
+    if (!wasOpen) { amp = sp.ampDefault || 1.5; document.getElementById('v3dAmp').value = amp; } realMax = 0;
     let eng; try { eng = await engine(q => { const s = document.getElementById('v3dSt'); if (s) s.textContent = `Cargando modelo 3D… ${Math.round(100 * q)} %`; }); }
     catch (e) { document.getElementById('v3dSt').textContent = e.message; return; }
     if (spec !== sp) return;
-    const stg = document.getElementById('v3dStage'), st = document.getElementById('v3dSt'); if (st) st.remove(); stg.prepend(eng.renderer.domElement); resize(); fitHome();
+    const stg = document.getElementById('v3dStage'), st = document.getElementById('v3dSt'); if (st) st.remove(); if (eng.renderer.domElement.parentNode !== stg) stg.prepend(eng.renderer.domElement); resize(); if (!wasOpen) fitHome();
     const base = famBase();
     eng.meshes.forEach(m => { m.disp = hasDisp ? sp.disp(m) : null; if (!hasDisp) { m.o.geometry.attributes.position.array.set(m.base); m.o.geometry.attributes.position.needsUpdate = true; m.o.geometry.computeVertexNormals(); } });
     if (hasDisp) { let mx = 0; eng.meshes.forEach(m => { const D = m.disp; for (let i = 0; i < D.length; i += 2) mx = Math.max(mx, Math.hypot(D[i], D[i + 1])); });
@@ -132,7 +136,7 @@ const V3D = (() => {
       for (let i = 0; i < n; i++) { const hc = sp.colorAt && sp.colorAt(m, i), c = hc || base[m.fam];
         if (hc && sp.focus) { if (m.s[i] < f0) f0 = m.s[i]; if (m.s[i] > f1) f1 = m.s[i]; if (m.h[i] < g0) g0 = m.h[i]; if (m.h[i] > g1) g1 = m.h[i]; } col.array[3 * i] = c[0]; col.array[3 * i + 1] = c[1]; col.array[3 * i + 2] = c[2]; }
       col.needsUpdate = true; });
-    if (sp.focus && f1 > f0) focusOn((f0 + f1) / 2, (g0 + g1) / 2, Math.max(f1 - f0, g1 - g0));
+    if (sp.focus && f1 > f0 && (!wasOpen || sp.refocus)) focusOn((f0 + f1) / 2, (g0 + g1) / 2, Math.max(f1 - f0, g1 - g0));
     upAmp();
     t0 = performance.now(); cancelAnimationFrame(raf);
     const v = new eng.THREE.Vector3();
