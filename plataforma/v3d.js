@@ -107,6 +107,9 @@ const V3D = (() => {
   // vista inicial: misma dirección, distancia para que todo el puente quepa en el ancho de la pantalla
   function fitHome() { if (!E) return; const { cam, ctl, home } = E, dir = home.p.clone().sub(home.t).normalize(), vf = cam.fov * Math.PI / 360, hf = Math.atan(Math.tan(vf) * cam.aspect);
     const d = Math.max(home.L * .5 * 1.04 / Math.tan(hf), home.L * .16 / Math.tan(vf)); ctl.target.copy(home.t); cam.position.copy(home.t).addScaledVector(dir, d * .92); ctl.update(); }
+  // acerca la cámara a la zona resaltada (misma dirección de vista)
+  function focusOn(sc, hc, size) { if (!E) return; const { cam, ctl, home } = E, dir = home.p.clone().sub(home.t).normalize(), vf = cam.fov * Math.PI / 360, hf = Math.atan(Math.tan(vf) * cam.aspect);
+    const d = Math.max(size * .5 * 1.6 / Math.tan(hf), 28); ctl.target.set(home.t.x, hc, sc); cam.position.copy(ctl.target).addScaledVector(dir, d); ctl.update(); }
   function resize() { if (!E) return; const st = document.getElementById('v3dStage'); if (!st || !st.clientWidth) return; E.renderer.setSize(st.clientWidth, st.clientHeight, false); E.cam.aspect = st.clientWidth / st.clientHeight; E.cam.updateProjectionMatrix(); }
   function close() { const ov = document.getElementById('v3d'); if (ov) ov.hidden = true; cancelAnimationFrame(raf); raf = 0; document.body.style.overflow = ''; if (spec && spec.onClose) spec.onClose(); spec = null; }
 
@@ -124,9 +127,12 @@ const V3D = (() => {
     eng.meshes.forEach(m => { m.disp = hasDisp ? sp.disp(m) : null; if (!hasDisp) { m.o.geometry.attributes.position.array.set(m.base); m.o.geometry.attributes.position.needsUpdate = true; m.o.geometry.computeVertexNormals(); } });
     if (hasDisp) { let mx = 0; eng.meshes.forEach(m => { const D = m.disp; for (let i = 0; i < D.length; i += 2) mx = Math.max(mx, Math.hypot(D[i], D[i + 1])); });
       if (mx > 0) eng.meshes.forEach(m => { const D = m.disp; for (let i = 0; i < D.length; i++) D[i] /= mx; }); realMax = sp.physical ? mx : 0; }
+    let f0 = Infinity, f1 = -Infinity, g0 = Infinity, g1 = -Infinity;
     eng.meshes.forEach(m => { const col = m.o.geometry.attributes.color, n = m.s.length;
-      for (let i = 0; i < n; i++) { const c = (sp.colorAt && sp.colorAt(m, i)) || base[m.fam]; col.array[3 * i] = c[0]; col.array[3 * i + 1] = c[1]; col.array[3 * i + 2] = c[2]; }
+      for (let i = 0; i < n; i++) { const hc = sp.colorAt && sp.colorAt(m, i), c = hc || base[m.fam];
+        if (hc && sp.focus) { if (m.s[i] < f0) f0 = m.s[i]; if (m.s[i] > f1) f1 = m.s[i]; if (m.h[i] < g0) g0 = m.h[i]; if (m.h[i] > g1) g1 = m.h[i]; } col.array[3 * i] = c[0]; col.array[3 * i + 1] = c[1]; col.array[3 * i + 2] = c[2]; }
       col.needsUpdate = true; });
+    if (sp.focus && f1 > f0) focusOn((f0 + f1) / 2, (g0 + g1) / 2, Math.max(f1 - f0, g1 - g0));
     upAmp();
     t0 = performance.now(); cancelAnimationFrame(raf);
     const v = new eng.THREE.Vector3();

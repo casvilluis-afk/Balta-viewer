@@ -190,7 +190,7 @@ import {OrbitControls} from 'three/addons/controls/OrbitControls.js';
 window.BaltaThree={THREE,GLTFLoader,OrbitControls};
 window.dispatchEvent(new Event('three-ready'));
 </script>
-<script src="v3d.js?v=2.1.3"></script>
+<script src="v3d.js?v=2.1.4"></script>
 <script src="op_core.js?v=2.1.0"></script>
 <script src="op_ui.js?v=2.1.0"></script>
 <script>
@@ -1130,7 +1130,7 @@ function vReg(){const v=PROV.verificacion;
 /* ================= Vista 3D a pantalla completa ================= */
 const meshZone=m=>(ZONES.find(z=>z.glb(m.name))||{}).id;
 function open3dMod(){const z=ZONES.find(z=>z.id===S.zone),red=V3D.rgb(css('--red'));
-  V3D.open({title:'Modelo 3D · '+z.long,sub:'Componente seleccionado en rojo · arrastre para girar, rueda para acercar',colorAt:m=>meshZone(m)===S.zone?red:null,
+  V3D.open({focus:true,title:'Modelo 3D · '+z.long,sub:'Componente seleccionado en rojo · arrastre para girar, rueda para acercar',colorAt:m=>meshZone(m)===S.zone?red:null,
     legend:V3D.legendCats([[css('--red'),z.name],[css('--m-arco'),'Arcos'],[css('--m-tablero'),'Tablero y vigas'],[css('--m-montante'),'Montantes'],[css('--m-pilar'),'Pilares y estribos']])});}
 function stressSpec(res,base,title,sub,lblA){const A=V3D.adaptM2(M2),look=V3D.elemLookup(A);
   const ch=base?res.sig.map((v,t)=>v/Math.max(base.sig[t],1e-6)-1):null;let lim=.05;if(ch){const a=ch.map(Math.abs).sort((x,y)=>x-y);lim=Math.min(.5,Math.max(.05,a[Math.floor(a.length*.95)]));}
@@ -1154,7 +1154,7 @@ function open3dDx(stats){const B=dxBase(),A=V3D.adaptMC(B.fr),look=V3D.elemLooku
       colorAt:(m,i)=>{const z=zAt(m,i);if(z<0)return null;const c=C.cnt.get(z)||0;return c?seq(c/mx):z===C.truth?blue:null;},
       legend:V3D.legendGradient(['#d1d6db',css('--warn'),css('--red')],['pocas veces','',`${mx} de ${C.N}`])+V3D.legendCats([[css('--blue'),'Zona dañada real (si la IA no la eligió nunca)']])});return;}
   const L=S.dxLast;if(!L)return;
-  V3D.open({title:`IA · ${L.verdict[1]}`,sub:`Medición n.º ${L.n} · daño real: ${zlab(L.truth)}${L.truth>=0?' −'+Math.round(L.sev*100)+' %':''} · IA: ${zlab(L.pred)}`,
+  V3D.open({focus:true,title:`IA · ${L.verdict[1]}`,sub:`Medición n.º ${L.n} · daño real: ${zlab(L.truth)}${L.truth>=0?' −'+Math.round(L.sev*100)+' %':''} · IA: ${zlab(L.pred)}`,
     colorAt:(m,i)=>{const z=zAt(m,i);if(z<0)return null;if(z===L.truth&&z===L.pred)return ok;if(z===L.pred)return red;if(z===L.truth)return blue;return null;},
     legend:V3D.legendCats([[css('--ok'),'La IA acertó la zona'],[css('--blue'),'Zona dañada real'],[css('--red'),'Zona propuesta por la IA']])+'<span class="help">Las zonas del modelo C se proyectan sobre el modelo 3D por su posición a lo largo del puente.</span>'});}
 function open3dInsp(){const P=priorities(),lv={};P.forEach((o,i)=>lv[o.z.id]={o,i:i+1});const col={Alta:V3D.rgb(css('--red')),Media:V3D.rgb(css('--warn')),Baja:[.72,.76,.79]};
