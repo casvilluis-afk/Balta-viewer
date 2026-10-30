@@ -94,7 +94,7 @@ function opApoyos() {
    <h3>Apoyos (caras en metros a lo largo del puente)</h3><div class="tw" id="opSupTbl"></div>
    <div style="display:flex;gap:12px;flex-wrap:wrap"><label class="f" style="width:260px">Extremo izquierdo<select id="opEndL"><option value="simetria">Sin estribo visible: completar por simetría</option><option value="none">El primer apoyo es el estribo</option></select></label>
     <label class="f" style="width:260px">Extremo derecho<select id="opEndR"><option value="simetria">Sin estribo visible: completar por simetría</option><option value="none">El último apoyo es el estribo</option></select></label></div>
-   <p class="help">"Completar por simetría" cierra el vano extremo con la misma luz que da el arco ajustado respecto de su clave (para vigas y armaduras se usa la luz del vano vecino).</p></div>${opNext()}`;
+   <p class="help"><b>Revise los apoyos detectados.</b> La detección busca elementos verticales bajo el tablero y, en los extremos, el punto donde el terreno llega al tablero; árboles o arbustos densos bajo el puente pueden confundirse con un pilar: quítelos o mueva el apoyo. "Completar por simetría" cierra el vano extremo con la misma luz que da el arco ajustado respecto de su clave (para vigas y armaduras se usa la luz del vano vecino).</p></div>${opNext()}`;
   $('#opEndL').value = OP.ends.left; $('#opEndR').value = OP.ends.right;
   const redraw = () => { opSupTable(); opDrawElev({}); };
   $('#opDeck').onchange = e => { OP.deckTop = +e.target.value; OP.band.zmax = OP.deckTop - .38; OP.geo = null; redraw(); };

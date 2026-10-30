@@ -125,22 +125,47 @@ function deckLevel(O) {
 function groundLevel(O) { const a = []; for (let i = 0; i < O.n; i += 3) a.push(O.z[i]); return quantile(a, .001); }
 // apoyos: caras de pilares y estribos = bandas densas de puntos en una franja horizontal bajo los arranques (como pier_faces en geom.py)
 function detectSupports(O, deckTop, ground, frac = 0.62, tol = 0.25) {
-  const zc = deckTop - frac * (deckTop - ground), [sl, sh] = bounds(O.s), bw = 0.1, nb = Math.ceil((sh - sl) / bw) + 1, h = new Float64Array(nb);
-  for (let i = 0; i < O.n; i++) if (Math.abs(O.z[i] - zc) < tol) h[Math.floor((O.s[i] - sl) / bw)]++;
+  // 1) huella del tablero en planta (+1 m): fuera de ella quedan taludes y vegetación laterales. Con láser terrestre desde un lado se ven las caras laterales, por eso no se recorta más.
+  const dS = [], dT = []; for (let i = 0; i < O.n; i += 2) if (Math.abs(O.z[i] - deckTop) < .3) { dS.push(O.s[i]); dT.push(O.t[i]); }
+  const t0 = quantile(dT, .03), t1 = quantile(dT, .97), tm = (t0 + t1) / 2, th = (t1 - t0) / 2 + 1, d0 = quantile(dS, .005), d1 = quantile(dS, .995);
+  const core = i => Math.abs(O.t[i] - tm) <= th, H = deckTop - ground;
+  const zc = deckTop - frac * H, [sl, sh] = bounds(O.s), bw = 0.1, nb = Math.ceil((sh - sl) / bw) + 1;
+  const slice = (z0, tl) => { const h = new Float64Array(nb); for (let i = 0; i < O.n; i++) if (Math.abs(O.z[i] - z0) < tl && core(i)) h[Math.floor((O.s[i] - sl) / bw)]++; return h; };
+  const h = slice(zc, tol);
   const sm = h.map((_, k) => (h[k - 1] || 0) * .25 + h[k] * .5 + (h[k + 1] || 0) * .25), nz = Array.from(sm).filter(v => v > 0);
-  const thr = Math.max(2, 0.2 * quantile(nz, .98));
+  const thr = Math.max(2, 0.2 * quantile(nz.length ? nz : [0], .98));
   const runs = []; let a = -1;
   for (let k = 0; k <= nb; k++) { const on = k < nb && sm[k] >= thr; if (on && a < 0) a = k; if (!on && a >= 0) { let m = a; for (let j = a; j < k; j++) if (sm[j] > sm[m]) m = j; let tot = 0; for (let j = a; j < k; j++) tot += h[j]; runs.push({ a: sl + a * bw, b: sl + k * bw, peak: sl + (m + .5) * bw, tot }); a = -1; } }
-  const big = runs.filter(r => r.tot >= 0.1 * Math.max(...runs.map(q => q.tot)));
+  // 2) un apoyo es un elemento vertical: debe aparecer también en cortes más altos (hacia el tablero) en la misma posición;
+  //    el terreno inclinado o el talud cruzan cada corte en otra posición y se descartan
+  const hz = [deckTop - Math.min(.9, frac + .13) * H, deckTop - (frac - .12) * H].map(z => slice(z, tol)), occ = (hh, s0) => { let c = 0; for (let k = Math.max(0, Math.floor((s0 - 1.2 - sl) / bw)); k <= Math.min(nb - 1, Math.floor((s0 + 1.2 - sl) / bw)); k++) c += hh[k]; return c; };
+  const peakAt = (hh, s0) => { let m = -1, v = -1; for (let k = Math.max(0, Math.floor((s0 - 1.5 - sl) / bw)); k <= Math.min(nb - 1, Math.floor((s0 + 1.5 - sl) / bw)); k++) { const x = (hh[k - 1] || 0) + hh[k] + (hh[k + 1] || 0); if (x > v) { v = x; m = k; } } return sl + (m + .5) * bw; };
+  // vegetación: aparece en varias alturas pero sin una cara alineada; un pilar o muro tiene su cara en la misma posición a todas las alturas
+  const vert = r => { const o = hz.filter(hh => occ(hh, r.peak) >= Math.max(3, .15 * r.tot)), al = o.filter(hh => peakAt(hh, r.peak) >= r.a - .4 && peakAt(hh, r.peak) <= r.b + .4); return al.length >= 1 && o.length >= (H > 4 ? 2 : 1); };
+  const cand = runs.filter(r => r.peak > d0 - 1 && r.peak < d1 + 1), mx = Math.max(0, ...cand.map(q => q.tot)), big = cand.filter(r => r.tot >= 0.1 * mx && vert(r));
   // caras a menos de 4,5 m forman un mismo pilar; la cara exterior de cada grupo es el pico de densidad
   const groups = []; big.forEach(r => { const g = groups[groups.length - 1]; if (g && r.peak - g[g.length - 1].peak <= 4.5) g.push(r); else groups.push([r]); });
   const sup = groups.map(g => ({ a: g[0].peak, b: g[g.length - 1].peak }));
   // es estribo si no hay tablero más allá; si el tablero sigue, es un pilar y el vano extremo se completa por simetría
   const deckBeyond = (s0, dir) => { let c = 0; for (let i = 0; i < O.n; i++) if (Math.abs(O.z[i] - deckTop) < .3 && (dir < 0 ? O.s[i] < s0 - 5 : O.s[i] > s0 + 5)) c++; return c > 200; };
-  // un grupo de una sola cara en un extremo es un estribo (se ve solo la cara hacia el vano); también si no hay tablero más allá
-  sup.forEach((p, i) => { p.tipo = 'pilar'; const single = groups[i].length === 1, end = i === 0 ? -1 : i === sup.length - 1 ? 1 : 0;
-    if (end && (single || !deckBeyond(end < 0 ? p.a : p.b, end))) p.tipo = 'estribo'; });
-  return { supports: sup, zSlab: zc, faces: big.map(r => r.peak) };
+  // 3) estribos en los extremos: donde el terreno bajo el tablero sube hasta cerca de la cara inferior (≤ 2,5 m bajo la rodadura)
+  const gb = .5, gn = Math.ceil((d1 - d0) / gb), low = Array.from({ length: gn }, () => []);
+  for (let i = 0; i < O.n; i++) { if (!core(i) || O.s[i] < d0 || O.s[i] >= d1 || O.z[i] > deckTop - .6) continue; low[Math.floor((O.s[i] - d0) / gb)].push(O.z[i]); }
+  const gz = low.map(b => b.length >= 5 ? quantile(b, .05) : null), clear = k => gz[k] == null ? null : deckTop - gz[k], mid = sup.length ? (sup[0].a + sup[sup.length - 1].b) / 2 : (d0 + d1) / 2, km = Math.min(gn - 1, Math.max(0, Math.floor((mid - d0) / gb)));
+  const edge = dir => { for (let k = km; k >= 0 && k < gn; k += dir) { const c = clear(k); if (c != null && c < 2.5) return d0 + (k + (dir > 0 ? 0 : 1)) * gb; } return dir > 0 ? d1 : d0; };
+  const clearAt = s0 => { const k = Math.floor((s0 - d0) / gb); let best = null; for (let j = k - 2; j <= k + 2; j++) { const c = j >= 0 && j < gn ? clear(j) : null; if (c != null) best = best == null ? c : Math.min(best, c); } return best; };
+  // en los extremos: estribo si más allá el terreno está cerca del tablero (terraplén) o no sigue el tablero; pilar si hay vano libre detrás
+  sup.forEach((p, i) => { p.tipo = 'pilar'; const single = groups[i].length === 1, end = i === 0 ? -1 : i === sup.length - 1 ? 1 : 0; if (!end) return;
+    const so = end < 0 ? p.a - 4 : p.b + 4, c = clearAt(so), noDeck = !deckBeyond(end < 0 ? p.a : p.b, end);
+    if (noDeck || (single && (c == null || c < 2.5))) p.tipo = 'estribo'; });
+  // solo se agrega un estribo por terreno donde el apoyo extremo es un pilar con vano libre detrás (p. ej. pilar central de dos vanos)
+  const edgeFrom = (s0, dir) => { const k0 = Math.min(gn - 1, Math.max(0, Math.floor((s0 - d0) / gb))); for (let k = k0 + dir * 4; k >= 0 && k < gn; k += dir) { const c = clear(k); if (c != null && c < 2.5) return d0 + (k + (dir > 0 ? 0 : 1)) * gb; } return dir > 0 ? d1 : d0; };
+  if (!sup.length) { sup.push({ a: edge(-1), b: edge(-1), tipo: 'estribo', auto: 'terreno' }, { a: edge(1), b: edge(1), tipo: 'estribo', auto: 'terreno' }); }
+  else { const f = sup[0], l = sup[sup.length - 1];
+    if (f.tipo === 'pilar') { const L = edgeFrom(f.a, -1); if (f.a - L > Math.max(6, .3 * (sup.length > 1 ? sup[1].a - f.b : 0))) sup.unshift({ a: L, b: L, tipo: 'estribo', auto: 'terreno' }); }
+    if (l.tipo === 'pilar') { const R = edgeFrom(l.b, 1); if (R - l.b > Math.max(6, .3 * (sup.length > 1 ? l.a - sup[sup.length - 2].b : 0))) sup.push({ a: R, b: R, tipo: 'estribo', auto: 'terreno' }); } }
+  // un "estribo" detectado dentro del tablero lejos de los extremos y con terreno libre debajo era talud: se descarta si hay un estribo por terreno más afuera
+  return { supports: sup, zSlab: zc, faces: big.map(r => r.peak), deck: [d0, d1], band: [tm - th, tm + th] };
 }
 function spansOf(sup) { const sp = []; for (let k = 0; k < sup.length - 1; k++) sp.push({ a: sup[k].b, b: sup[k + 1].a, k }); return sp; }
 

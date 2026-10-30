@@ -90,7 +90,13 @@ ok('Modelo C: 18 zonas de daño', frB.zoneDefs.length === 18);
   const IF = OPC.trainModalIA(camp, { f: all, s: [], sens }, .005, .05), IM = OPC.trainModalIA(camp, { f: all, s: all, sens }, .005, .05);
   ok('IA: las formas modales mejoran la localización', IM.metrics.localizacion > IF.metrics.localizacion + .15, `zona exacta ${(100 * IF.metrics.localizacion).toFixed(0)} % → ${(100 * IM.metrics.localizacion).toFixed(0)} % · vano ${(100 * IF.metrics.vano).toFixed(0)} % → ${(100 * IM.metrics.vano).toFixed(0)} %`); }
 
-// 14. Solver 2D de la plataforma contra OpenSees: se verifica en el navegador (pestaña Validación) con los 450 casos de data/fem_525.csv
+// 14. Detección de apoyos en la nube TLS del Balta: los dos pilares (caras medidas) y el estribo derecho
+{ const d = JSON.parse(fs.readFileSync(path.join(P, 'data', 'nube_balta.json'))), q = new Uint16Array(Buffer.from(d.pos, 'base64').buffer.slice(0)), xyz = new Float32Array(3 * d.n);
+  for (let i = 0; i < d.n; i++) for (let k = 0; k < 3; k++) xyz[3 * i + k] = d.lo[k] + q[3 * i + k] / 65535 * (d.hi[k] - d.lo[k]);
+  const O = OPC.orient({ xyz, offset: [0, 0, 0] }, 'z', 1), S = OPC.detectSupports(O, OPC.deckLevel(O), OPC.groundLevel(O)).supports, near = (x, y) => Math.abs(x - y) < .6;
+  ok('Apoyos del Balta: pilares P1 y P2 y estribo derecho', S.length === 3 && S[0].tipo === 'pilar' && S[1].tipo === 'pilar' && S[2].tipo === 'estribo' && near(S[0].a, F.p1_L) && near(S[1].b, F.p2_R), S.map(p => `${p.tipo} ${p.a.toFixed(1)}–${p.b.toFixed(1)}`).join(' · ')); }
+
+// 15. Solver 2D de la plataforma contra OpenSees: se verifica en el navegador (pestaña Validación) con los 450 casos de data/fem_525.csv
 ok('Dataset OpenSees presente', fs.existsSync(path.join(P, 'data', 'fem_525.csv')));
 
 console.log(fails ? `\n${fails} prueba(s) fallaron` : '\nTodas las pruebas pasaron');
