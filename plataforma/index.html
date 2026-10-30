@@ -25,13 +25,13 @@ button{font:inherit;color:inherit}
 
 /* ---------- Estructura ---------- */
 .app{display:grid;grid-template-rows:auto 1fr auto;height:100%;min-height:0}
-.bar{display:grid;grid-template-columns:auto 1fr;align-items:end;background:var(--chrome);border-bottom:1px solid var(--rule);padding-left:max(8px,env(safe-area-inset-left,0px));padding-right:max(8px,env(safe-area-inset-right,0px));min-width:0}
-.mark{display:flex;flex-direction:column;justify-content:center;gap:0;padding:6px 16px 6px 4px;flex:none;align-self:center}
+.bar{display:grid;grid-template-columns:1fr;align-items:end;background:var(--chrome);border-bottom:1px solid var(--rule);padding-left:max(8px,env(safe-area-inset-left,0px));padding-right:max(8px,env(safe-area-inset-right,0px));min-width:0}
+.mark{display:flex;flex-wrap:wrap;align-items:baseline;gap:0 12px;padding:5px 4px 0;flex:none}
 .mark b{font:600 14px var(--f-ui)}
 .mark span{font:12px var(--f-ui);color:var(--ink-2)}
 .menu{display:flex;gap:2px;overflow-x:auto;scrollbar-width:none;min-width:0;padding-top:6px}
 .menu::-webkit-scrollbar{display:none}
-.menu button{flex:none;background:#eef0f2;border:1px solid var(--rule);border-bottom:0;border-radius:3px 3px 0 0;padding:5px 12px;font:13px var(--f-ui);color:var(--ink-2);cursor:pointer;position:relative;top:1px}
+.menu button{flex:none;background:#eef0f2;border:1px solid var(--rule);border-bottom:0;border-radius:3px 3px 0 0;padding:5px 10px;font:13px var(--f-ui);color:var(--ink-2);cursor:pointer;position:relative;top:1px}
 .menu button:hover{background:#f7f8f9;color:var(--ink)}
 .menu button[aria-selected="true"]{color:var(--ink);background:var(--desk);font-weight:600;z-index:1;box-shadow:inset 0 2px 0 var(--accent)}
 .menu button .k{font:12px var(--f-ui);color:var(--ink-3);margin-right:5px}
@@ -181,7 +181,7 @@ details summary::-webkit-details-marker{color:var(--ink-3)}
 
 <div class="app">
   <header class="bar">
-    <div class="mark"><b>Puente Balta · Sistema de evaluación e inspección</b><span>Gemelo digital · río Rímac, Lima · versión 2.5</span></div>
+    <div class="mark"><b>Puente Balta · Sistema de evaluación e inspección</b><span>Gemelo digital · río Rímac, Lima · versión 2.6</span></div>
     <nav class="menu" role="tablist" aria-label="Herramientas">
       <button role="tab" data-v="modelo"><span class="k">1</span>Modelo</button>
       <button role="tab" data-v="simulacion"><span class="k">2</span>Simulación</button>
@@ -191,6 +191,10 @@ details summary::-webkit-details-marker{color:var(--ink-3)}
       <button role="tab" data-v="validacion"><span class="k">6</span>Validación</button>
       <button role="tab" data-v="registro"><span class="k">7</span>Registro</button>
       <button role="tab" data-v="tupuente"><span class="k">8</span>Tu puente</button>
+      <button role="tab" data-v="oma"><span class="k">9</span>Vibración</button>
+      <button role="tab" data-v="inspmtc"><span class="k">10</span>Inspección</button>
+      <button role="tab" data-v="cargahl"><span class="k">11</span>Carga HL-93</button>
+      <button role="tab" data-v="deterioro"><span class="k">12</span>Deterioro</button>
     </nav>
   </header>
   <div class="work">
@@ -209,9 +213,10 @@ import {OrbitControls} from 'three/addons/controls/OrbitControls.js';
 window.BaltaThree={THREE,GLTFLoader,OrbitControls};
 window.dispatchEvent(new Event('three-ready'));
 </script>
-<script src="v3d.js?v=2.5.0"></script>
-<script src="op_core.js?v=2.5.0"></script>
-<script src="op_ui.js?v=2.5.0"></script>
+<script src="v3d.js?v=2.6.0"></script>
+<script src="op_core.js?v=2.6.0"></script>
+<script src="op_ui.js?v=2.6.0"></script>
+<script src="pg_mod.js?v=2.6.0"></script>
 <script>
 "use strict";
 const MODEL_URL='../models/puente-balta-v12.glb';
@@ -492,7 +497,7 @@ function elevation({res=null,amp=0,highlight=null,colorBy=null,sensors=false,box
 function legendRow(items,x,y){return items.map(([type,col,label],i)=>{const xx=x,yy=y+i*13;const mk=type==='line'?`<line x1="${xx}" x2="${xx+18}" y1="${yy-3}" y2="${yy-3}" stroke="${col}" stroke-width="2"/>`:`<rect x="${xx}" y="${yy-8}" width="18" height="8" fill="${col}"/>`;return mk+`<text x="${xx+24}" y="${yy}">${label}</text>`;}).join('');}
 
 /* ================= Estado y navegación ================= */
-const VIEWS=['modelo','simulacion','comparacion','dinamica','inspeccion','validacion','registro','tupuente'];
+const VIEWS=['modelo','simulacion','comparacion','dinamica','inspeccion','validacion','registro','tupuente','oma','inspmtc','cargahl','deterioro'];
 const S={view:'modelo',zone:'arco_a2_a3',q:100,E:50,target:'arco_a2_a3',pct:.3,noise:.005,m3d:'3d',
   A:{q:100,E:50,target:'sin_danio',pct:0},B:{q:100,E:50,target:'arco_a2_a3',pct:.3},W:{sens:.3,geo:.3,det:.2,dem:.2,cond:.2}};
 let DATA_READY=false,lastSolveMs=0;
@@ -501,7 +506,7 @@ function show(v){if(!VIEWS.includes(v))v='modelo';S.view=v;if(S.vpFull){S.vpFull
   try{history.replaceState(null,'','#'+v);}catch(e){}
   if(DATA_READY)render();}
 document.querySelectorAll('.menu button').forEach(b=>b.addEventListener('click',()=>show(b.dataset.v)));
-function render(){({modelo:vModelo,simulacion:vSim,comparacion:vCmp,dinamica:vDin,inspeccion:vInsp,validacion:vVal,registro:vReg,tupuente:vTu})[S.view]();statusBar();}
+function render(){({modelo:vModelo,simulacion:vSim,comparacion:vCmp,dinamica:vDin,inspeccion:vInsp,validacion:vVal,registro:vReg,tupuente:vTu,oma:vOma,inspmtc:vInspMTC,cargahl:vHL,deterioro:vDet})[S.view]();statusBar();}
 function statusBar(extra=''){const v=PROV.verificacion;
   $('#status').innerHTML=`<span class="okdot">Solver 2D verificado · OpenSees ${v.opensees} · ${v.cases} casos</span><span>q ${fmt(S.q,0)} kN/m</span><span>E ${fmt(S.E,0)} GPa</span><span>Último cálculo ${fmt(lastSolveMs,0)} ms</span>${extra}<span class="dim">Ñuñuvero · Tarazona · UPC 2026</span>`;}
 function timedSolve(sc){const t=performance.now(),r=solve(sc);lastSolveMs=performance.now()-t;return r;}
@@ -989,7 +994,7 @@ function open3dSis(){const r=S.sis.res;if(!r)return;const A=V3D.adaptMC(r.fr),se
 /* ---------- IA con frecuencias del usuario (medidas o calculadas) ---------- */
 // Sin datos del usuario la plataforma sigue simulando la medición; con sus frecuencias, se usa una IA entrenada solo con Δf del mismo modelo.
 const FQ={};let FQ_SRC=null;
-async function fqWorker(){if(!FQ_SRC)FQ_SRC=await fetch('op_core.js?v=2.5.0').then(r=>{if(!r.ok)throw new Error('No se encontró op_core.js');return r.text();});
+async function fqWorker(){if(!FQ_SRC)FQ_SRC=await fetch('op_core.js?v=2.6.0').then(r=>{if(!r.ok)throw new Error('No se encontró op_core.js');return r.text();});
   const src=FQ_SRC+`\nself.onmessage=e=>{const m=e.data;try{if(m.kind==='camp'){const c=OPC.freqCampaign(m.type,m.G,m.P,m.opts,(q,s)=>self.postMessage({kind:'prog',stage:'Simulaciones de daño',q,s}));self.postMessage({kind:'camp',camp:c});}
    else{const I=OPC.trainFreqIA(m.camp,m.k,m.sf,(st,q)=>self.postMessage({kind:'prog',stage:st,q}));self.postMessage({kind:'ia',ia:I});}}catch(err){self.postMessage({kind:'error',msg:err.message});}};`;
   return new Worker(URL.createObjectURL(new Blob([src],{type:'text/javascript'})));}
@@ -1000,7 +1005,7 @@ const FQ_ERR=[['0.002','Bajo · 0,2 %'],['0.005','Medio · 0,5 %'],['0.01','Alto
 function fqRender(el,ctx){if(!el)return;const key=JSON.stringify([ctx.type,ctx.G,ctx.P]);let C=FQ[ctx.id];if(!C||C.key!==key){C=FQ[ctx.id]={key,f0:OPC.modal(OPC.build(ctx.type,ctx.G,ctx.P),8).f,fm:new Array(8).fill(''),fr:new Array(8).fill(''),ref:'modelo',sf:'0.005',camp:null,ia:{},busy:false,out:''};}
   const inRow=(arr,id,ph)=>arr.map((v,i)=>`<label class="f">f${i+1}${ph?` <span class="dim">(${fmt(C.f0[i],2)})</span>`:''}<input type="text" inputmode="decimal" data-${id}="${i}" value="${esc(v)}" placeholder="Hz"></label>`).join('');
   el.innerHTML=`<h2>IA · Diagnóstico con frecuencias medidas o calculadas por usted</h2>
-   <p>Si midió el puente (acelerómetros o el celular con phyphox) o calculó sus frecuencias con otro modelo, ingréselas aquí y la IA las usará en lugar de la medición simulada. Esta IA se entrena solo con cambios de frecuencia del mismo modelo${ctx.title?' ('+esc(ctx.title)+')':''}; sin formas modales la localización es menos precisa que con la medición completa. Ingrese los modos en orden, desde f1; los vacíos al final se ignoran.</p>
+   <p>Si midió el puente (acelerómetros o el celular con phyphox) o calculó sus frecuencias con otro modelo, ingréselas aquí y la IA las usará en lugar de la medición simulada. Esta IA se entrena solo con cambios de frecuencia del mismo modelo${ctx.title?' ('+esc(ctx.title)+')':''}; sin formas modales la localización es menos precisa que con la medición completa. Deje vacíos los modos que no midió: la IA se entrena solo con los modos que usted ingrese.</p>
    <h3>Frecuencias medidas o calculadas (Hz)</h3><div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(86px,1fr));gap:6px">${inRow(C.fm,'fm',true)}</div>
    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,220px),1fr));gap:8px;align-items:end">
     <label class="f">Referencia (puente sin daño)<select id="fqRef_${ctx.id}"><option value="modelo" ${C.ref==='modelo'?'selected':''}>Frecuencias del modelo (entre paréntesis)</option><option value="usuario" ${C.ref==='usuario'?'selected':''}>Mis frecuencias de referencia</option></select></label>
@@ -1014,13 +1019,13 @@ function fqRender(el,ctx){if(!el)return;const key=JSON.stringify([ctx.type,ctx.G
   $('#fqGo_'+ctx.id).onclick=()=>fqDiagnose(el,ctx,C);}
 async function fqDiagnose(el,ctx,C){const out=$('#fqOut_'+ctx.id),num=v=>parseFloat(String(v).replace(',','.'));
   el.querySelectorAll('[data-fm]').forEach(i=>C.fm[+i.dataset.fm]=i.value.trim());el.querySelectorAll('[data-fr]').forEach(i=>C.fr[+i.dataset.fr]=i.value.trim());
-  let k=0;while(k<8&&num(C.fm[k])>0)k++;
-  if(k<2){out.innerHTML='<div class="msg crit"><b>Faltan datos.</b> Ingrese al menos f1 y f2, en orden y sin dejar huecos.</div>';return;}
-  const ref=C.ref==='usuario'?C.fr.map(num):C.f0;for(let i=0;i<k;i++)if(!(ref[i]>0)){out.innerHTML=`<div class="msg crit"><b>Falta la referencia de f${i+1}.</b></div>`;return;}
-  const x=Array.from({length:k},(_,i)=>(num(C.fm[i])-ref[i])/ref[i]),sf=+C.sf,prog=m=>{out.innerHTML=`<p class="help">${m.stage}: ${Math.round(100*m.q)} %${m.s?` · ${Math.round(m.s)} s`:''}</p><div class="meter"><i style="width:${100*m.q}%"></i></div>`;};
+  const idx=[];for(let i=0;i<8;i++)if(num(C.fm[i])>0)idx.push(i);const k=idx.length;
+  if(k<2){out.innerHTML='<div class="msg crit"><b>Faltan datos.</b> Ingrese al menos dos frecuencias.</div>';return;}
+  const ref=C.ref==='usuario'?C.fr.map(num):C.f0;for(const i of idx)if(!(ref[i]>0)){out.innerHTML=`<div class="msg crit"><b>Falta la referencia de f${i+1}.</b></div>`;return;}
+  const x=idx.map(i=>(num(C.fm[i])-ref[i])/ref[i]),sf=+C.sf,prog=m=>{out.innerHTML=`<p class="help">${m.stage}: ${Math.round(100*m.q)} %${m.s?` · ${Math.round(m.s)} s`:''}</p><div class="meter"><i style="width:${100*m.q}%"></i></div>`;};
   C.busy=true;$('#fqGo_'+ctx.id).disabled=true;
   try{if(!C.camp){out.innerHTML='<p class="help">Preparando la IA de frecuencias para este modelo (unas 1200 simulaciones; solo la primera vez)…</p>';C.camp=(await fqRun(ctx,{kind:'camp',type:ctx.type,G:ctx.G,P:ctx.P,opts:{nPerZone:60,nUndamaged:100,unc:.05,seed:7,NM:8}},prog)).camp;}
-    const ik=k+'|'+sf;if(!C.ia[ik])C.ia[ik]=(await fqRun(ctx,{kind:'train',camp:C.camp,k,sf},prog)).ia;
+    const ik=idx.join(',')+'|'+sf;if(!C.ia[ik])C.ia[ik]=(await fqRun(ctx,{kind:'train',camp:C.camp,k:idx,sf},prog)).ia;
     const I=C.ia[ik],Z=C.camp.zones.length,d=OPC.freqPredict(I,Z,x),zn=c=>c<0?'Sin daño':C.camp.zones[c];
     const v=d.ood?['crit','Medición fuera de dominio']:!d.conclusive?['warn','No concluyente']:d.cls<0?['ok','Sin daño detectado']:['ok','Zona identificada'];
     const allNeg=x.every(v=>v<-.03)&&Math.max(...x)-Math.min(...x)<.02;
@@ -1032,8 +1037,8 @@ async function fqDiagnose(el,ctx,C){const out=$('#fqOut_'+ctx.id),num=v=>parseFl
       <tr><td>Árboles que votan por esa zona</td><td class="n">${pct(d.p,0)} <span class="dim">/ mín. 40 %</span></td></tr>
       <tr><td>Distancia al dominio</td><td class="n">${fmt(d.dist,2)} <span class="dim">/ umbral ${fmt(I.oodThr,2)}</span></td></tr></tbody></table>
       <h3 style="margin-top:8px">Zonas más votadas</h3><div class="tw"><table class="data"><tbody>${d.top.map(([p,c])=>`<tr><td>${esc(zn(c))}</td><td style="width:42%"><div class="meter"><i style="width:${100*p}%"></i></div></td><td class="n">${pct(p,0)}</td></tr>`).join('')}</tbody></table></div></div>
-     <div class="tw"><table class="data"><thead><tr><th>Modo</th><th class="n">Referencia (Hz)</th><th class="n">Medida (Hz)</th><th class="n">Δf</th></tr></thead><tbody>${x.map((v,i)=>`<tr><td class="mono">${i+1}</td><td class="n">${fmt(ref[i],3)}</td><td class="n">${fmt(num(C.fm[i]),3)}</td><td class="n">${sgn(v,2)}</td></tr>`).join('')}</tbody></table>
-      <p class="help" style="margin-top:6px">Validación de esta IA con ${k} frecuencias y error ${pct(sf,1)} (casos simulados no vistos): zona exacta ${pct(I.metrics.localizacion,0)}, vano correcto ${pct(I.metrics.vano,0)}, falsas alarmas ${pct(I.metrics.falsaAlarma,0)}.</p></div></div>
+     <div class="tw"><table class="data"><thead><tr><th>Modo</th><th class="n">Referencia (Hz)</th><th class="n">Medida (Hz)</th><th class="n">Δf</th></tr></thead><tbody>${x.map((v,j)=>{const i=idx[j];return `<tr><td class="mono">${i+1}</td><td class="n">${fmt(ref[i],3)}</td><td class="n">${fmt(num(C.fm[i]),3)}</td><td class="n">${sgn(v,2)}</td></tr>`;}).join('')}</tbody></table>
+      <p class="help" style="margin-top:6px">Validación de esta IA con ${k} frecuencias (modos ${idx.map(i=>i+1).join(', ')}) y error ${pct(sf,1)} (casos simulados no vistos): zona exacta ${pct(I.metrics.localizacion,0)}, vano correcto ${pct(I.metrics.vano,0)}, falsas alarmas ${pct(I.metrics.falsaAlarma,0)}.</p></div></div>
      ${allNeg?'<div class="msg"><b>Todas las frecuencias bajan casi lo mismo.</b> Eso suele indicar un módulo E o una masa distintos a los del modelo, no un daño local. Calibre el modelo antes de interpretar la zona.</div>':''}
      ${d.ood?'<div class="msg crit"><b>Fuera de dominio.</b> Las frecuencias ingresadas no se parecen a ningún caso simulado; la IA no debe usarse con estos datos. Revise unidades, orden de los modos y la referencia.</div>':''}`;
     out.innerHTML=C.out;}

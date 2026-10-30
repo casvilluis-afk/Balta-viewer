@@ -518,10 +518,11 @@ function freqCampaign(type, G, p, opts, prog) {
   return { rows, f0, zones: fr0.zoneDefs, NM, spanOfZone };
 }
 // Entrena con los k primeros modos y el error de medición sf (fracción de la frecuencia)
-function trainFreqIA(camp, k, sf, prog) {
+function trainFreqIA(camp, k, sf, prog) { // k: número de modos (f1…fk) o lista de índices de los modos medidos (p. ej. [0, 2, 3])
+  const idx = Array.isArray(k) ? k.slice() : Array.from({ length: k }, (_, i) => i); k = idx.length;
   const rows = camp.rows, Z = camp.zones.length, C = Z + 1, r = mulberry(11), byZ = {}; rows.forEach((row, i) => (byZ[row.zona] = byZ[row.zona] || []).push(i)); const tr = [], te = [];
   Object.values(byZ).forEach(ids => { const a = ids.slice(); for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(r() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } const nt = Math.round(a.length * .3); te.push(...a.slice(0, nt)); tr.push(...a.slice(nt)); });
-  const nz = (x, rr) => x.slice(0, k).map(v => v + gaussR(rr) * sf), rr = mulberry(101), Xtr = [], ytr = [], str = [];
+  const nz = (x, rr) => idx.map(j => x[j] + gaussR(rr) * sf), rr = mulberry(101), Xtr = [], ytr = [], str = [];
   for (let rep = 0; rep < 3; rep++) tr.forEach(i => { Xtr.push(nz(rows[i].df, rr)); ytr.push(rows[i].zona + 1); str.push(rows[i].sev); });
   const mean = new Array(k).fill(0), sd = new Array(k).fill(0); Xtr.forEach(x => x.forEach((v, j) => mean[j] += v / Xtr.length)); Xtr.forEach(x => x.forEach((v, j) => sd[j] += (v - mean[j]) ** 2 / Xtr.length)); sd.forEach((v, j) => sd[j] = Math.sqrt(v) || 1);
   const clf = trainForest(Xtr, ytr, { nTrees: 60, maxDepth: 16, minLeaf: 1, mtry: Math.max(1, Math.round(Math.sqrt(k))), seed: 3 }, true, C, q => prog && prog('Clasificador de zona', q));
@@ -633,7 +634,150 @@ function bridgePlans(spec) {
   return { bytes: D.bytes(sheets[0] ? sheets[0].S / 100 : 1), sheets, entities: D.count() };
 }
 
-return { Dxf, bridgePlans, sensorsOf, readAccel, sdof, spectrum, seismic, freqCampaign, trainFreqIA, freqPredict, build, modal, archAll, parseCloud, orient, bounds, deckLevel, groundLevel, detectSupports, spansOf, envelope, fitParabola, polyval, archGeometry, spanCoverage, MATERIALS,
+/* ======================= Vibración medida: espectros y FDD ======================= */
+function fftInPlace(re, im) { const n = re.length; for (let i = 1, j = 0; i < n; i++) { let b = n >> 1; for (; j & b; b >>= 1) j ^= b; j ^= b; if (i < j) { let t = re[i]; re[i] = re[j]; re[j] = t; t = im[i]; im[i] = im[j]; im[j] = t; } }
+  for (let len = 2; len <= n; len <<= 1) { const a = -2 * Math.PI / len, wr = Math.cos(a), wi = Math.sin(a);
+    for (let i = 0; i < n; i += len) { let cr = 1, ci = 0; for (let k = 0; k < len / 2; k++) { const p = i + k, q = p + len / 2, tr = re[q] * cr - im[q] * ci, ti = re[q] * ci + im[q] * cr; re[q] = re[p] - tr; im[q] = im[p] - ti; re[p] += tr; im[p] += ti; const nr = cr * wr - ci * wi; ci = cr * wi + ci * wr; cr = nr; } } } }
+function detrend(x) { const n = x.length; let sx = 0, sy = 0, sxx = 0, sxy = 0; for (let i = 0; i < n; i++) { sx += i; sy += x[i]; sxx += i * i; sxy += i * x[i]; } const b = (n * sxy - sx * sy) / (n * sxx - sx * sx || 1), a = (sy - b * sx) / n; return Float64Array.from(x, (v, i) => v - a - b * i); }
+// Matriz de densidad espectral cruzada (Welch, ventana de Hann, 50 % de traslape). chans: [Float64Array], misma longitud.
+function csdMatrix(chans, fs, nfft) { const nc = chans.length, n = chans[0].length; nfft = Math.min(nfft, 1 << Math.floor(Math.log2(n))); const step = nfft >> 1, nb = (nfft >> 1) + 1, w = new Float64Array(nfft);
+  let U = 0; for (let i = 0; i < nfft; i++) { w[i] = .5 - .5 * Math.cos(2 * Math.PI * i / (nfft - 1)); U += w[i] * w[i]; }
+  const Gr = new Float64Array(nb * nc * nc), Gi = new Float64Array(nb * nc * nc); let segs = 0; const X = chans.map(() => [new Float64Array(nfft), new Float64Array(nfft)]), D = chans.map(detrend);
+  for (let s = 0; s + nfft <= n; s += step) { segs++; for (let c = 0; c < nc; c++) { const [re, im] = X[c]; for (let i = 0; i < nfft; i++) { re[i] = D[c][s + i] * w[i]; im[i] = 0; } fftInPlace(re, im); }
+    for (let k = 0; k < nb; k++) for (let a = 0; a < nc; a++) for (let b = 0; b < nc; b++) { const ar = X[a][0][k], ai = X[a][1][k], br = X[b][0][k], bi = X[b][1][k], o = (k * nc + a) * nc + b; Gr[o] += ar * br + ai * bi; Gi[o] += ai * br - ar * bi; } }
+  const sc = 2 / (fs * U * Math.max(1, segs)); for (let i = 0; i < Gr.length; i++) { Gr[i] *= sc; Gi[i] *= sc; }
+  return { f: Float64Array.from({ length: nb }, (_, k) => k * fs / nfft), Gr, Gi, nc, nb, df: fs / nfft, segs, nfft };
+}
+// FDD: mayor valor singular y su vector en cada frecuencia (matriz hermítica, iteración de potencia compleja)
+function fdd(C) { const { nc, nb, Gr, Gi } = C, s1 = new Float64Array(nb), s2 = new Float64Array(nb), V = [[], []];
+  const power = (k, defl) => { let xr = new Float64Array(nc).fill(1), xi = new Float64Array(nc); xr[0] = 1.3; let lam = 0;
+    for (let it = 0; it < 80; it++) { const yr = new Float64Array(nc), yi = new Float64Array(nc);
+      for (let a = 0; a < nc; a++) for (let b = 0; b < nc; b++) { const o = (k * nc + a) * nc + b; let gr = Gr[o], gi = Gi[o];
+        if (defl) { const [l1, ur, ui] = defl; gr -= l1 * (ur[a] * ur[b] + ui[a] * ui[b]); gi -= l1 * (ui[a] * ur[b] - ur[a] * ui[b]); }
+        yr[a] += gr * xr[b] - gi * xi[b]; yi[a] += gr * xi[b] + gi * xr[b]; }
+      let nrm = 0; for (let a = 0; a < nc; a++) nrm += yr[a] * yr[a] + yi[a] * yi[a]; nrm = Math.sqrt(nrm) || 1e-300; for (let a = 0; a < nc; a++) { yr[a] /= nrm; yi[a] /= nrm; }
+      xr = yr; xi = yi; if (Math.abs(nrm - lam) <= 1e-10 * nrm) { lam = nrm; break; } lam = nrm; } return [lam, xr, xi]; };
+  for (let k = 0; k < nb; k++) { const a = power(k, null); s1[k] = a[0]; V[0].push(a); if (nc > 1) { const b = power(k, a); s2[k] = b[0]; V[1].push(b); } }
+  const shapeOf = (k, j = 0) => { const [, r, i] = V[j][k]; let m = 0, ang = 0; for (let a = 0; a < nc; a++) { const mag = Math.hypot(r[a], i[a]); if (mag > m) { m = mag; ang = Math.atan2(i[a], r[a]); } }
+    const c = Math.cos(-ang), sn = Math.sin(-ang), out = Array.from({ length: nc }, (_, a) => r[a] * c - i[a] * sn), mx = Math.max(...out.map(Math.abs)) || 1; return out.map(v => v / mx); };
+  return { f: C.f, s1, s2, shape: shapeOf, vec: (k, j = 0) => V[j][k] ? [V[j][k][1], V[j][k][2]] : null, nfft: C.nfft, df: C.df };
+}
+// EFDD: campana del modo (bins vecinos con MAC ≥ umbral respecto al vector del pico) → autocorrelación por IFFT
+// → frecuencia por cruces por cero y amortiguamiento por decremento logarítmico (Brincker et al.)
+function efdd(D, p, { macThr = .9, hi = .85, lo = .25 } = {}) { const j = p.sv - 1, sv = j ? D.s2 : D.s1, [ur, ui] = D.vec(p.k, j), nb = sv.length, N = D.nfft || 2 * (nb - 1);
+  const macC = k => { if (!D.vec(k, j)) return 0; const [vr, vi] = D.vec(k, j); let a = 0, b = 0, c = 0, d = 0; for (let q = 0; q < ur.length; q++) { a += ur[q] * vr[q] + ui[q] * vi[q]; b += ur[q] * vi[q] - ui[q] * vr[q]; c += ur[q] ** 2 + ui[q] ** 2; d += vr[q] ** 2 + vi[q] ** 2; } return (a * a + b * b) / (c * d || 1); };
+  const bell = new Float64Array(nb); let k0 = p.k, k1 = p.k; bell[p.k] = sv[p.k];
+  while (k0 > 1 && macC(k0 - 1) >= macThr) { k0--; bell[k0] = sv[k0]; } while (k1 < nb - 2 && macC(k1 + 1) >= macThr) { k1++; bell[k1] = sv[k1]; }
+  if (k1 - k0 < 4) return null;
+  const re = new Float64Array(N), im = new Float64Array(N); for (let k = 0; k < nb; k++) { re[k] = bell[k]; if (k && k < N - k) re[N - k] = bell[k]; } fftInPlace(re, im); // espectro real y par → autocorrelación (salvo escala)
+  const R = Array.from(re.slice(0, N >> 1)), r0 = R[0] || 1, dt = 1 / (N * (D.df || (D.f[1] - D.f[0])));
+  const ext = []; for (let i = 1; i < R.length - 1; i++) if ((R[i] > R[i - 1] && R[i] >= R[i + 1]) || (R[i] < R[i - 1] && R[i] <= R[i + 1])) ext.push([i, Math.abs(R[i] / r0)]);
+  const use = ext.filter(([, v]) => v <= hi && v >= lo); if (use.length < 4) return null;
+  const zc = []; for (let i = use[0][0]; i < use[use.length - 1][0]; i++) if (R[i] * R[i + 1] < 0) zc.push(i + R[i] / (R[i] - R[i + 1]));
+  if (zc.length < 3) return null; let sx = 0, sy = 0, sxx = 0, sxy = 0; zc.forEach((t, n) => { sx += n; sy += t; sxx += n * n; sxy += n * t; }); const m = zc.length, half = (m * sxy - sx * sy) / (m * sxx - sx * sx) * dt, fd = 1 / (2 * half);
+  let ax = 0, ay = 0, axx = 0, axy = 0; use.forEach(([, v], n) => { const y = Math.log(v); ax += n; ay += y; axx += n * n; axy += n * y; }); const u = use.length, slope = (u * axy - ax * ay) / (u * axx - ax * ax), delta = -2 * slope, zeta = delta / Math.sqrt(4 * Math.PI ** 2 + delta ** 2);
+  return { f: fd / Math.sqrt(1 - zeta * zeta), zeta, bins: k1 - k0 + 1 }; }
+// Modos identificados con FDD/EFDD: picos de s1 y, para modos cercanos, picos de s2 que no repiten una forma ya encontrada; luego EFDD refina f y ζ y une picos duplicados
+function fddModes(D, opt = {}) { const mac = (u, v) => { let a = 0, b = 0, c = 0; for (let i = 0; i < u.length; i++) { a += u[i] * v[i]; b += u[i] * u[i]; c += v[i] * v[i]; } return a * a / (b * c || 1); };
+  const top = Math.max(...Array.from(D.s1).map((v, k) => D.f[k] >= (opt.fmin || .5) && D.f[k] <= (opt.fmax || Infinity) ? v : 0)), floor = top * Math.pow(10, -(opt.rangeDb || 12) / 10);
+  const P1 = pickPeaks(D.f, D.s1, opt).filter(p => D.s1[p.k] >= floor).map(p => ({ ...p, sv: 1, shape: D.shape(p.k, 0) }));
+  const P2 = D.s2 && D.s2.some(v => v > 0) ? pickPeaks(D.f, D.s2, opt).filter(p => D.s2[p.k] >= floor).map(p => ({ ...p, sv: 2, shape: D.shape(p.k, 1) })) : [];
+  const near = opt.closeHz || .06, df = D.f[1] - D.f[0], out = P1.slice(0, opt.n || 8);
+  P2.forEach(p => { const q = out.filter(q => q.sv === 1).sort((a, b) => Math.abs(a.f - p.f) - Math.abs(b.f - p.f))[0];
+    if (q && Math.abs(q.f - p.f) <= near && Math.abs(q.f - p.f) >= 1.5 * df && mac(q.shape, p.shape) < .8) out.push({ ...p, cercano: +q.f.toFixed(3) }); });
+  if (opt.efdd !== false && D.vec) out.forEach(p => { const e = efdd(D, p); if (e && Math.abs(e.f - p.f) < 5 * df + .02 * p.f) { p.fFdd = p.f; p.f = e.f; p.zeta = e.zeta; p.efdd = e.bins; } });
+  // picos del mismo modo (espectro dividido por la varianza): misma forma y frecuencias EFDD casi iguales → se queda el más alto
+  out.sort((a, b) => (b.sv === 1 ? D.s1 : D.s2)[b.k] - (a.sv === 1 ? D.s1 : D.s2)[a.k]); const fin = [];
+  out.forEach(p => { if (!fin.some(q => mac(q.shape, p.shape) > .9 && Math.abs(q.f - p.f) < Math.max(3 * df, .004 * p.f))) fin.push(p); });
+  return fin.sort((a, b) => a.f - b.f); }
+// Picos del espectro (prominencia en dB) y amortiguamiento por ancho de banda de media potencia
+function pickPeaks(f, s, { fmin = .5, fmax = Infinity, n = 8, promDb = 3 } = {}) {
+  const L = Array.from(s, v => 10 * Math.log10(v + 1e-300)), out = [];
+  for (let k = 2; k < L.length - 2; k++) { if (f[k] < fmin || f[k] > fmax) continue; if (!(L[k] > L[k - 1] && L[k] >= L[k + 1])) continue;
+    let lo = L[k], hi = L[k]; for (let j = k - 1; j >= 0 && L[j] <= L[k]; j--) lo = Math.min(lo, L[j]); let lo2 = L[k]; for (let j = k + 1; j < L.length && L[j] <= L[k]; j++) lo2 = Math.min(lo2, L[j]);
+    const prom = L[k] - Math.max(lo, lo2); if (prom >= promDb) out.push({ k, f: f[k], db: L[k], prom }); }
+  out.sort((a, b) => b.prom - a.prom); const sel = out.slice(0, n).sort((a, b) => a.f - b.f);
+  sel.forEach(p => { // refinamiento parabólico y media potencia
+    const k = p.k, a = L[k - 1], b = L[k], c = L[k + 1], d = (a - c) / (2 * (a - 2 * b + c) || 1), df = f[1] - f[0]; p.f = f[k] + d * df;
+    const half = s[k] / 2; let i = k; while (i > 0 && s[i] > half) i--; let j = k; while (j < s.length - 1 && s[j] > half) j++;
+    const fi = f[i] + (half - s[i]) / ((s[i + 1] - s[i]) || 1) * df, fj = f[j - 1] + (s[j - 1] - half) / ((s[j - 1] - s[j]) || 1) * df; p.zeta = (fj - fi) / (2 * p.f); p.zetaBins = j - i; });
+  return sel;
+}
+
+/* ======================= Análisis estático, líneas de influencia y HL-93 ======================= */
+function staticPrep(fr) { // K en banda, factorizada; resuelve K u = F para muchos F
+  const N = fr.nodes.length, nd = 3 * N, order = Array.from({ length: N }, (_, i) => i).sort((i, j) => fr.nodes[i][0] - fr.nodes[j][0] || fr.nodes[i][1] - fr.nodes[j][1]);
+  const pos = new Int32Array(nd).fill(-1), free = []; order.forEach(i => { for (let d = 0; d < 3; d++) if (!fr.fx[3 * i + d]) { pos[3 * i + d] = free.length; free.push(3 * i + d); } });
+  const nf = free.length; let hb = 0; const kl = [];
+  fr.el.forEach(([i1, i2], j) => { const d = [3 * i1, 3 * i1 + 1, 3 * i1 + 2, 3 * i2, 3 * i2 + 1, 3 * i2 + 2].map(x => pos[x]).filter(x => x >= 0); for (const a of d) for (const b of d) hb = Math.max(hb, a - b); });
+  const W = hb + 1, L = new Float64Array(nf * W);
+  fr.el.forEach(([i1, i2], j) => { const dx = fr.nodes[i2][0] - fr.nodes[i1][0], dz = fr.nodes[i2][1] - fr.nodes[i1][1], Le = Math.hypot(dx, dz), c = dx / Le, s = dz / Le, EA = fr.E[j] * fr.A[j] / Le, EI = fr.E[j] * fr.I[j];
+    const k = [[EA, 0, 0, -EA, 0, 0], [0, 12 * EI / Le ** 3, 6 * EI / Le ** 2, 0, -12 * EI / Le ** 3, 6 * EI / Le ** 2], [0, 6 * EI / Le ** 2, 4 * EI / Le, 0, -6 * EI / Le ** 2, 2 * EI / Le], [-EA, 0, 0, EA, 0, 0], [0, -12 * EI / Le ** 3, -6 * EI / Le ** 2, 0, 12 * EI / Le ** 3, -6 * EI / Le ** 2], [0, 6 * EI / Le ** 2, 2 * EI / Le, 0, -6 * EI / Le ** 2, 4 * EI / Le]];
+    const T = [[c, s, 0, 0, 0, 0], [-s, c, 0, 0, 0, 0], [0, 0, 1, 0, 0, 0], [0, 0, 0, c, s, 0], [0, 0, 0, -s, c, 0], [0, 0, 0, 0, 0, 1]], dd = [3 * i1, 3 * i1 + 1, 3 * i1 + 2, 3 * i2, 3 * i2 + 1, 3 * i2 + 2]; kl.push({ k, T, dd, Le });
+    for (let a = 0; a < 6; a++) { const pa = pos[dd[a]]; if (pa < 0) continue; for (let b = 0; b < 6; b++) { const pb = pos[dd[b]]; if (pb < 0 || pb > pa) continue; let v = 0; for (let u = 0; u < 6; u++) { if (!T[u][a]) continue; for (let w = 0; w < 6; w++) if (T[w][b]) v += T[u][a] * k[u][w] * T[w][b]; } L[pa * W + (pa - pb)] += v; } } });
+  for (let j = 0; j < nf; j++) { let s = L[j * W]; for (let k = Math.max(0, j - hb); k < j; k++) { const v = L[j * W + (j - k)]; s -= v * v; } if (s <= 0) throw new Error('El modelo es inestable: revise apoyos y conexiones.'); s = Math.sqrt(s); L[j * W] = s;
+    for (let i = j + 1; i <= Math.min(nf - 1, j + hb); i++) { let t = L[i * W + (i - j)]; for (let k = Math.max(0, i - hb); k < j; k++) t -= L[i * W + (i - k)] * L[j * W + (j - k)]; L[i * W + (i - j)] = t / s; } }
+  const solve = Ffull => { const y = new Float64Array(nf); for (let i = 0; i < nf; i++) { let s = Ffull[free[i]]; for (let k = Math.max(0, i - hb); k < i; k++) s -= L[i * W + (i - k)] * y[k]; y[i] = s / L[i * W]; }
+    const z = new Float64Array(nf); for (let i = nf - 1; i >= 0; i--) { let s = y[i]; for (let k = i + 1; k <= Math.min(nf - 1, i + hb); k++) s -= L[k * W + (k - i)] * z[k]; z[i] = s / L[i * W]; } const U = new Float64Array(nd); free.forEach((g, a) => U[g] = z[a]); return U; };
+  // fuerzas en extremos (locales): [N_i, V_i, M_i, N_j, V_j, M_j]
+  const forces = U => kl.map(({ k, T, dd }) => { const ul = [0, 0, 0, 0, 0, 0]; for (let a = 0; a < 6; a++) { let v = 0; for (let b = 0; b < 6; b++) v += T[a][b] * U[dd[b]]; ul[a] = v; } return k.map(row => row.reduce((s, x, b) => s + x * ul[b], 0)); });
+  return { solve, forces, nd, N };
+}
+// Esfuerzos normales en fibras extremas (MPa, tracción +): por elemento [sup_i, inf_i, sup_j, inf_j]. c(t): distancia a fibra extrema (m).
+function fiberStress(fr, f, c) { return f.map((q, t) => { const A = fr.A[t], I = fr.I[t], ct = c(t), Ni = -q[0], Nj = q[3], Mi = -q[2], Mj = q[5];
+  return [(Ni / A - Mi * ct / I) / 1000, (Ni / A + Mi * ct / I) / 1000, (Nj / A - Mj * ct / I) / 1000, (Nj / A + Mj * ct / I) / 1000]; }); }
+// Líneas de influencia de los esfuerzos de fibra y de las flechas del tablero (carga unitaria de 1 kN hacia abajo en cada nudo del tablero)
+function influence(fr, c) { const S = staticPrep(fr), dn = fr.deckNodes.slice().sort((a, b) => a.s - b.s), ne = fr.el.length;
+  const IL = Array.from({ length: ne }, () => [0, 1, 2, 3].map(() => new Float64Array(dn.length))), DEF = dn.map(() => new Float64Array(dn.length));
+  dn.forEach((p, k) => { const F = new Float64Array(S.nd); F[3 * p.node + 1] = -1; const U = S.solve(F), st = fiberStress(fr, S.forces(U), c); st.forEach((v, t) => v.forEach((x, q) => IL[t][q][k] = x)); dn.forEach((m, j) => DEF[j][k] = U[3 * m.node + 1]); });
+  // carga permanente: peso propio (masas del modelo × g) y carga adicional DW opcional sobre el tablero
+  const Fd = new Float64Array(S.nd); for (let i = 0; i < S.N; i++) Fd[3 * i + 1] = -fr.mass[i] * 9.81; const Ud = S.solve(Fd), DC = fiberStress(fr, S.forces(Ud), c);
+  return { s: dn.map(p => p.s), nodes: dn.map(p => p.node), IL, DEF, DC, Udc: Ud, S }; }
+const HL93 = { truck: [35, 145, 145], gap1: 4.3, gap2: [4.3, 9.0], tandem: [110, 110], tgap: 1.2, lane: 9.3, IM: .33, m: [1.2, 1.0, .85, .65] };
+function ilAt(s, y, x) { if (x < s[0] || x > s[s.length - 1]) return 0; let lo = 0, hi = s.length - 1; while (hi - lo > 1) { const md = (lo + hi) >> 1; if (s[md] <= x) lo = md; else hi = md; } const w = (x - s[lo]) / ((s[hi] - s[lo]) || 1); return y[lo] + w * (y[hi] - y[lo]); }
+// Efecto extremo de HL-93 por carril sobre una línea de influencia (y en unidades del efecto por kN)
+function hl93Extremes(s, y, step = .25) { const x0 = s[0] - 20, x1 = s[s.length - 1] + 20; let tMax = 0, tMin = 0;
+  const axleSets = []; for (let g = HL93.gap2[0]; g <= HL93.gap2[1] + 1e-9; g += .35) axleSets.push({ P: HL93.truck, d: [0, HL93.gap1, HL93.gap1 + g] }); axleSets.push({ P: HL93.tandem, d: [0, HL93.tgap] });
+  for (const A of axleSets) for (const dir of [1, -1]) for (let x = x0; x <= x1; x += step) { let v = 0; for (let a = 0; a < A.P.length; a++) v += A.P[a] * ilAt(s, y, x + dir * A.d[a]); if (v > tMax) tMax = v; if (v < tMin) tMin = v; }
+  let lp = 0, ln = 0; for (let i = 0; i < s.length - 1; i++) { const a = y[i], b = y[i + 1], h = s[i + 1] - s[i]; if (a >= 0 && b >= 0) lp += (a + b) / 2 * h; else if (a <= 0 && b <= 0) ln += (a + b) / 2 * h; else { const xz = a / (a - b) * h; if (a > 0) { lp += a * xz / 2; ln += b * (h - xz) / 2; } else { ln += a * xz / 2; lp += b * (h - xz) / 2; } } }
+  return { max: tMax * (1 + HL93.IM) + HL93.lane * lp, min: tMin * (1 + HL93.IM) + HL93.lane * ln, truckMax: tMax, truckMin: tMin, laneP: lp, laneN: ln }; }
+// Envolventes HL-93 de todos los esfuerzos de fibra, combinaciones y factores de capacidad (LRFR, por esfuerzos)
+function liveLoad(fr, c, opts) { const I = influence(fr, c), nl = Math.max(1, opts.lanes | 0), mp = HL93.m[Math.min(3, nl - 1)], k = nl * mp;
+  const dwF = opts.dw || 0; let DW = null; if (dwF > 0) { const F = new Float64Array(I.S.nd), d = I.nodes; I.s.forEach((x, i) => { const L = (i ? (x - I.s[i - 1]) / 2 : 0) + (i < I.s.length - 1 ? (I.s[i + 1] - x) / 2 : 0); F[3 * d[i] + 1] = -dwF * L; }); DW = fiberStress(fr, I.S.forces(I.S.solve(F)), c); }
+  const el = fr.el.map((_, t) => { const q = [0, 1, 2, 3].map(j => { const e = hl93Extremes(I.s, I.IL[t][j]), dc = I.DC[t][j], dw = DW ? DW[t][j] : 0;
+      return { llMax: e.max * k, llMin: e.min * k, dc, dw }; });
+    const cap = opts.cap ? opts.cap(t) : null; let rfInv = null, rfOp = null, gov = null;
+    if (cap) for (const o of q) for (const [gLL, key] of [[1.75, 'inv'], [1.35, 'op']]) { const pc = (cap.phi || 1);
+      if (o.llMax > 1e-9 && cap.ft > 0) { const r = (pc * cap.ft - (1.25 * o.dc + 1.5 * o.dw)) / (gLL * o.llMax); if (key === 'inv') { if (rfInv == null || r < rfInv) { rfInv = r; gov = 'tracción'; } } else if (rfOp == null || r < rfOp) rfOp = r; }
+      if (o.llMin < -1e-9 && cap.fc > 0) { const r = (pc * cap.fc + (1.25 * o.dc + 1.5 * o.dw)) / (-gLL * o.llMin); if (key === 'inv') { if (rfInv == null || r < rfInv) { rfInv = r; gov = 'compresión'; } } else if (rfOp == null || r < rfOp) rfOp = r; } }
+    const sMax = Math.max(...q.map(o => 1.25 * o.dc + 1.5 * o.dw + 1.75 * o.llMax)), sMin = Math.min(...q.map(o => 1.25 * o.dc + 1.5 * o.dw + 1.75 * o.llMin));
+    const serMax = Math.max(...q.map(o => o.dc + o.dw + o.llMax)), serMin = Math.min(...q.map(o => o.dc + o.dw + o.llMin)), llMax = Math.max(...q.map(o => o.llMax)), llMin = Math.min(...q.map(o => o.llMin));
+    return { q, sMax, sMin, serMax, serMin, llMax, llMin, rfInv, rfOp, gov }; });
+  // flecha máxima por carga viva (con IM) en cada nudo del tablero
+  const defl = I.DEF.map(y => { const e = hl93Extremes(I.s, y); return Math.min(0, e.min) * k; });
+  return { el, s: I.s, defl, nl, mp, IL: I.IL, DEF: I.DEF, dcDef: I.nodes.map(n => I.Udc[3 * n + 1]) }; }
+
+/* ======================= Deterioro (Markov) y plan de mantenimiento ======================= */
+const CS_WF = [1, 2 / 3, 1 / 3, 0];
+const pTrans = t => t > 0 ? 1 - Math.pow(.5, 1 / t) : 0; // probabilidad anual de pasar al estado siguiente; t = años medianos
+function markovStep(d, T) { const p = T.map(pTrans), o = d.slice(); for (let k = 0; k < 3; k++) { const m = d[k] * p[k]; o[k] -= m; o[k + 1] += m; } return o; }
+const elemHI = d => { const s = d.reduce((a, b) => a + b, 0) || 1; return 100 * d.reduce((a, v, k) => a + v * CS_WF[k], 0) / s; };
+function bridgeHI(els) { let w = 0, h = 0; els.forEach(e => { const tot = e.d.reduce((a, b) => a + b, 0); if (!tot) return; w += e.w; h += e.w * elemHI(e.d); }); return w ? h / w : null; }
+// Calibra un factor α de los tiempos medianos con la historia de un elemento (≥ 2 inspecciones): mínimos cuadrados por sección áurea
+function calibrateAlpha(hist, T) { if (!hist || hist.length < 2) return null; const h = hist.slice().sort((a, b) => a.t - b.t), f = d => { const s = d.reduce((a, b) => a + b, 0) || 1; return d.map(v => v / s); };
+  const err = a => { let e = 0; for (let i = 1; i < h.length; i++) { let d = f(h[0].d); const yrs = Math.round(h[i].t - h[0].t); for (let y = 0; y < yrs; y++) d = markovStep(d, T.map(t => t * a)); const o = f(h[i].d); for (let k = 0; k < 4; k++) e += (d[k] - o[k]) ** 2; } return e; };
+  let a = .2, b = 5; const g = (Math.sqrt(5) - 1) / 2; let c = b - g * (b - a), d = a + g * (b - a); for (let it = 0; it < 60; it++) { if (err(c) < err(d)) b = d; else a = c; c = b - g * (b - a); d = a + g * (b - a); } return (a + b) / 2; }
+// Plan voraz con presupuesto anual: en cada año elige las acciones de mayor beneficio/costo. els: [{id, w, q (cantidad), d (fracciones CS1..4), T, acciones:[{nombre, costo (por unidad afectada), de:[estados], a:0}]}]
+function maintenancePlan(els, { years = 20, budget = 0, thr = 60 } = {}) { const S = els.map(e => ({ ...e, d: e.d.slice() })), noAct = els.map(e => ({ ...e, d: e.d.slice() })), plan = [], hi = [], hi0 = []; let total = 0;
+  for (let y = 0; y <= years; y++) { hi.push(bridgeHI(S)); hi0.push(bridgeHI(noAct)); if (y === years) break; let rem = budget;
+    for (;;) { let best = null; S.forEach((e, i) => (e.acciones || []).forEach(a => { const aff = a.de.reduce((s, k) => s + e.d[k], 0); if (aff < 1e-6) return; const cost = a.costo * aff * e.q; if (cost <= 0 || cost > rem) return;
+        const nd = e.d.slice(); a.de.forEach(k => { nd[a.a] += nd[k]; nd[k] = 0; }); const gain = (elemHI(nd) - elemHI(e.d)) * e.w * (years - y), r = gain / cost; if (gain > 1e-9 && (!best || r > best.r)) best = { i, a, nd, cost, r, gain }; }));
+      if (!best) break; S[best.i].d = best.nd; rem -= best.cost; total += best.cost; plan.push({ year: y, elem: S[best.i].id, accion: best.a.nombre, costo: best.cost }); }
+    S.forEach(e => e.d = markovStep(e.d, e.T)); noAct.forEach(e => e.d = markovStep(e.d, e.T)); }
+  const life = arr => { const k = arr.findIndex(v => v != null && v < thr); return k < 0 ? null : k; };
+  return { plan, hi, hi0, total, vidaSin: life(hi0), vidaCon: life(hi) }; }
+
+return { fftInPlace, detrend, csdMatrix, fdd, efdd, fddModes, pickPeaks, staticPrep, fiberStress, influence, HL93, hl93Extremes, liveLoad, CS_WF, pTrans, markovStep, elemHI, bridgeHI, calibrateAlpha, maintenancePlan, Dxf, bridgePlans, sensorsOf, readAccel, sdof, spectrum, seismic, freqCampaign, trainFreqIA, freqPredict, build, modal, archAll, parseCloud, orient, bounds, deckLevel, groundLevel, detectSupports, spansOf, envelope, fitParabola, polyval, archGeometry, spanCoverage, MATERIALS,
   build, sensorsOf, modal, signConvention, features, campaign, trainIA, forestPredict, LEVELS, noisy, mulberry, gaussR, quantile, median };
 })();
 if (typeof module !== 'undefined') module.exports = OPC;

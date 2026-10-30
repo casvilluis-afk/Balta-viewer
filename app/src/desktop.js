@@ -35,10 +35,12 @@
     if (!OP.cloud || !OP.O) { toast('Primero cargue un puente en «Tu puente».'); show('tupuente'); return; }
     const c = OP.cloud, n = c.xyz.length / 3, step = n > MAXP ? n / MAXP : 1, m = Math.min(n, MAXP), f = new Float32Array(3 * m);
     for (let j = 0; j < m; j++) { const i = Math.floor(j * step); f[3 * j] = c.xyz[3 * i]; f[3 * j + 1] = c.xyz[3 * i + 1]; f[3 * j + 2] = c.xyz[3 * i + 2]; }
+    const K = 'tu:' + (OP.name || 'sin nombre');
     const P = {
       formato: 'PuenteGemelo', version: 1, guardado: new Date().toISOString(), nombre: OP.name,
       nube: { puntos: m, total: c.total, usados: c.kept, offset: c.offset, eje_vertical: OP.up || 'z', escala: OP.unit || 1, xyz_float32_base64: b64(new Uint8Array(f.buffer)) },
-      estado: { step: OP.step, deckTop: OP.deckTop, deckThick: OP.deckThick, ground: OP.ground, zSlab: OP.zSlab, supports: OP.supports, ends: OP.ends, type: OP.type, band: OP.band, minPts: OP.minPts, geo: OP.geo, mat: OP.mat, P: OP.P, nz: OP.nz, dx: OP.dx, camp: OP.camp, ia: OP.ia }
+      estado: { step: OP.step, deckTop: OP.deckTop, deckThick: OP.deckThick, ground: OP.ground, zSlab: OP.zSlab, supports: OP.supports, ends: OP.ends, type: OP.type, band: OP.band, minPts: OP.minPts, geo: OP.geo, mat: OP.mat, P: OP.P, nz: OP.nz, dx: OP.dx, camp: OP.camp, ia: OP.ia },
+      expediente: typeof PG !== 'undefined' ? PG.I[K] || null : null, mantenimiento: typeof PG !== 'undefined' ? PG.det[K] || null : null
     };
     const nombre = (OP.name || 'puente').replace(/\.[a-z0-9]+$/i, '').replace(/[^\wáéíóúñÁÉÍÓÚÑ -]+/g, '').trim() || 'puente';
     download(nombre + '.puente', 'application/json', JSON.stringify(P, plain));
@@ -53,6 +55,7 @@
       OP.O = OPC.orient(OP.cloud, OP.up, OP.unit);
       if (OP.geo && OP.P) { try { OP.model = OPC.build(OP.type, opModelG(), OP.P); OP.modes = OPC.modal(OP.model, 6); OP.modes.ms = 0; OP.modeSel = 0; } catch (e) { OP.model = OP.modes = null; } }
       if (!OP.modes) { OP.camp = OP.ia = null; }
+      if (typeof PG !== 'undefined') { const K = 'tu:' + (OP.name || 'sin nombre'); if (P.expediente) PG.I[K] = P.expediente; if (P.mantenimiento) PG.det[K] = P.mantenimiento; pgSave(); }
       OP.step = Math.min(OP.step || 1, OP.ia ? 7 : OP.modes ? 5 : OP.geo ? 4 : 2);
       inicio(false); show('tupuente'); toast(`Proyecto «${P.nombre}» abierto.`);
     } catch (e) { toast('No se pudo abrir el proyecto: ' + e.message); }

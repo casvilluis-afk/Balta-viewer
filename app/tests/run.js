@@ -50,7 +50,35 @@ ok('Modelo C: 18 zonas de daño', frB.zoneDefs.length === 18);
   ok('DXF: pares código/valor y fin de archivo', L.length % 2 === 1 && L[L.length - 2] === 'EOF' && t.includes('AC1009') && t.includes('ANSI_1252'));
   ok('DXF: texto con tildes en página de códigos 1252', t.includes('R\xcdO R\xcdMAC')); }
 
-// 7. Solver 2D de la plataforma contra OpenSees: se verifica en el navegador (pestaña Validación) con los 450 casos de data/fem_525.csv
+// 8. Carga viva HL-93 (Manual de Puentes MTC 2018 / AASHTO LRFD) en viga simple de 30 m contra la solución analítica
+{ const L = 30, E = 30, A = .6, I = .35, w = 80, fr = OPC.build('viga', { supports: [{ a: 0, b: 0 }, { a: L, b: L }], deckAxis: 0 }, { E, rho: 0, deck_A: A, deck_I: I, w_deck: w });
+  const c = t => Math.sqrt(3 * fr.I[t] / fr.A[t]), ll = OPC.liveLoad(fr, c, { lanes: 1 }), mid = fr.deckNodes.reduce((b, v) => Math.abs(v.s - L / 2) < Math.abs(b.s - L / 2) ? v : b);
+  const iMid = ll.s.findIndex(s => Math.abs(s - mid.s) < 1e-9), da = -5 * w * L ** 4 / (384 * E * 1e6 * I);
+  ok('Estática: flecha por peso propio', Math.abs(ll.dcDef[iMid] / da - 1) < .01, `${(ll.dcDef[iMid] * 1e3).toFixed(2)} vs ${(da * 1e3).toFixed(2)} mm`);
+  let M = 0; fr.el.forEach((e, t) => { const s = Math.max(...ll.el[t].q.map(o => o.llMax)); M = Math.max(M, s * 1000 * fr.I[t] / c(t)); });
+  let Ma = 0; for (let x = 0; x <= L; x += .25) { const il = a => a < 0 || a > L ? 0 : (a <= x ? a * (L - x) / L : x * (L - a) / L); let tm = 0; const sets = [];
+    for (let g = 4.3; g <= 9.0001; g += .35) sets.push([[35, 145, 145], [0, 4.3, 4.3 + g]]); sets.push([[110, 110], [0, 1.2]]);
+    for (const [P, d] of sets) for (const dir of [1, -1]) for (let p = -20; p <= L + 20; p += .25) { let v = 0; P.forEach((q, k) => v += q * il(p + dir * d[k])); tm = Math.max(tm, v); }
+    Ma = Math.max(Ma, (tm * 1.33 + 9.3 * x * (L - x) / 2) * 1.2); }
+  ok('HL-93: momento máximo (camión/tándem + carril, IM 33 %, m 1,2)', Math.abs(M / Ma - 1) < .01, `${M.toFixed(1)} vs ${Ma.toFixed(1)} kN·m`); }
+
+// 9. Vibración medida (FDD + EFDD): respuesta sintética del modelo C en los 9 sensores, ruido blanco, ζ = 1 %, 600 s a 100 Hz, 4 semillas.
+//    Criterio realista: los modos separados (4 a 6) con error ≤ 0,6 % en todos los registros; el grupo 7,44 / 7,52 / 7,71 Hz está más junto que su ancho de banda (2ζf ≈ 0,15 Hz)
+//    y puede fundirse: se exige al menos un modo del grupo con error ≤ 1 % y se informa cuántas veces se separó el par 1–2.
+{ const md = OPC.modal(frB, 6), sens = OPC.sensorsOf(frB), fs = 100, n = 60000; let worst = 0, pair = 0, info = [];
+  for (const seed0 of [3, 11, 17, 23]) { let seed = seed0; const rnd = () => { seed = (seed * 16807) % 2147483647; return seed / 2147483647 - .5; };
+    const ch = sens.map(() => new Float64Array(n)); md.f.forEach((f, k) => { const q = OPC.sdof(Float64Array.from({ length: n }, rnd), 1 / fs, 2 * Math.PI * f, .01); sens.forEach((s, i) => { const ph = md.phi[k][s.dof]; for (let j = 0; j < n; j++) ch[i][j] += ph * q[j]; }); });
+    const pk = OPC.fddModes(OPC.fdd(OPC.csdMatrix(ch, fs, 8192)), { fmin: 2, fmax: 20, promDb: 3 }), err = f => Math.min(...pk.map(p => Math.abs(p.f / f - 1)));
+    worst = Math.max(worst, ...md.f.slice(3).map(err)); if (err(md.f[0]) < .01 && err(md.f[1]) < .01) pair++; if (Math.min(...md.f.slice(0, 3).map(err)) > .01) worst = 1; info.push(pk.length); }
+  ok('FDD/EFDD: modos separados del modelo C con error ≤ 0,6 % (4 registros)', worst <= .006, `error máx ${(100 * worst).toFixed(2)} % · par cercano separado en ${pair} de 4 · modos hallados ${info.join('/')}`); }
+
+// 10. Deterioro (Markov): tiempo mediano en CS1 y plan de mantenimiento con presupuesto
+{ const T = [10, 15, 20]; let d = [1, 0, 0, 0]; for (let y = 0; y < 10; y++) d = OPC.markovStep(d, T);
+  ok('Markov: 50 % sigue en CS1 al cumplir el tiempo mediano', Math.abs(d[0] - .5) < 1e-9, d[0].toFixed(6));
+  const pl = OPC.maintenancePlan([{ id: 'Arco', w: 10, q: 100, d: [.5, .3, .15, .05], T, acciones: [{ nombre: 'Reparación', costo: 50, de: [2, 3], a: 0 }] }], { years: 10, budget: 2000, thr: 70 });
+  ok('Plan de mantenimiento: mantiene el índice sobre el umbral', pl.plan.length > 0 && Math.min(...pl.hi) >= 70 && pl.hi0[pl.hi0.length - 1] < 70, `con plan mín ${Math.min(...pl.hi).toFixed(0)}, sin plan final ${pl.hi0[pl.hi0.length - 1].toFixed(0)}`); }
+
+// 11. Solver 2D de la plataforma contra OpenSees: se verifica en el navegador (pestaña Validación) con los 450 casos de data/fem_525.csv
 ok('Dataset OpenSees presente', fs.existsSync(path.join(P, 'data', 'fem_525.csv')));
 
 console.log(fails ? `\n${fails} prueba(s) fallaron` : '\nTodas las pruebas pasaron');

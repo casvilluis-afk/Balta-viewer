@@ -11,7 +11,7 @@ swap('https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/', './vendor/three
 html = html.replace('<meta charset="utf-8">', '<meta charset="utf-8">\n<meta http-equiv="Content-Security-Policy" content="default-src \'self\' app: blob: data:; script-src \'self\' app: \'unsafe-inline\' blob:; worker-src \'self\' blob:; style-src \'self\' \'unsafe-inline\'; img-src \'self\' app: data: blob:; connect-src \'self\' app: blob: data:">');
 html += '\n<link rel="stylesheet" href="desktop.css">\n<script src="desktop.js"></script>\n';
 fs.writeFileSync(path.join(WEB, 'index.html'), html);
-for (const f of ['v3d.js', 'op_core.js', 'op_ui.js']) cp(path.join(SRC, f), path.join(WEB, f));
+for (const f of ['v3d.js', 'op_core.js', 'op_ui.js', 'pg_mod.js']) cp(path.join(SRC, f), path.join(WEB, f));
 for (const f of fs.readdirSync(path.join(SRC, 'data'))) cp(path.join(SRC, 'data', f), path.join(WEB, 'data', f));
 cp(path.join(ROOT, 'models', 'puente-balta-v12.glb'), path.join(WEB, 'models', 'puente-balta-v12.glb'));
 const T = path.join(APP, 'node_modules', 'three'); if (!fs.existsSync(path.join(T, 'build', 'three.module.js'))) throw new Error('Falta three en node_modules: ejecute npm install');

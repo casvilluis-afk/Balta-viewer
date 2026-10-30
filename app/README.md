@@ -14,6 +14,10 @@ Programa de escritorio de código abierto (Windows, macOS y Linux) desarrollado 
 | **Tu puente** | Lee la nube de puntos de cualquier puente (PLY, LAS, XYZ/TXT/CSV, hasta 1,5 M puntos), detecta tablero y apoyos, ajusta la geometría (arcos con tablero superior, vigas, armadura Pratt), mide la completitud del levantamiento, arma un modelo 2D con los supuestos del usuario, calcula sus modos y entrena una IA propia (Random Forest) para localizar daño por vibración. Plan de inspección e informe. |
 | **Frecuencias del usuario** | Si el usuario midió o calculó las frecuencias del puente, una IA entrenada solo con cambios de frecuencia propone la zona dañada, con control de dominio. Sin esos datos, la medición se simula. |
 | **Sismo registrado** | Lee acelerogramas en texto (por ejemplo, de CISMID-UNI o del IGP — AcelDat-Perú), calcula el espectro de respuesta y la respuesta del puente por superposición modal (integración exacta de Nigam y Jennings) y la anima en 3D. Aproximación: excitación uniforme, modelo elástico y plano. |
+| **Vibración medida (OMA)** | Lee registros de acelerómetros o del celular (CSV de phyphox, multicanal), asigna cada canal a un punto del tablero e identifica frecuencias, amortiguamientos y formas modales con FDD/EFDD (dos valores singulares, campana del modo, autocorrelación). Empareja cada modo con el modelo por MAC, estima el ajuste global de rigidez y envía las frecuencias a la IA de diagnóstico (que se entrena con exactamente los modos medidos). Incluye una señal de prueba con daño oculto para validar la cadena medición → IA. |
+| **Inspección de campo** | Ficha según la Guía para Inspección de Puentes del MTC (Directiva 01-2006-MTC/14): inventario (Anexo 03-01), tipo de inspección, calificación global 0–5 y por elemento, estados de condición CS1–CS4 por cantidades, defectos con severidad, panel fotográfico desde el celular o la cámara, índice de salud e informe imprimible. La IA sugiere qué elemento inspeccionar primero. |
+| **Carga vehicular HL-93** | Líneas de influencia del modelo y envolventes del camión, tándem y carril del Manual de Puentes MTC 2018 (IM 33 %, presencia múltiple), combinación Resistencia I, flechas contra L/800 y factor de capacidad RF por esfuerzos con las resistencias que ingrese el usuario. Vista 3D en el Balta. |
+| **Deterioro y mantenimiento** | Cadenas de Markov por elemento a partir de la última inspección, calibración de los tiempos con el historial de inspecciones, pronóstico del índice de salud, vida hasta el umbral y plan de intervenciones con presupuesto anual. |
 | **Planos DXF** | Exporta un juego de láminas A3 con cajetín (elevación general, levantamiento TLS con el intradós ajustado, formas modales y plan de verificación con sensores), en metros y por capas, para AutoCAD, BricsCAD, LibreCAD o DraftSight. No requiere AutoCAD instalado. |
 | **Ejemplo: Puente Balta** | Modelo 2D verificado contra OpenSees 3.8.0 (450 casos, error relativo < 1e-11), modelo C con la geometría medida (f1 = 7,437 Hz), IA SVM-RBF de 19 clases, nube TLS, vista 3D, plan de inspección y protocolo de validación con evaluadores (SUS). |
 
@@ -31,7 +35,7 @@ También funciona en el navegador: https://casvilluis-afk.github.io/Balta-viewer
 
 ## Proyectos
 
-`Archivo → Guardar proyecto` crea un archivo `.puente` con la nube (muestra de hasta 500 000 puntos), apoyos, geometría, supuestos, modos y la IA entrenada. `Archivo → Abrir proyecto` lo continúa.
+`Archivo → Guardar proyecto` crea un archivo `.puente` con la nube (muestra de hasta 500 000 puntos), apoyos, geometría, supuestos, modos, la IA entrenada y el expediente de inspecciones con sus fotos. `Archivo → Abrir proyecto` lo continúa.
 
 ## Desarrollo
 
@@ -68,4 +72,4 @@ Ver `CITATION.cff` en la raíz del repositorio.
 
 ### English summary
 
-PuenteGemelo is an open-source desktop application (Electron) for point-cloud-based digital twins of bridges: geometry extraction, 2D finite-element modal models, vibration-based damage localization with machine learning trained per bridge, response to recorded ground motions, and inspection planning. Case study: the 1871 cast-iron arch Balta Bridge in Lima, Peru. Code under MIT; Balta data under CC BY 4.0.
+PuenteGemelo is an open-source desktop application (Electron) for point-cloud-based digital twins of bridges: geometry extraction, 2D finite-element modal models, vibration-based damage localization with machine learning trained per bridge, operational modal analysis (FDD/EFDD) of measured vibrations, element-level field inspection following Peru's MTC bridge inspection guide, HL-93 live-load rating with influence lines, Markov deterioration forecasting with budget-constrained maintenance planning, response to recorded ground motions, and DXF drawings. Case study: the 1871 cast-iron arch Balta Bridge in Lima, Peru. Code under MIT; Balta data under CC BY 4.0.
