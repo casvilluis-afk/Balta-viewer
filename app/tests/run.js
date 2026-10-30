@@ -41,7 +41,16 @@ ok('Modelo C: 18 zonas de daño', frB.zoneDefs.length === 18);
   ok('Acelerograma: Δt del encabezado', Math.abs(a.dt - .01) < 1e-12 && a.cols.length === 3);
   ok('Acelerograma: Δt de la columna de tiempo', Math.abs(b.dt - .005) < 1e-9 && b.tcol === 0); }
 
-// 6. Solver 2D de la plataforma contra OpenSees: se verifica en el navegador (pestaña Validación) con los 450 casos de data/fem_525.csv
+// 6. Planos DXF (AutoCAD R12): estructura del archivo, capas y láminas
+{ const md = OPC.modal(frB, 3), fam = g => g.startsWith('arco') ? 'ARCOS' : g === 'tablero' ? 'TABLERO' : g.startsWith('montante') ? 'MONTANTES' : 'PILARES';
+  const r = OPC.bridgePlans({ proyecto: 'PUENTE BALTA · RÍO RÍMAC', fecha: '30/10/2026', fr: frB, fam, apoyos: [{ s: 40, label: 'P1' }], luces: [{ a: 36, b: 60, txt: '24,50' }],
+    nube: { s: [40, 50, 60], z: [-1, -2, -3] }, intrados: [], modos: md.f.map((f, k) => ({ f, phi: md.phi[k] })), sensores: [], prioridad: t => 'Alta', orden: ['1. Prueba'] });
+  const t = Buffer.from(r.bytes).toString('latin1'), L = t.split('\r\n');
+  ok('DXF: cuatro láminas A3 con escala', r.sheets.length === 4 && r.sheets.every(x => x.S > 0), r.sheets.map(x => x.code + ' 1:' + x.S).join(', '));
+  ok('DXF: pares código/valor y fin de archivo', L.length % 2 === 1 && L[L.length - 2] === 'EOF' && t.includes('AC1009') && t.includes('ANSI_1252'));
+  ok('DXF: texto con tildes en página de códigos 1252', t.includes('R\xcdO R\xcdMAC')); }
+
+// 7. Solver 2D de la plataforma contra OpenSees: se verifica en el navegador (pestaña Validación) con los 450 casos de data/fem_525.csv
 ok('Dataset OpenSees presente', fs.existsSync(path.join(P, 'data', 'fem_525.csv')));
 
 console.log(fails ? `\n${fails} prueba(s) fallaron` : '\nTodas las pruebas pasaron');

@@ -538,7 +538,102 @@ function freqPredict(I, Z, x) { const pr = forestPredict(I.clf, x), o = pr.map((
   const sev = cls >= 0 ? forestPredict(I.reg, x.concat(Array.from({ length: Z }, (_, z) => z === cls ? 1 : 0)))[0] : null;
   return { cls, p: o[0][0], top: o.slice(0, 4), conclusive: o[0][0] >= .4 && o[0][0] - o[1][0] >= .1, dist, ood: dist > I.oodThr, sev }; }
 
-return { readAccel, sdof, spectrum, seismic, freqCampaign, trainFreqIA, freqPredict, build, modal, archAll, parseCloud, orient, bounds, deckLevel, groundLevel, detectSupports, spansOf, envelope, fitParabola, polyval, archGeometry, spanCoverage, MATERIALS,
+/* ---------- Planos DXF (AutoCAD R12, ASCII): unidades en metros, láminas A3 con cajetín ---------- */
+// Escrito para PuenteGemelo; lo abren AutoCAD, BricsCAD, LibreCAD, DraftSight y QCAD.
+const CP1252 = { 0x20AC: 0x80, 0x201A: 0x82, 0x201E: 0x84, 0x2026: 0x85, 0x2018: 0x91, 0x2019: 0x92, 0x201C: 0x93, 0x201D: 0x94, 0x2022: 0x95, 0x2013: 0x96, 0x2014: 0x97, 0x2212: 0x2D, 0x2248: 0x7E, 0x2264: 0x3C, 0x2265: 0x3E, 0x03C3: 0x73, 0x0394: 0x44, 0x03B6: 0x7A };
+function cp1252(str) { const out = []; for (const ch of str) { const c = ch.codePointAt(0); out.push(c < 128 || (c >= 0xA0 && c < 256) ? c : (CP1252[c] || 0x3F)); } return out; }
+function Dxf() {
+  const layers = new Map(), ents = []; let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+  const ext = (x, y) => { if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y; };
+  const n = v => (Math.round(v * 1e5) / 1e5).toString();
+  const D = {
+    layer(name, color, lt = 'CONTINUOUS') { if (!layers.has(name)) layers.set(name, { color, lt }); return D; },
+    line(l, a, b, c, d) { ext(a, b); ext(c, d); ents.push(`0\nLINE\n8\n${l}\n10\n${n(a)}\n20\n${n(b)}\n30\n0\n11\n${n(c)}\n21\n${n(d)}\n31\n0`); },
+    poly(l, pts, closed) { if (pts.length < 2) return; pts.forEach(p => ext(p[0], p[1]));
+      ents.push(`0\nPOLYLINE\n8\n${l}\n66\n1\n70\n${closed ? 1 : 0}\n10\n0\n20\n0\n30\n0\n` + pts.map(p => `0\nVERTEX\n8\n${l}\n10\n${n(p[0])}\n20\n${n(p[1])}\n30\n0`).join('\n') + `\n0\nSEQEND\n8\n${l}`); },
+    circle(l, x, y, r) { ext(x - r, y - r); ext(x + r, y + r); ents.push(`0\nCIRCLE\n8\n${l}\n10\n${n(x)}\n20\n${n(y)}\n30\n0\n40\n${n(r)}`); },
+    point(l, x, y) { ext(x, y); ents.push(`0\nPOINT\n8\n${l}\n10\n${n(x)}\n20\n${n(y)}\n30\n0`); },
+    text(l, x, y, h, s, align = 'l', rot = 0) { ext(x, y); const a = { l: 0, c: 1, r: 2 }[align] || 0, t = String(s).replace(/[\r\n]+/g, ' ');
+      ents.push(`0\nTEXT\n8\n${l}\n10\n${n(x)}\n20\n${n(y)}\n30\n0\n40\n${n(h)}\n1\n${t}\n50\n${n(rot)}` + (a ? `\n72\n${a}\n11\n${n(x)}\n21\n${n(y)}\n31\n0` : '')); },
+    rect(l, a, b, c, d) { D.poly(l, [[a, b], [c, b], [c, d], [a, d]], true); },
+    bytes(ltscale = 1) {
+      const lt = `0\nTABLE\n2\nLTYPE\n70\n3\n0\nLTYPE\n2\nCONTINUOUS\n70\n0\n3\nSolid line\n72\n65\n73\n0\n40\n0.0\n0\nLTYPE\n2\nDASHED\n70\n0\n3\n__ __ __\n72\n65\n73\n2\n40\n1.5\n49\n1.0\n49\n-0.5\n0\nLTYPE\n2\nCENTER\n70\n0\n3\n____ _ ____\n72\n65\n73\n4\n40\n3.0\n49\n2.0\n49\n-0.4\n49\n0.2\n49\n-0.4\n0\nENDTAB`;
+      const ly = `0\nTABLE\n2\nLAYER\n70\n${layers.size + 1}\n0\nLAYER\n2\n0\n70\n0\n62\n7\n6\nCONTINUOUS\n` + [...layers].map(([k, v]) => `0\nLAYER\n2\n${k}\n70\n0\n62\n${v.color}\n6\n${v.lt}`).join('\n') + '\n0\nENDTAB';
+      const st = `0\nTABLE\n2\nSTYLE\n70\n1\n0\nSTYLE\n2\nSTANDARD\n70\n0\n40\n0.0\n41\n0.85\n50\n0.0\n71\n0\n42\n2.5\n3\ntxt\n4\n\n0\nENDTAB`;
+      const hd = `0\nSECTION\n2\nHEADER\n9\n$ACADVER\n1\nAC1009\n9\n$DWGCODEPAGE\n3\nANSI_1252\n9\n$INSBASE\n10\n0.0\n20\n0.0\n30\n0.0\n9\n$EXTMIN\n10\n${n(x0)}\n20\n${n(y0)}\n30\n0\n9\n$EXTMAX\n10\n${n(x1)}\n20\n${n(y1)}\n30\n0\n9\n$LIMMIN\n10\n${n(x0)}\n20\n${n(y0)}\n9\n$LIMMAX\n10\n${n(x1)}\n20\n${n(y1)}\n9\n$LTSCALE\n40\n${n(ltscale)}\n9\n$PDMODE\n70\n0\n9\n$PDSIZE\n40\n0.0\n0\nENDSEC`;
+      const txt = `${hd}\n0\nSECTION\n2\nTABLES\n${lt}\n${ly}\n${st}\n0\nENDSEC\n0\nSECTION\n2\nENTITIES\n${ents.join('\n')}\n0\nENDSEC\n0\nEOF\n`;
+      return Uint8Array.from(cp1252(txt.replace(/\n/g, '\r\n')));
+    }, count: () => ents.length
+  };
+  return D;
+}
+// Juego de planos del puente. spec: {proyecto, autores, fecha, nombre, fr, fam(grp), apoyos[{s,label}], luces[{a,b,txt}], notas[{s,z,txt}],
+//   nivel{z,txt}, nube{s,z}, intrados[{pts,txt}], modos[{f,phi,partZ}], sensores[{s,z,label}], prioridad(t)→'Alta'|'Media'|'Baja'|null, orden[txt], fuente}
+function bridgePlans(spec) {
+  const D = Dxf(), fr = spec.fr, N = fr.nodes.length, ACI = { ARCOS: 5, TABLERO: 7, MONTANTES: 8, PILARES: 9, CORDONES: 5, DIAGONALES: 8, ESTRUCTURA: 7 };
+  D.layer('MARCO', 7).layer('CAJETIN', 7).layer('TEXTO', 7).layer('COTAS', 3).layer('EJES', 1, 'CENTER').layer('APOYOS', 7).layer('NIVEL', 8, 'DASHED');
+  Object.entries(ACI).forEach(([k, c]) => D.layer(k, c));
+  let s0 = Infinity, s1 = -Infinity, z0 = Infinity, z1 = -Infinity; fr.nodes.forEach(([s, z]) => { s0 = Math.min(s0, s); s1 = Math.max(s1, s); z0 = Math.min(z0, z); z1 = Math.max(z1, z); });
+  if (spec.nivel) z0 = Math.min(z0, spec.nivel.z);
+  const Lb = s1 - s0, Hb = z1 - z0, SC = [50, 75, 100, 125, 150, 200, 250, 300, 400, 500, 750, 1000];
+  const pickScale = (w, h) => SC.find(S => w * 1000 / S <= 370 && h * 1000 / S <= 175) || 1000;
+  const sheets = []; let ox = 0;
+  // lámina A3 apaisada con cajetín; devuelve transformación del dibujo
+  function sheet(code, title, w, h, extra) {
+    const S = pickScale(w, h), W = .42 * S, H = .297 * S, mm = v => v * S / 1000, x = ox, y = 0;
+    D.rect('MARCO', x, y, x + W, y + H); D.rect('MARCO', x + mm(10), y + mm(10), x + W - mm(10), y + H - mm(10));
+    const bx = x + W - mm(10) - mm(180), by = y + mm(10), bw = mm(180), bh = mm(40);
+    D.rect('CAJETIN', bx, by, bx + bw, by + bh); D.line('CAJETIN', bx, by + mm(26), bx + bw, by + mm(26)); D.line('CAJETIN', bx, by + mm(13), bx + bw, by + mm(13)); D.line('CAJETIN', bx + mm(140), by, bx + mm(140), by + bh); D.line('CAJETIN', bx + mm(70), by, bx + mm(70), by + mm(13));
+    const lab = (tx, ty, s) => D.text('CAJETIN', tx, ty, mm(1.8), s);
+    lab(bx + mm(2), by + mm(36.5), 'PROYECTO'); D.text('CAJETIN', bx + mm(2), by + mm(28.5), mm(3.5), spec.proyecto);
+    lab(bx + mm(2), by + mm(23.5), 'CONTENIDO'); D.text('CAJETIN', bx + mm(2), by + mm(15.5), mm(3.2), title.toUpperCase());
+    lab(bx + mm(2), by + mm(10.5), 'ESCALA'); D.text('CAJETIN', bx + mm(2), by + mm(3), mm(2.8), '1:' + S + ' (A3)');
+    lab(bx + mm(72), by + mm(10.5), 'FECHA'); D.text('CAJETIN', bx + mm(72), by + mm(3), mm(2.8), spec.fecha);
+    lab(bx + mm(142), by + mm(36.5), 'LÁMINA'); D.text('CAJETIN', bx + mm(160), by + mm(16), mm(9), code, 'c');
+    lab(bx + mm(142), by + mm(10.5), 'UNIDADES'); D.text('CAJETIN', bx + mm(142), by + mm(3), mm(2.6), 'metros');
+    D.text('CAJETIN', x + mm(12), y + mm(12), mm(2), (spec.autores || '') + ' · Generado con PuenteGemelo');
+    sheets.push({ code, title, S }); ox += W + mm(20);
+    // área de dibujo: sobre el cajetín, centrada
+    const ax0 = x + mm(18), ax1 = x + W - mm(18), ay0 = y + mm(62), ay1 = y + H - mm(16);
+    const dx = (ax0 + ax1) / 2 - (s0 + s1) / 2, dy = (ay0 + ay1) / 2 - (extra ? extra.cz : (z0 + z1) / 2);
+    return { S, mm, X: s => s + dx, Y: z => z + dy, x, y, W, H, ax0, ay0, ax1, ay1 };
+  }
+  const famL = t => spec.fam(fr.grp[t]) || 'ESTRUCTURA';
+  const drawFrame = (T, layerOf, U, k) => fr.el.forEach(([i, j], t) => { const L = layerOf(t); if (!L) return; const P = q => [T.X(fr.nodes[q][0] + (U ? k * U[3 * q] : 0)), T.Y(fr.nodes[q][1] + (U ? k * U[3 * q + 1] : 0))]; const a = P(i), b = P(j); D.line(L, a[0], a[1], b[0], b[1]); });
+  const fixedSym = (T) => { for (let q = 0; q < N; q++) if (fr.fx[3 * q] && fr.fx[3 * q + 1]) { const x = T.X(fr.nodes[q][0]), y = T.Y(fr.nodes[q][1]), w = T.mm(3); D.line('APOYOS', x - w, y, x + w, y); for (let h = -2; h <= 2; h++) D.line('APOYOS', x + h * w / 2.5, y, x + h * w / 2.5 - w / 2.5, y - w / 2.5); } };
+  const ejes = (T, ytop, ybot) => (spec.apoyos || []).forEach(a => { const x = T.X(a.s), r = T.mm(3.2); D.line('EJES', x, ybot, x, ytop); D.circle('EJES', x, ytop + r, r); D.text('TEXTO', x, ytop + r - T.mm(1.2), T.mm(2.6), a.label, 'c'); });
+  const cotas = (T, y) => { (spec.luces || []).forEach(c => { const a = T.X(c.a), b = T.X(c.b), t = T.mm(1.5); D.line('COTAS', a, y, b, y); [a, b].forEach(v => D.line('COTAS', v - t, y - t, v + t, y + t)); D.text('COTAS', (a + b) / 2, y + T.mm(1.2), T.mm(2.5), c.txt, 'c'); }); };
+  const escalaGraf = (T) => { const step = [1, 2, 5, 10, 20, 50].find(v => v * 4 * 1000 / T.S >= 30) || 50, x = T.ax0, y = T.ay0 - T.mm(8); for (let k = 0; k < 4; k++) D.rect('TEXTO', x + k * step, y, x + (k + 1) * step, y + T.mm(1.2)); [0, 2, 4].forEach(k => D.text('TEXTO', x + k * step, y - T.mm(3.5), T.mm(2), (k * step) + (k === 4 ? ' m' : ''), 'c')); };
+  const leyenda = (T, items) => items.forEach(([L, txt], k) => { const x = T.ax0, y = T.ay0 - T.mm(18) - k * T.mm(4.2); D.line(L, x, y + T.mm(.8), x + T.mm(8), y + T.mm(.8)); D.text('TEXTO', x + T.mm(10), y, T.mm(2.2), txt); });
+  const zTop = z1 + 1, base = (T) => { fixedSym(T); if (spec.nivel) { D.line('NIVEL', T.X(s0 - 3), T.Y(spec.nivel.z), T.X(s1 + 3), T.Y(spec.nivel.z)); D.text('TEXTO', T.X(s0 - 3), T.Y(spec.nivel.z) + T.mm(1), T.mm(2), spec.nivel.txt); } };
+  // P-01 elevación general
+  { const T = sheet('P-01', 'Elevación general del modelo', Lb + 8, Hb + 10); drawFrame(T, famL); base(T); ejes(T, T.Y(zTop) + T.mm(6), T.Y(z0) - T.mm(8)); cotas(T, T.Y(z0) - T.mm(12));
+    (spec.notas || []).forEach(o => D.text('TEXTO', T.X(o.s), T.Y(o.z), T.mm(2.2), o.txt, 'c'));
+    escalaGraf(T); leyenda(T, [['ARCOS', 'Arcos / cordones'], ['TABLERO', 'Tablero'], ['MONTANTES', 'Montantes / diagonales'], ['PILARES', 'Pilares y estribos'], ['EJES', 'Ejes de apoyo']]);
+    D.text('TEXTO', T.ax0 + T.mm(70), T.ay0 - T.mm(18), T.mm(2.2), spec.fuente || ''); }
+  // P-02 levantamiento con la nube
+  if (spec.nube) { const T = sheet('P-02', 'Levantamiento TLS y geometría ajustada', Lb + 8, Hb + 10); D.layer('NUBE', 8).layer('INTRADOS', 1).layer('ESTRUCTURA_REF', 8, 'DASHED');
+    const C = spec.nube; for (let i = 0; i < C.s.length; i++) if (C.s[i] > s0 - 4 && C.s[i] < s1 + 4) D.point('NUBE', T.X(C.s[i]), T.Y(C.z[i]));
+    drawFrame(T, () => 'ESTRUCTURA_REF'); (spec.intrados || []).forEach(o => { D.poly('INTRADOS', o.pts.map(p => [T.X(p[0]), T.Y(p[1])])); const m = o.pts[o.pts.length >> 1]; D.text('TEXTO', T.X(m[0]), T.Y(m[1]) - T.mm(7), T.mm(2), o.txt, 'c'); });
+    ejes(T, T.Y(zTop) + T.mm(6), T.Y(z0) - T.mm(8)); cotas(T, T.Y(z0) - T.mm(12)); escalaGraf(T);
+    leyenda(T, [['NUBE', `Nube de puntos TLS (${C.s.length.toLocaleString('es-PE')} puntos de muestra)`], ['INTRADOS', 'Intradós ajustado (parábola robusta)'], ['ESTRUCTURA_REF', 'Modelo de cálculo']]); }
+  // P-03 formas modales (hasta 3, apiladas)
+  if (spec.modos && spec.modos.length) { const M = spec.modos.slice(0, 3), gap = Hb + 6, T = sheet('P-03', 'Formas modales', Lb + 8, M.length * gap + 4, { cz: z0 + Hb / 2 - (M.length - 1) * gap / 2 }); D.layer('MODO', 1);
+    M.forEach((m, k) => { const off = -k * gap, TT = { ...T, Y: z => T.Y(z + off) }; let mx = 0; for (let q = 0; q < N; q++) mx = Math.max(mx, Math.hypot(m.phi[3 * q], m.phi[3 * q + 1])); const amp = mx ? Math.min(2.5, Lb / 30) / mx : 0;
+      drawFrame(TT, () => 'ESTRUCTURA_REF'); drawFrame(TT, () => 'MODO', m.phi, amp); fixedSym(TT);
+      D.text('TEXTO', TT.X(s0) - T.mm(4), TT.Y(z1) + T.mm(3), T.mm(3), `Modo ${k + 1} · f = ${m.f.toFixed(3).replace('.', ',')} Hz · T = ${(1 / m.f).toFixed(4).replace('.', ',')} s${m.partZ != null ? ' · participación vertical ' + (100 * m.partZ).toFixed(1).replace('.', ',') + ' %' : ''}`); });
+    D.layer('ESTRUCTURA_REF', 8, 'DASHED'); leyenda(T, [['MODO', 'Forma modal (amplitud arbitraria, normalizada para dibujo)'], ['ESTRUCTURA_REF', 'Geometría sin deformar']]); }
+  // P-04 plan de inspección
+  if (spec.prioridad) { const T = sheet('P-04', 'Plan de verificación en campo', Lb + 8, Hb + 10); D.layer('PRIORIDAD_ALTA', 1).layer('PRIORIDAD_MEDIA', 30).layer('PRIORIDAD_BAJA', 8).layer('SENSORES', 5);
+    drawFrame(T, t => { const p = spec.prioridad(t); return p ? 'PRIORIDAD_' + p.toUpperCase() : famL(t); }); base(T); ejes(T, T.Y(zTop) + T.mm(6), T.Y(z0) - T.mm(8));
+    (spec.sensores || []).forEach(o => { const x = T.X(o.s), y = T.Y(o.z) + T.mm(1.5), w = T.mm(2); D.poly('SENSORES', [[x, y], [x - w, y + 1.7 * w], [x + w, y + 1.7 * w]], true); D.text('SENSORES', x, y + 2.1 * w, T.mm(2), o.label, 'c'); });
+    leyenda(T, [['PRIORIDAD_ALTA', 'Prioridad alta (índice ≥ 0,60)'], ['PRIORIDAD_MEDIA', 'Prioridad media (0,40–0,60)'], ['PRIORIDAD_BAJA', 'Prioridad baja (< 0,40)'], ['SENSORES', 'Puntos de medición de vibración S1–S' + (spec.sensores || []).length]]);
+    (spec.orden || []).slice(0, 8).forEach((s, k) => D.text('TEXTO', T.ax0 + T.mm(100), T.ay0 - T.mm(18) - k * T.mm(3.6), T.mm(2.1), s));
+    D.text('TEXTO', T.ax0 + T.mm(100), T.ay0 - T.mm(13), T.mm(2.3), 'ORDEN DE VERIFICACIÓN (no es una evaluación de seguridad)'); }
+  return { bytes: D.bytes(sheets[0] ? sheets[0].S / 100 : 1), sheets, entities: D.count() };
+}
+
+return { Dxf, bridgePlans, sensorsOf, readAccel, sdof, spectrum, seismic, freqCampaign, trainFreqIA, freqPredict, build, modal, archAll, parseCloud, orient, bounds, deckLevel, groundLevel, detectSupports, spansOf, envelope, fitParabola, polyval, archGeometry, spanCoverage, MATERIALS,
   build, sensorsOf, modal, signConvention, features, campaign, trainIA, forestPredict, LEVELS, noisy, mulberry, gaussR, quantile, median };
 })();
 if (typeof module !== 'undefined') module.exports = OPC;

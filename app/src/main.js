@@ -41,6 +41,7 @@ function buildMenu() {
           const r = await dialog.showOpenDialog(win, { title: 'Abrir proyecto', filters: [{ name: 'Proyecto de PuenteGemelo', extensions: ['puente', 'json'] }], properties: ['openFile'] });
           if (!r.canceled && r.filePaths[0]) openProjectFile(r.filePaths[0]); } },
       { label: 'Guardar proyecto…', accelerator: 'CmdOrCtrl+S', click: () => send('guardar-proyecto') },
+      { label: 'Exportar planos DXF (AutoCAD)…', accelerator: 'CmdOrCtrl+E', click: () => send('dxf') },
       { type: 'separator' },
       { label: 'Proyecto de ejemplo: Puente Balta', click: () => send('ejemplo') },
       { type: 'separator' },

@@ -181,7 +181,7 @@ details summary::-webkit-details-marker{color:var(--ink-3)}
 
 <div class="app">
   <header class="bar">
-    <div class="mark"><b>Puente Balta · Sistema de evaluación e inspección</b><span>Gemelo digital · río Rímac, Lima · versión 2.4</span></div>
+    <div class="mark"><b>Puente Balta · Sistema de evaluación e inspección</b><span>Gemelo digital · río Rímac, Lima · versión 2.5</span></div>
     <nav class="menu" role="tablist" aria-label="Herramientas">
       <button role="tab" data-v="modelo"><span class="k">1</span>Modelo</button>
       <button role="tab" data-v="simulacion"><span class="k">2</span>Simulación</button>
@@ -209,9 +209,9 @@ import {OrbitControls} from 'three/addons/controls/OrbitControls.js';
 window.BaltaThree={THREE,GLTFLoader,OrbitControls};
 window.dispatchEvent(new Event('three-ready'));
 </script>
-<script src="v3d.js?v=2.4.0"></script>
-<script src="op_core.js?v=2.4.0"></script>
-<script src="op_ui.js?v=2.4.0"></script>
+<script src="v3d.js?v=2.5.0"></script>
+<script src="op_core.js?v=2.5.0"></script>
+<script src="op_ui.js?v=2.5.0"></script>
 <script>
 "use strict";
 const MODEL_URL='../models/puente-balta-v12.glb';
@@ -851,9 +851,9 @@ function vDin(){
   $('#id_geo').onchange=e=>{if(e.target.value==='anterior')S.dinP.geo='anterior';else delete S.dinP.geo;dinCompute();};
   DIN_P.forEach(d=>{const el=$('#id_'+d.k);el.oninput=()=>{$('#od_'+d.k).textContent=fmt(+el.value,d.step<1?2:0)+' '+d.u;};el.onchange=()=>{S.dinP[d.k]=d.k==='n_ribs'?+el.value:+el.value*d.sc;dinCompute();};});
   $('#id_spr').onchange=e=>{S.dinP.springing=e.target.value;dinCompute();};$('#dinReset').onclick=()=>{S.dinP={};vDin();};
-  $('#canvas').innerHTML=`<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><div class="toggle" role="group" aria-label="Modo" id="modeBtns"></div><label style="display:flex;gap:6px;align-items:center;font-size:.82rem"><input type="checkbox" id="showOld" ${S.showOld?'checked':''}> Superponer geometría del modelo anterior</label><button class="btn b3d" id="b3dDin">Vista 3D</button></div>
+  $('#canvas').innerHTML=`<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><div class="toggle" role="group" aria-label="Modo" id="modeBtns"></div><label style="display:flex;gap:6px;align-items:center;font-size:.82rem"><input type="checkbox" id="showOld" ${S.showOld?'checked':''}> Superponer geometría del modelo anterior</label><button class="btn b3d" id="b3dDin">Vista 3D</button><button class="btn" id="dxfDin" title="Elevación, levantamiento TLS, formas modales y plan de inspección en DXF para AutoCAD">Planos DXF</button></div>
    <div class="sheet" id="dinSheet"></div><div class="doc" id="calDoc"></div><div class="doc" id="sisDoc"></div>`;
-  $('#showOld').onchange=e=>{S.showOld=e.target.checked;dinCompute();};$('#b3dDin').onclick=open3dDin;
+  $('#showOld').onchange=e=>{S.showOld=e.target.checked;dinCompute();};$('#b3dDin').onclick=open3dDin;$('#dxfDin').onclick=baltaPlans;
   dinCompute();}
 function dinCompute(){const r=dinSolve(),fr=r.fr;
   $('#modeBtns').innerHTML=r.f.map((f,i)=>`<button data-i="${i}" aria-pressed="${i===S.mode}">Modo ${i+1} · ${fmt(f,2)} Hz</button>`).join('');
@@ -989,7 +989,7 @@ function open3dSis(){const r=S.sis.res;if(!r)return;const A=V3D.adaptMC(r.fr),se
 /* ---------- IA con frecuencias del usuario (medidas o calculadas) ---------- */
 // Sin datos del usuario la plataforma sigue simulando la medición; con sus frecuencias, se usa una IA entrenada solo con Δf del mismo modelo.
 const FQ={};let FQ_SRC=null;
-async function fqWorker(){if(!FQ_SRC)FQ_SRC=await fetch('op_core.js?v=2.4.0').then(r=>{if(!r.ok)throw new Error('No se encontró op_core.js');return r.text();});
+async function fqWorker(){if(!FQ_SRC)FQ_SRC=await fetch('op_core.js?v=2.5.0').then(r=>{if(!r.ok)throw new Error('No se encontró op_core.js');return r.text();});
   const src=FQ_SRC+`\nself.onmessage=e=>{const m=e.data;try{if(m.kind==='camp'){const c=OPC.freqCampaign(m.type,m.G,m.P,m.opts,(q,s)=>self.postMessage({kind:'prog',stage:'Simulaciones de daño',q,s}));self.postMessage({kind:'camp',camp:c});}
    else{const I=OPC.trainFreqIA(m.camp,m.k,m.sf,(st,q)=>self.postMessage({kind:'prog',stage:st,q}));self.postMessage({kind:'ia',ia:I});}}catch(err){self.postMessage({kind:'error',msg:err.message});}};`;
   return new Worker(URL.createObjectURL(new Blob([src],{type:'text/javascript'})));}
@@ -1045,6 +1045,31 @@ function baltaCtx(){const F=MCD.faces,fit=MCD.fit,yv=c=>-c[1]/(2*c[0]),N0=MCD.no
   return {id:'balta',type:'arco',title:'modelo C nominal del Balta',G:{supports:[{a:arches[0].a,b:arches[0].a},{a:F.p1_L,b:F.p1_R},{a:F.p2_L,b:F.p2_R},{a:F.abut_R,b:F.abut_R}],arches,deckAxis:MCD.z_deck_axis,zBase:[MCD.z_base.p1,MCD.z_base.p2]},
     P:{E:N0.E_ci/1e6,rho:N0.rho_ci,rib_h:N0.rib_h,n_ribs:N0.n_ribs,I_factor:1,deck_A:N0.deck_A,deck_I:N0.deck_I,post_A:N0.post_A,post_I:N0.post_I,E_pier:N0.E_pier/1e6,pier_t:N0.pier_t,width:N0.width,w_deck:N0.w_deck,springing:'fixed'}};}
 
+/* ---------- Planos DXF del Puente Balta (modelo C) ---------- */
+async function baltaPlans(){
+  try{toast('Generando planos DXF…');const r=dinSolve(),fr=r.fr,F=MCD.faces,G=MCD.geometria;
+    let nube=null;try{const d=await fetch('data/nube_balta.json').then(x=>x.json()),b64=t=>Uint8Array.from(atob(t),c=>c.charCodeAt(0)),q=new Uint16Array(b64(d.pos).buffer),s=[],z=[];
+      for(let i=0;i<d.n;i+=4){s.push(d.lo[1]+q[3*i+1]/65535*(d.hi[1]-d.lo[1]));z.push(d.lo[2]+q[3*i+2]/65535*(d.hi[2]-d.lo[2]));}nube={s,z};}catch(e){}
+    const sIzq=fr.nodes[fr.springs.izq[0]][0],spans=[['izq',sIzq,F.p1_L],['centro',F.p1_R,F.p2_L],['der',F.p2_R,F.abut_R]];
+    const P=priorities(),lv={};P.forEach(o=>lv[o.z.id]=o.level);
+    const zoneOfGrp=g=>g==='arco_izq'?'arco_a1_a2':g==='arco_centro'?'arco_a2_a3':g==='arco_der'?'arco_a3_a4':g.startsWith('montante')?'montantes':g==='tablero'?'tablero':g.startsWith('pilar')?'pilares':null;
+    const n2=v=>fmt(v,2);
+    const out=OPC.bridgePlans({proyecto:'PUENTE BALTA · RÍO RÍMAC · LIMA',autores:'L. Ñuñuvero Castillo · A. Tarazona Cerna (UPC)',fecha:new Date().toLocaleDateString('es-PE'),fr,
+      fam:g=>g.startsWith('arco')?'ARCOS':g==='tablero'?'TABLERO':g.startsWith('montante')?'MONTANTES':g.startsWith('pilar')?'PILARES':null,
+      apoyos:[{s:sIzq,label:'E.I.'},{s:(F.p1_L+F.p1_R)/2,label:'P1'},{s:(F.p2_L+F.p2_R)/2,label:'P2'},{s:F.abut_R,label:'E.D.'}],
+      luces:spans.map(([k,a,b])=>({a,b,txt:n2(G[k].luz)+(k==='izq'?' *':'')})),
+      notas:spans.map(([k])=>({s:G[k].clave_y,z:mcPolyval(MCD.fit[k].coef,G[k].clave_y)-1.4,txt:`f = ${n2(G[k].flecha)} m · ${G[k].flecha_luz}`})),
+      nivel:{z:-9.0,txt:'NIVEL REFERENCIAL DEL RÍO'},nube,
+      intrados:spans.map(([k])=>{const f=MCD.fit[k],c=MCD.completitud.find(x=>x.arch===k);return {pts:Array.from({length:41},(_,i)=>{const y=f.ymin+(f.ymax-f.ymin)*i/40;return [y,mcPolyval(f.coef,y)];}),txt:`Cobertura ${pct(c.C_total,0)} · arranques ${pct(c.C_springing,0)} · riñones ${pct(c.C_haunch,0)} · clave ${pct(c.C_crown,0)} · RMS ${n2(G[k].rms_cm)} cm`};}),
+      modos:r.f.slice(0,3).map((f,k)=>({f,phi:r.phi[k],partZ:r.part[k].Z})),
+      sensores:mcSensors(fr).map((o,k)=>({s:o.y,z:fr.nodes[o.node][1],label:'S'+(k+1)})),
+      prioridad:t=>{const z=zoneOfGrp(fr.grp[t]);return z?lv[z]:null;},
+      orden:P.map((o,i)=>`${i+1}. ${o.z.long} · índice ${fmt(o.score,2)} · ${o.level.toLowerCase()}`),
+      fuente:'Modelo C: arcos ajustados a la nube TLS (arch_fit.json), caras de pilares medidas · * luz por simetría'});
+    download('Planos_Puente_Balta.dxf','application/dxf',new Blob([out.bytes],{type:'application/dxf'}));
+    toast(`Planos DXF: ${out.sheets.map(s=>s.code).join(', ')} · escala 1:${out.sheets[0].S} en A3 · unidades en metros.`);}
+  catch(e){toast('No se pudieron generar los planos: '+e.message);}}
+
 /* ================= 5 · Plan de inspección ================= */
 const CRIT=[['sens','Sensibilidad estructural','Cambio de la respuesta si la zona pierde 20 % de rigidez'],['geo','Incertidumbre geométrica','1 − cobertura de la nube en la zona'],['det','Dificultad de detección','1 − aciertos de la IA inversa con ruido de 0,5 %'],['dem','Demanda relativa','σ máx. de la zona / σ máx. del puente'],['cond','Condición observada','(9 − calificación NBI) / 9 del último registro de campo']];
 if(S.W.cond==null)S.W.cond=.2;
@@ -1070,7 +1095,7 @@ function vInsp(){
   $('#left').innerHTML=`<div class="ph">Pesos de los criterios</div><div class="pb">${CRIT.map(([k,l,d])=>`<label class="f"><span class="lv">${l} <output id="o${k}">${S.W[k].toFixed(2)}</output></span><input type="range" id="w${k}" min="0" max="1" step="0.05" value="${S.W[k]}"><span class="help">${d}${k==='cond'?'. Se activa cuando hay al menos un registro de campo.':''}</span></label>`).join('')}<button class="btn line" id="wReset">Restablecer pesos</button></div>`;
   CRIT.forEach(([k])=>$('#w'+k).oninput=e=>{S.W[k]=+e.target.value;$('#o'+k).textContent=S.W[k].toFixed(2);inspCompute();});
   $('#wReset').onclick=()=>{S.W={sens:.3,geo:.3,det:.2,dem:.2,cond:.2};vInsp();};
-  $('#canvas').innerHTML=`<div class="row3d"><button class="btn b3d" id="b3dInsp">Vista 3D</button><span class="help">Prioridad de verificación por componente</span></div><div class="sheet" id="inspSheet"></div><div class="doc"><h2>Orden de verificación</h2><div class="tw" id="inspTbl"></div><p class="help" id="inspHelp"></p></div><div class="doc" id="fieldDoc"></div>`;
+  $('#canvas').innerHTML=`<div class="row3d"><button class="btn b3d" id="b3dInsp">Vista 3D</button><button class="btn" id="dxfInsp" title="Planos del puente en DXF para AutoCAD">Planos DXF</button><span class="help">Prioridad de verificación por componente</span></div><div class="sheet" id="inspSheet"></div><div class="doc"><h2>Orden de verificación</h2><div class="tw" id="inspTbl"></div><p class="help" id="inspHelp"></p></div><div class="doc" id="fieldDoc"></div>`;
   $('#right').innerHTML=`<div class="ph">Reporte<button class="btn" id="copyRep" style="padding:3px 9px">Copiar</button></div><div class="pb"><div class="report" id="report" tabindex="0"></div></div>`;
   $('#copyRep').onclick=e=>copyText($('#report').textContent,e.target,$('#report'));
   renderField();inspCompute();}
@@ -1098,7 +1123,7 @@ function renderField(){const today=new Date().toISOString().slice(0,10);
       const valid=a.filter(r=>r&&ZONES.some(z=>z.id===r.zona)&&/^\d{4}-\d{2}-\d{2}$/.test(r.fecha)&&Number.isInteger(r.nbi)&&r.nbi>=0&&r.nbi<=9);
       const ids=new Set(FIELD.map(r=>r.id));valid.forEach(r=>{if(!ids.has(r.id))FIELD.push({id:String(r.id||Date.now().toString(36)),zona:r.zona,fecha:r.fecha,inspector:String(r.inspector||''),nbi:r.nbi,corrosion:String(r.corrosion||''),fisuras:String(r.fisuras||''),uniones:String(r.uniones||''),obs:String(r.obs||'')});});
       saveField(FIELD);renderField();inspCompute();$('#fMsg').textContent=`${valid.length} registros importados${valid.length<a.length?`; ${a.length-valid.length} descartados por datos incompletos`:''}.`;}catch(err){$('#fMsg').textContent='El archivo no es un registro de campo válido.';}};rd.readAsText(f);};}
-function inspBind3d(){const b=$('#b3dInsp');if(b)b.onclick=open3dInsp;}
+function inspBind3d(){const b=$('#b3dInsp');if(b)b.onclick=open3dInsp;const d=$('#dxfInsp');if(d)d.onclick=baltaPlans;}
 function inspCompute(){inspBind3d();const P=priorities(),rank={};P.forEach((o,i)=>rank[o.z.id]={i:i+1,o});const useCond=FIELD.length>0;
   const lvlCol={Alta:css('--red'),Media:css('--warn'),Baja:css('--ink-3')};
   const hatch=(X,Z)=>{let s=`<defs>${['Alta','Media','Baja'].map(l=>`<pattern id="h${l}" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><line x1="0" y1="0" x2="0" y2="6" stroke="${lvlCol[l]}" stroke-width="${l==='Alta'?2:1}" opacity="${l==='Baja'?.35:.55}"/></pattern>`).join('')}</defs>`;

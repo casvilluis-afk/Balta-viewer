@@ -72,6 +72,7 @@
     else if (a === 'guardar-proyecto') guardar();
     else if (a === 'ejemplo') { inicio(false); show('modelo'); }
     else if (a === 'inicio') inicio(true);
+    else if (a === 'dxf') { inicio(false); if (S.view === 'tupuente') opPlans(); else baltaPlans(); }
   }
   window.PG = { run, guardar, abrirTexto };
   if (window.desk) window.desk.onMenu(run);

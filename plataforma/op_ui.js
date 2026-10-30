@@ -177,8 +177,8 @@ function opModesShow() {
   const r = OP.modes, fr = OP.model;
   $('#opModOut').innerHTML = `<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px" class="toggle" role="group">${r.f.map((f, i) => `<button data-m="${i}" aria-pressed="${i === OP.modeSel}">Modo ${i + 1} · ${fmt(f, 2)} Hz</button>`).join('')}</div>
    <div class="tw" style="margin-top:8px"><table class="data"><thead><tr><th>Modo</th><th class="n">f (Hz)</th><th class="n">T (s)</th><th class="n">Part. vertical</th><th class="n">Part. longitudinal</th></tr></thead><tbody>${r.f.map((f, i) => `<tr${i === OP.modeSel ? ' class="hl"' : ''}><td class="mono">${i + 1}</td><td class="n">${fmt(f, 3)}</td><td class="n">${fmt(1 / f, 4)}</td><td class="n">${pct(r.part[i].Z, 1)}</td><td class="n">${pct(r.part[i].Y, 1)}</td></tr>`).join('')}</tbody></table></div>
-   <p class="help">${fr.nodes.length} nodos · ${fr.el.length} elementos · masa ${fmt(r.totalMass, 0)} t · ${fmt(r.ms, 0)} ms</p>`;
-  $('#opModOut').querySelectorAll('[data-m]').forEach(b => b.onclick = () => { OP.modeSel = +b.dataset.m; opModesShow(); });
+   <p class="help">${fr.nodes.length} nodos · ${fr.el.length} elementos · masa ${fmt(r.totalMass, 0)} t · ${fmt(r.ms, 0)} ms · <button class="btn line" id="opDxf4" style="padding:1px 8px">Planos DXF</button></p>`;
+  $('#opModOut').querySelectorAll('[data-m]').forEach(b => b.onclick = () => { OP.modeSel = +b.dataset.m; opModesShow(); }); const dx4 = $('#opDxf4'); if (dx4) dx4.onclick = opPlans;
   $('#opSheet').innerHTML = sheet({ no: 'T-01', model: `${fr.nodes.length} n · ${fr.el.length} e`, title: `${OP_TYPES[OP.type]} · modo ${OP.modeSel + 1} · ${fmt(r.f[OP.modeSel], 2)} Hz`, scale: 'esquema', content: opFrameSVG(fr, r.phi[OP.modeSel]), notes: `<text x="40" y="470">${esc(OP.name)}</text><text x="40" y="484">Geometría desde la nube; secciones y cargas según supuestos del usuario</text>` });
 }
 function opFrameSVG(fr, phi, hl) {
@@ -197,7 +197,7 @@ function opFrameSVG(fr, phi, hl) {
 /* ---------- 5 · Entrenar la IA (Web Worker) ---------- */
 let OP_CORE_SRC = null;
 async function opWorker() {
-  if (!OP_CORE_SRC) OP_CORE_SRC = await fetch('op_core.js?v=2.4.0').then(r => { if (!r.ok) throw new Error('No se encontró op_core.js'); return r.text(); });
+  if (!OP_CORE_SRC) OP_CORE_SRC = await fetch('op_core.js?v=2.5.0').then(r => { if (!r.ok) throw new Error('No se encontró op_core.js'); return r.text(); });
   const src = OP_CORE_SRC + `\nself.onmessage = e => { const m = e.data; try {
     const camp = OPC.campaign(m.type, m.G, m.P, m.opts, (q, s) => self.postMessage({ kind: 'prog', stage: 'Simulaciones de daño', q, s }));
     self.postMessage({ kind: 'prog', stage: 'Entrenando la IA', q: 0 });
@@ -310,11 +310,38 @@ function opPlan() {
   $('#canvas').innerHTML = `<div class="doc"><h2>7 · Plan de inspección e informe</h2>
    <div class="tw"><table class="data"><thead><tr><th>N.º</th><th>Zona</th><th class="n">Índice</th><th>Prioridad</th><th>Sensibilidad</th><th>Incertidumbre geométrica</th><th>Dificultad IA</th></tr></thead><tbody>${P.map((o, i) => `<tr${o.level === 'Alta' ? ' class="hl"' : ''}><td class="mono">${i + 1}</td><td>${esc(o.name)}</td><td class="n">${fmt(o.score, 2)}</td><td><span class="flag ${o.level === 'Alta' ? 'crit' : o.level === 'Media' ? 'warn' : 'na'}">${o.level}</span></td>${[o.s, o.g.u, o.d].map((v, k) => `<td><div class="meter" title="${fmt(v, 2)}"><i style="width:${100 * v}%;${k === 1 && !o.g.known ? 'opacity:.35' : ''}"></i></div></td>`).join('')}</tr>`).join('')}</tbody></table></div>
    <p class="help">Barras tenues: zona sin dato de cobertura (se asume 0,5).</p>
-   <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn" id="opCopy">Copiar informe</button><button class="btn line" id="opJson">Descargar proyecto (JSON)</button><button class="btn line" id="opCsv">Descargar orden de verificación (CSV)</button></div>
+   <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn" id="opCopy">Copiar informe</button><button class="btn line" id="opJson">Descargar proyecto (JSON)</button><button class="btn line" id="opCsv">Descargar orden de verificación (CSV)</button><button class="btn line" id="opDxf">Planos DXF (AutoCAD)</button></div>
    <div class="report" id="opRep" tabindex="0"></div></div>`;
-  $('#opRep').textContent = r; $('#opCopy').onclick = e => copyText(r, e.target, $('#opRep'));
+  $('#opDxf').onclick = opPlans; $('#opRep').textContent = r; $('#opCopy').onclick = e => copyText(r, e.target, $('#opRep'));
   $('#opJson').onclick = () => download('proyecto_puente.json', 'application/json', JSON.stringify({ nombre: OP.name, fecha: new Date().toISOString(), nube: { usados: OP.cloud.kept, total: OP.cloud.total, tablero: OP.deckTop, terreno: OP.ground }, apoyos: OP.supports, extremos: OP.ends, tipologia: OP.type,
     geometria: OP.type === 'arco' ? OP.geo.arches.map(a => ({ a: a.a, b: a.b, coef: a.coef, luz: a.L, flecha: a.rise, rms_m: a.rms, completitud: a.completeness, simetria: a.symmetric || null })) : OP.geo.spans, supuestos: { material: OP.mat, ...OP.P }, modos_Hz: OP.modes.f, ia: { simulaciones: OP.camp.n, zonas: OP.camp.zones, metricas: OP.ia.metrics }, plan: P.map(o => ({ zona: o.name, indice: o.score, prioridad: o.level })) }, null, 1));
   $('#opCsv').onclick = () => download('orden_verificacion.csv', 'text/csv', ['orden,zona,indice,prioridad,sensibilidad,incertidumbre_geometrica,dificultad_ia', ...P.map((o, i) => [i + 1, `"${o.name}"`, o.score.toFixed(3), o.level, o.s.toFixed(3), o.g.u.toFixed(3), o.d.toFixed(3)].join(','))].join('\n'));
   opRightHelp('<p>El orden combina tres criterios por zona: cuánto cambia la frecuencia si la zona pierde 20 % de rigidez, cuánto de la zona no se vio en la nube y qué tan difícil es para la IA localizar daño allí.</p><p>El proyecto JSON guarda geometría, supuestos, modos y métricas; no incluye la nube.</p>');
+}
+
+/* ---------- Planos DXF del puente del usuario ---------- */
+function opPlans() {
+  try {
+    if (!OP.model || !OP.modes) { toast('Calcule primero el modelo y sus modos (paso 4).'); return; }
+    const fr = OP.model, G = opModelG(), sup = G.supports, n2 = v => fmt(v, 2), O = OP.O, step = Math.max(1, Math.ceil(O.n / 50000)), s = [], z = [];
+    for (let i = 0; i < O.n; i += step) { s.push(O.s[i]); z.push(O.z[i]); }
+    const lab = sup.map((p, i) => i === 0 ? 'E.I.' : i === sup.length - 1 ? 'E.D.' : 'P' + i);
+    const arco = OP.type === 'arco', A = arco ? OP.geo.arches : [];
+    let lvz = null, orden = [];
+    if (OP.ia && OP.camp) { const P = opPlanData(); lvz = {}; P.forEach(o => lvz[o.z] = o.level); orden = P.map((o, i) => `${i + 1}. ${o.name} · índice ${fmt(o.score, 2)} · ${o.level.toLowerCase()}`); }
+    const out = OPC.bridgePlans({ proyecto: (OP.name || 'PUENTE').toUpperCase().slice(0, 60), autores: 'Generado con PuenteGemelo', fecha: new Date().toLocaleDateString('es-PE'), fr,
+      fam: g => g.startsWith('arco') ? 'ARCOS' : g === 'tablero' ? 'TABLERO' : g.startsWith('montante') ? 'MONTANTES' : g.startsWith('pilar') ? 'PILARES' : g.startsWith('cordon') ? 'CORDONES' : g === 'diagonal' ? 'DIAGONALES' : null,
+      apoyos: sup.map((p, i) => ({ s: (p.a + p.b) / 2, label: lab[i] })),
+      luces: arco ? A.map(a => ({ a: a.a, b: a.b, txt: n2(a.L) + (a.symmetric ? ' *' : '') })) : OP.geo.spans.map(p => ({ a: p.a, b: p.b, txt: n2(p.b - p.a) })),
+      notas: arco ? A.map(a => { const yc = -a.coef[1] / (2 * a.coef[0]); return { s: yc, z: OPC.polyval(a.coef, yc) - 1.4, txt: `f = ${n2(a.rise)} m` }; }) : [],
+      nivel: { z: OP.ground, txt: 'TERRENO O AGUA (NUBE)' }, nube: { s, z },
+      intrados: arco ? A.map(a => ({ pts: Array.from({ length: 41 }, (_, i) => { const y = a.a + (a.b - a.a) * i / 40; return [y, OPC.polyval(a.coef, y)]; }), txt: `Completitud ${pct(a.completeness.total, 0)} · arranques ${pct(a.completeness.arranque, 0)} · riñones ${pct(a.completeness['riñón'], 0)} · clave ${pct(a.completeness.clave, 0)}` })) : [],
+      modos: OP.modes.f.slice(0, 3).map((f, k) => ({ f, phi: OP.modes.phi[k], partZ: OP.modes.part[k].Z })),
+      sensores: OPC.sensorsOf(fr).map((o, k) => ({ s: o.s, z: fr.nodes[o.node][1], label: 'S' + (k + 1) })),
+      prioridad: lvz ? (t => { const zz = fr.zoneOf[t]; return zz >= 0 && lvz[zz] ? lvz[zz] : null; }) : null, orden,
+      fuente: `${OP_TYPES[OP.type]} · geometría desde la nube; secciones y cargas según supuestos del usuario${arco && A.some(a => a.symmetric) ? ' · * luz por simetría' : ''}` });
+    const nombre = (OP.name || 'puente').replace(/\.[a-z0-9]+$/i, '').replace(/[^\wáéíóúñÁÉÍÓÚÑ -]+/g, '').trim() || 'puente';
+    download('Planos_' + nombre + '.dxf', 'application/dxf', new Blob([out.bytes], { type: 'application/dxf' }));
+    toast(`Planos DXF: ${out.sheets.map(x => x.code).join(', ')} · escala 1:${out.sheets[0].S} en A3 · unidades en metros.`);
+  } catch (e) { toast('No se pudieron generar los planos: ' + e.message); }
 }
