@@ -1,0 +1,47 @@
+# Descarga nubes de puntos públicas de puentes (Zenodo 18531104, CC BY 4.0), las reduce y las deja como artefacto para pruebas de PuenteGemelo.
+name: Nube de prueba
+on:
+  workflow_dispatch:
+    inputs:
+      puentes:
+        description: 'Archivos a descargar (separados por ;)'
+        default: 'Wonli Bridge_annotation.ply;Ssanghak Bridge_annotation.ply'
+jobs:
+  nube:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/setup-python@v5
+        with: { python-version: '3.12' }
+      - run: pip install numpy plyfile matplotlib
+      - name: Descargar y reducir
+        env: { PUENTES: '${{ github.event.inputs.puentes }}' }
+        run: |
+          mkdir -p out
+          python - <<'PY'
+          import os, urllib.parse, urllib.request, numpy as np, json
+          from plyfile import PlyData, PlyElement
+          import matplotlib; matplotlib.use('Agg'); import matplotlib.pyplot as plt
+          info = {}
+          for name in [p.strip() for p in os.environ['PUENTES'].split(';') if p.strip()]:
+              url = 'https://zenodo.org/records/18531104/files/' + urllib.parse.quote(name) + '?download=1'
+              print('Descargando', url, flush=True); urllib.request.urlretrieve(url, 'tmp.ply')
+              ply = PlyData.read('tmp.ply'); v = ply['vertex']; props = [p.name for p in v.properties]
+              xyz = np.vstack([v['x'], v['y'], v['z']]).T.astype(np.float64); n = len(xyz)
+              lab = next((p for p in props if p.lower() in ('label', 'class', 'scalar_label', 'classification', 'scalar_class')), None)
+              rng = np.random.default_rng(1); keep = rng.choice(n, size=min(n, 1200000), replace=False); keep.sort()
+              sub = xyz[keep]; off = sub.mean(axis=0); sub = sub - off
+              base = name.replace(' Bridge_annotation.ply', '').replace(' ', '_')
+              el = PlyElement.describe(np.array([tuple(r) for r in sub.astype(np.float32)], dtype=[('x', 'f4'), ('y', 'f4'), ('z', 'f4')]), 'vertex')
+              PlyData([el], text=False).write(f'out/{base}_1.2M.ply')
+              ext = sub.max(axis=0) - sub.min(axis=0)
+              info[base] = {'archivo': name, 'puntos_originales': int(n), 'puntos': int(len(sub)), 'propiedades': props, 'etiqueta': lab, 'extension_m': ext.round(2).tolist(), 'offset': off.round(3).tolist()}
+              if lab: info[base]['clases'] = {str(int(k)): int(c) for k, c in zip(*np.unique(np.asarray(v[lab])[keep], return_counts=True))}
+              i = np.argsort(ext)[::-1]; a, b = i[0], 2  # eje largo vs vertical (z)
+              s = sub[rng.choice(len(sub), size=min(len(sub), 200000), replace=False)]
+              fig, ax = plt.subplots(2, 1, figsize=(14, 8)); ax[0].scatter(s[:, a], s[:, b], s=.05, c='k'); ax[0].set_aspect('equal'); ax[0].set_title(base + ' · elevación')
+              ax[1].scatter(s[:, i[0]], s[:, i[1]], s=.05, c='k'); ax[1].set_aspect('equal'); ax[1].set_title('planta'); fig.savefig(f'out/{base}.png', dpi=110); plt.close(fig)
+              os.remove('tmp.ply')
+          json.dump(info, open('out/info.json', 'w'), indent=1); print(json.dumps(info, indent=1))
+          PY
+      - uses: actions/upload-artifact@v4
+        with: { name: nubes-prueba, path: out/, retention-days: 7 }
