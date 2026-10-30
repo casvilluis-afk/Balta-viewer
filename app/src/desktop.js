@@ -77,7 +77,7 @@
     else if (a === 'inicio') inicio(true);
     else if (a === 'dxf') { inicio(false); if (S.view === 'tupuente') opPlans(); else baltaPlans(); }
   }
-  window.PG = { run, guardar, abrirTexto };
+  window.PGapp = { run, guardar, abrirTexto };
   if (window.desk) window.desk.onMenu(run);
   document.addEventListener('keydown', e => { if (e.key === 'Escape') { const el = document.getElementById('inicio'); if (el && !el.hidden && S.view) inicio(false); } });
   // la marca de la barra superior abre el inicio
