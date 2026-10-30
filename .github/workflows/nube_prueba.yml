@@ -6,6 +6,8 @@ on:
       puentes:
         description: 'Archivos a descargar (separados por ;)'
         default: 'Wonli Bridge_annotation.ply;Ssanghak Bridge_annotation.ply'
+permissions:
+  contents: write
 jobs:
   nube:
     runs-on: ubuntu-latest
@@ -43,5 +45,12 @@ jobs:
               os.remove('tmp.ply')
           json.dump(info, open('out/info.json', 'w'), indent=1); print(json.dumps(info, indent=1))
           PY
-      - uses: actions/upload-artifact@v4
-        with: { name: nubes-prueba, path: out/, retention-days: 7 }
+      - name: Publicar como versión de datos (pre-release, no es la app)
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: datos-nubes-prueba
+          name: Datos de prueba · nubes de puentes (Zenodo 18531104, CC BY 4.0)
+          prerelease: true
+          make_latest: false
+          body: Nubes reducidas a 1,2 M puntos para probar PuenteGemelo. Fuente UAV LiDAR bridge point cloud dataset, Zenodo 18531104, licencia CC BY 4.0; citar a sus autores.
+          files: out/*
