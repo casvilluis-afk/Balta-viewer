@@ -1,0 +1,34 @@
+{
+  "name": "puentegemelo",
+  "productName": "PuenteGemelo",
+  "version": "0.1.0",
+  "description": "Gemelo digital e inspección de puentes con nubes de puntos e inteligencia artificial. Caso de estudio: Puente Balta (Lima).",
+  "main": "src/main.js",
+  "author": "Luis Ñuñuvero Castillo y Anthony Tarazona Cerna",
+  "license": "MIT",
+  "homepage": "https://github.com/casvilluis-afk/Balta-viewer",
+  "scripts": {
+    "prepare-web": "node tools/prepare.js",
+    "test": "node tests/run.js",
+    "start": "node tools/prepare.js && electron .",
+    "dist": "node tools/prepare.js && electron-builder --publish never"
+  },
+  "devDependencies": {
+    "electron": "33.2.1",
+    "electron-builder": "25.1.8",
+    "three": "0.160.0"
+  },
+  "build": {
+    "appId": "io.github.casvilluis.puentegemelo",
+    "productName": "PuenteGemelo",
+    "copyright": "© 2026 Luis Ñuñuvero Castillo y Anthony Tarazona Cerna · MIT",
+    "directories": { "output": "dist", "buildResources": "build" },
+    "files": ["src/**/*", "web/**/*", "package.json", "LICENSE", "DATA_LICENSE.md"],
+    "asarUnpack": ["web/docs/**"],
+    "fileAssociations": [{ "ext": "puente", "name": "Proyecto de PuenteGemelo", "description": "Proyecto de PuenteGemelo", "role": "Editor" }],
+    "win": { "target": ["nsis"], "icon": "build/icon.png" },
+    "nsis": { "oneClick": false, "perMachine": false, "allowToChangeInstallationDirectory": true, "artifactName": "PuenteGemelo-${version}-Windows-instalador.${ext}", "shortcutName": "PuenteGemelo" },
+    "mac": { "target": ["dmg"], "icon": "build/icon.png", "category": "public.app-category.education", "identity": null, "artifactName": "PuenteGemelo-${version}-Mac.${ext}" },
+    "linux": { "target": ["AppImage"], "icon": "build/icon.png", "category": "Science", "artifactName": "PuenteGemelo-${version}-Linux.${ext}" }
+  }
+}

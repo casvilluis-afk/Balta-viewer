@@ -1,0 +1,13 @@
+/* Pantalla de inicio de PuenteGemelo (mismo estilo de programa de evaluación) */
+#inicio{position:fixed;inset:0;z-index:50;background:rgba(230,233,236,.96);display:grid;place-items:center;padding:24px;overflow:auto}
+#inicio .in-card{width:min(860px,100%);background:#fff;border:1px solid var(--rule);box-shadow:0 10px 30px -18px rgba(0,0,0,.45)}
+#inicio .in-head{display:flex;gap:16px;align-items:center;padding:18px 22px;background:linear-gradient(#f7f8f9,#e9ecef);border-bottom:1px solid var(--rule)}
+#inicio .in-head img{width:56px;height:56px}
+#inicio h1{font:600 22px var(--f-ui);margin:0}
+#inicio .in-head p{margin:2px 0 0;color:var(--ink-2)}
+#inicio .in-grid{display:grid;gap:10px;padding:18px 22px}
+#inicio .in-act{display:grid;gap:3px;text-align:left;background:linear-gradient(#fdfdfd,#f1f3f5);border:1px solid #a9b1b8;border-radius:3px;padding:12px 14px;cursor:pointer;font:13px var(--f-ui);color:var(--ink)}
+#inicio .in-act:hover{border-color:var(--accent);background:#f3f8fd}
+#inicio .in-act b{font-size:15px;color:var(--accent)}
+#inicio .in-act span{color:var(--ink-2)}
+#inicio .in-foot{margin:0;padding:10px 22px 16px;font-size:12px;color:var(--ink-3);border-top:1px solid var(--rule-2)}

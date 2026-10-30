@@ -51,7 +51,7 @@ function opNube() {
   opInfo(); opRightHelp('Una nube de un puente completo, ya limpia de vegetación y vehículos en lo posible. El eje longitudinal se obtiene por componentes principales; si la nube ya está alineada con x o y se conservan sus coordenadas.');
 }
 function opSetCloud(c, name, minPts) {
-  OP.cloud = c; OP.name = name; OP.O = OPC.orient(c, $('#opUp').value, +$('#opUnit').value); OP.minPts = Math.max(3, Math.round(minPts));
+  OP.cloud = c; OP.name = name; OP.up = $('#opUp').value; OP.unit = +$('#opUnit').value; OP.O = OPC.orient(c, OP.up, OP.unit); OP.minPts = Math.max(3, Math.round(minPts));
   OP.deckTop = OPC.deckLevel(OP.O); OP.ground = OPC.groundLevel(OP.O); const S = OPC.detectSupports(OP.O, OP.deckTop, OP.ground); OP.supports = S.supports.map(p => ({ ...p })); OP.zSlab = S.zSlab; const sp = OP.supports; OP.ends = { left: sp.length && sp[0].tipo === 'estribo' ? 'none' : 'simetria', right: sp.length && sp[sp.length - 1].tipo === 'estribo' ? 'none' : 'simetria' };
   OP.band = { zmin: OP.ground + .2 * (OP.deckTop - OP.ground), zmax: OP.deckTop - .38 }; OP.geo = OP.model = OP.modes = OP.camp = OP.ia = null;
   $('#opLoad').textContent = ''; opInfo(); vTu();

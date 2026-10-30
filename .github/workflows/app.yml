@@ -1,0 +1,61 @@
+# Compila los instaladores de PuenteGemelo (Windows, macOS, Linux) y los publica en Releases.
+# Se ejecuta al publicar una etiqueta app-vX.Y.Z, o a mano desde la pestaña Actions.
+name: App de escritorio
+on:
+  push:
+    tags: ['app-v*']
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  pruebas:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 20 }
+      - run: node app/tests/run.js
+  compilar:
+    needs: pruebas
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-latest, ubuntu-latest]
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        working-directory: app
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 20 }
+      - run: npm install --no-audit --no-fund
+      - run: npm run dist
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: instalador-${{ matrix.os }}
+          path: |
+            app/dist/*.exe
+            app/dist/*.dmg
+            app/dist/*.AppImage
+          if-no-files-found: error
+  publicar:
+    needs: compilar
+    if: startsWith(github.ref, 'refs/tags/app-v')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with: { path: salida, merge-multiple: true }
+      - uses: softprops/action-gh-release@v2
+        with:
+          name: PuenteGemelo ${{ github.ref_name }}
+          body: |
+            Instaladores de PuenteGemelo, programa de escritorio de código abierto para el gemelo digital e inspección de puentes.
+            - Windows: PuenteGemelo-…-Windows-instalador.exe (sin firma digital: «Más información» → «Ejecutar de todas formas»).
+            - macOS: PuenteGemelo-…-Mac.dmg (sin firma: clic derecho → Abrir).
+            - Linux: PuenteGemelo-…-Linux.AppImage (dar permiso de ejecución).
+            Código MIT · datos del Puente Balta CC BY 4.0. Herramienta de apoyo a la inspección; no reemplaza la evaluación de un ingeniero.
+          files: salida/*
