@@ -6,164 +6,182 @@
 <title>Balta · Plataforma de inspección</title>
 <meta name="color-scheme" content="light">
 <meta name="claude:viewport-fit-sides" content="cover">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600&family=Barlow+Condensed:wght@500;600;700&family=DM+Mono:wght@400;500&display=swap">
 <style>
-/* Layout: espacio de trabajo de software de ingeniería (árbol | lienzo | propiedades | barra de estado); los dibujos se presentan como láminas con cajetín. */
+/* Estilo: programa de evaluación estructural (cromo gris, área de trabajo blanca, tablas en grilla). Rojo solo para daño y alertas. */
 :root{
-  --desk:#dfe3e6; --surface:#f4f6f7; --sheet:#ffffff; --ink:#121417; --ink-2:#4b525a; --ink-3:#7c848c; --rule:#c6ccd2; --rule-2:#e3e7ea;
-  --red:#c4161c; --red-bg:#fbeaea; --blue:#1d5ea8; --ok:#1d7443; --warn:#9a5d00; --sel:#e9edf0;
-  --viewport:#cfd5da; --m-arco:#5b6670; --m-tablero:#8c8577; --m-pilar:#a7abae; --m-montante:#7d8a95;
-  --f-ui:"Barlow",system-ui,-apple-system,"Segoe UI",sans-serif; --f-cond:"Barlow Condensed","Arial Narrow",sans-serif; --f-mono:"DM Mono",ui-monospace,Consolas,monospace; color-scheme:light;
+  --desk:#ffffff; --surface:#f3f4f6; --chrome:#e6e9ec; --sheet:#ffffff; --ink:#1b1f23; --ink-2:#4a5158; --ink-3:#7a828a; --rule:#c3c9cf; --rule-2:#e2e6e9;
+  --accent:#0b5cad; --accent-bg:#e3eefa; --red:#c4161c; --red-bg:#fbeaea; --blue:#1d5ea8; --ok:#1d7443; --warn:#9a5d00; --sel:#e3eefa;
+  --viewport:#dfe4e8; --m-arco:#5b6670; --m-tablero:#8c8577; --m-pilar:#a7abae; --m-montante:#7d8a95;
+  --f-ui:"Segoe UI",system-ui,-apple-system,"Helvetica Neue",Arial,sans-serif; --f-cond:"Segoe UI",Arial,sans-serif; --f-mono:Consolas,"Cascadia Mono","Liberation Mono",Menlo,monospace; color-scheme:light;
 }
-:root[data-theme="dark"]{
-  --desk:#16191c; --surface:#1d2124; --sheet:#121417; --ink:#e7eaec; --ink-2:#a9b0b6; --ink-3:#7d858c; --rule:#353b41; --rule-2:#262b2f;
-  --red:#ff5b52; --red-bg:#3a1c1b; --blue:#6aa6ee; --ok:#5cc58a; --warn:#e3a646; --sel:#2a3035;
-  --viewport:#24292d; --m-arco:#9aa7b2; --m-tablero:#b7ad99; --m-pilar:#7d8389; --m-montante:#6f7f8c; color-scheme:dark}
 *{box-sizing:border-box}
 html,body{height:100%}
-body{background:var(--desk);color:var(--ink);font:14px/1.45 var(--f-ui);margin:0}
-body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:10;background:var(--surface)}
+body{background:var(--desk);color:var(--ink);font:13px/1.45 var(--f-ui);margin:0}
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:10;background:var(--chrome)}
 .mono{font-family:var(--f-mono);font-variant-numeric:tabular-nums}
 .dim{color:var(--ink-3)}
-:focus-visible{outline:2px solid var(--red);outline-offset:1px}
+:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
 button{font:inherit;color:inherit}
 
 /* ---------- Estructura ---------- */
 .app{display:grid;grid-template-rows:auto 1fr auto;height:100%;min-height:0}
-.bar{display:flex;align-items:stretch;gap:0;background:var(--surface);border-bottom:1px solid var(--rule);padding-left:max(10px,env(safe-area-inset-left,0px));padding-right:max(10px,env(safe-area-inset-right,0px));min-width:0}
-.mark{display:flex;align-items:baseline;gap:10px;padding:9px 18px 9px 6px;border-right:1px solid var(--rule);flex:none}
-.mark b{font:700 1.05rem var(--f-cond);letter-spacing:.06em;text-transform:uppercase}
-.mark span{font:500 .8rem var(--f-cond);color:var(--ink-3);letter-spacing:.02em}
-.menu{display:flex;overflow-x:auto;scrollbar-width:none;min-width:0;flex:1}
+.bar{display:grid;grid-template-columns:auto 1fr;align-items:end;background:var(--chrome);border-bottom:1px solid var(--rule);padding-left:max(8px,env(safe-area-inset-left,0px));padding-right:max(8px,env(safe-area-inset-right,0px));min-width:0}
+.mark{display:flex;flex-direction:column;justify-content:center;gap:0;padding:6px 16px 6px 4px;flex:none;align-self:center}
+.mark b{font:600 14px var(--f-ui)}
+.mark span{font:12px var(--f-ui);color:var(--ink-2)}
+.menu{display:flex;gap:2px;overflow-x:auto;scrollbar-width:none;min-width:0;padding-top:6px}
 .menu::-webkit-scrollbar{display:none}
-.menu button{flex:none;background:none;border:0;border-right:1px solid var(--rule-2);padding:0 16px;font:600 .82rem var(--f-cond);letter-spacing:.07em;text-transform:uppercase;color:var(--ink-2);cursor:pointer;position:relative}
-.menu button:hover{background:var(--sel);color:var(--ink)}
-.menu button[aria-selected="true"]{color:var(--ink);background:var(--desk)}
-.menu button[aria-selected="true"]::after{content:"";position:absolute;left:0;right:0;bottom:-1px;height:2px;background:var(--red)}
-.menu button .k{font:500 .7rem var(--f-mono);color:var(--ink-3);margin-right:7px;letter-spacing:0}
-.work{display:grid;grid-template-columns:232px minmax(0,1fr) 316px;min-height:0}
+.menu button{flex:none;background:#eef0f2;border:1px solid var(--rule);border-bottom:0;border-radius:3px 3px 0 0;padding:5px 12px;font:13px var(--f-ui);color:var(--ink-2);cursor:pointer;position:relative;top:1px}
+.menu button:hover{background:#f7f8f9;color:var(--ink)}
+.menu button[aria-selected="true"]{color:var(--ink);background:var(--desk);font-weight:600;z-index:1;box-shadow:inset 0 2px 0 var(--accent)}
+.menu button .k{font:12px var(--f-ui);color:var(--ink-3);margin-right:5px}
+.work{display:grid;grid-template-columns:270px minmax(0,1fr) 316px;min-height:0}
 .side{background:var(--surface);overflow:auto;min-width:0}
 .side.l{border-right:1px solid var(--rule)}
 .side.r{border-left:1px solid var(--rule)}
-.canvas{overflow:auto;min-width:0;padding:16px;display:grid;align-content:start;grid-auto-rows:max-content;gap:14px}
-.status{display:flex;flex-wrap:wrap;gap:0;background:var(--surface);border-top:1px solid var(--rule);font:400 .74rem var(--f-mono);color:var(--ink-2);padding-left:max(10px,env(safe-area-inset-left,0px));padding-right:max(10px,env(safe-area-inset-right,0px));padding-bottom:env(safe-area-inset-bottom,0px)}
-.status span{padding:5px 12px;border-right:1px solid var(--rule-2);white-space:nowrap}
-.status .okdot::before{content:"";display:inline-block;width:7px;height:7px;background:var(--ok);margin-right:6px;vertical-align:0}
-@media (max-width:1100px){.work{grid-template-columns:210px minmax(0,1fr) 280px}}
+.canvas{overflow:auto;min-width:0;padding:12px;display:grid;align-content:start;grid-auto-rows:max-content;gap:12px;background:var(--desk)}
+.status{display:flex;flex-wrap:wrap;gap:0;background:var(--chrome);border-top:1px solid var(--rule);font:12px var(--f-ui);color:var(--ink-2);padding-left:max(8px,env(safe-area-inset-left,0px));padding-right:max(8px,env(safe-area-inset-right,0px));padding-bottom:env(safe-area-inset-bottom,0px)}
+.status span{padding:3px 10px;border-right:1px solid var(--rule);white-space:nowrap}
+.status .okdot::before{content:"";display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--ok);margin-right:6px}
+@media (max-width:1100px){.work{grid-template-columns:220px minmax(0,1fr) 280px}}
 @media (max-width:900px){
   html,body{height:auto}.app{height:auto}
+  .bar{grid-template-columns:1fr}
   .work{grid-template-columns:minmax(0,1fr)}
   .side.l{border-right:0;border-bottom:1px solid var(--rule);max-height:none}
   .side.r{border-left:0;border-top:1px solid var(--rule)}
-  .canvas{padding:12px max(12px,env(safe-area-inset-right,0px)) 12px max(12px,env(safe-area-inset-left,0px))}
-  .mark span{display:none}
+  .canvas{padding:10px max(10px,env(safe-area-inset-right,0px)) 10px max(10px,env(safe-area-inset-left,0px))}
 }
 
 /* ---------- Paneles laterales ---------- */
-.ph{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:9px 12px 7px;border-bottom:1px solid var(--rule-2);font:600 .74rem var(--f-cond);letter-spacing:.09em;text-transform:uppercase;color:var(--ink-2)}
+.ph{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:5px 10px;background:linear-gradient(#f7f8f9,#e9ecef);border-bottom:1px solid var(--rule);border-top:1px solid #fff;font:600 12.5px var(--f-ui);color:var(--ink)}
 .ph + .pb{border-bottom:1px solid var(--rule)}
-.pb{padding:10px 12px;display:grid;gap:10px}
-.tree{list-style:none;margin:0;padding:4px 0}
+.pb{padding:10px;display:grid;gap:9px}
+.tree{list-style:none;margin:0;padding:3px 0;background:var(--sheet);border-bottom:1px solid var(--rule)}
 .tree li{margin:0}
-.tree .grp{font:600 .72rem var(--f-cond);letter-spacing:.08em;text-transform:uppercase;color:var(--ink-3);padding:8px 12px 3px}
-.tree button{display:grid;grid-template-columns:12px 1fr auto;align-items:center;gap:8px;width:100%;text-align:left;background:none;border:0;padding:5px 12px 5px 18px;cursor:pointer;font-size:.86rem}
-.tree button:hover{background:var(--sel)}
-.tree button[aria-pressed="true"]{background:var(--sel);box-shadow:inset 2px 0 0 var(--red)}
-.tree .sq{width:9px;height:9px;border:1px solid var(--ink-2)}
-.tree button[aria-pressed="true"] .sq{background:var(--red);border-color:var(--red)}
-.tree .ct{font:400 .72rem var(--f-mono);color:var(--ink-3)}
-table.props{width:100%;border-collapse:collapse;font-size:.82rem}
-table.props th{background:var(--rule-2);text-align:left;font:600 .7rem var(--f-cond);letter-spacing:.08em;text-transform:uppercase;color:var(--ink-2);padding:5px 12px}
-table.props td{padding:5px 12px;border-bottom:1px solid var(--rule-2);vertical-align:top}
-table.props td:first-child{color:var(--ink-2);width:46%}
-table.props td:last-child{font-family:var(--f-mono);font-size:.78rem;font-variant-numeric:tabular-nums;text-align:right;overflow-wrap:anywhere}
-.flag{display:inline-flex;align-items:center;gap:6px;font:500 .78rem var(--f-ui)}
-.flag::before{content:"";width:8px;height:8px;background:currentColor;flex:none}
+.tree .grp{font:600 12px var(--f-ui);color:var(--ink-2);padding:6px 10px 2px}
+.tree button{display:grid;grid-template-columns:12px 1fr auto;align-items:center;gap:6px;width:100%;text-align:left;background:none;border:0;padding:3px 10px 3px 16px;cursor:pointer;font-size:13px}
+.tree button:hover{background:#f1f5fa}
+.tree button[aria-pressed="true"]{background:var(--accent);color:#fff}
+.tree button[aria-pressed="true"] .ct{color:#dbe8f6}
+.tree .sq{width:9px;height:9px;border:1px solid var(--ink-3);background:var(--sheet)}
+.tree button[aria-pressed="true"] .sq{background:#fff;border-color:#fff}
+.tree .ct{font:12px var(--f-mono);color:var(--ink-3)}
+/* árbol jerárquico del puente */
+.btree{width:100%;table-layout:fixed;border-collapse:collapse;font-size:12.5px;background:var(--sheet)}
+.btree th{font:600 11.5px var(--f-ui);color:var(--ink-2);text-align:right;padding:4px 4px;overflow:hidden;text-overflow:ellipsis;background:#eef1f4;border-bottom:1px solid var(--rule);white-space:nowrap}
+.btree th:first-child{text-align:left;padding-left:8px}
+.btree td{padding:3px 4px;border-bottom:1px solid var(--rule-2);text-align:right;font-family:var(--f-mono);font-size:12px;white-space:nowrap}
+.btree td:first-child{text-align:left;font-family:var(--f-ui);font-size:12.5px;white-space:normal}
+.btree tr.pick{cursor:pointer}
+.btree tr.pick:hover td{background:#f1f5fa}
+.btree tr.on td{background:var(--accent);color:#fff}
+.btree tr.on .lvl{outline:1px solid #fff}
+.btree tr.parent td{font-weight:600;background:#f7f8f9}
+.btree tr.parent td:first-child{font-weight:600}
+.btree .tw0{padding-left:8px}.btree .tw1{padding-left:20px}.btree .tw2{padding-left:34px}
+.btree .tw1::before,.btree .tw2::before{content:"";display:inline-block;width:7px;height:7px;border-left:1px solid var(--ink-3);border-bottom:1px solid var(--ink-3);margin-right:5px;vertical-align:3px}
+.btree tr.on .tw1::before,.btree tr.on .tw2::before{border-color:#fff}
+.lvl{display:inline-block;min-width:0;text-align:center;font:600 10.5px var(--f-ui);padding:0 3px;border-radius:2px;color:#fff}
+.lvl.alta{background:var(--red)}.lvl.media{background:var(--warn)}.lvl.baja{background:#7f8b95}.lvl.na{background:none;color:var(--ink-3);border:1px solid var(--rule)}
+table.props{width:100%;border-collapse:collapse;font-size:12.5px;background:var(--sheet)}
+table.props th{background:#eef1f4;text-align:left;font:600 12px var(--f-ui);color:var(--ink);padding:4px 10px;border-top:1px solid var(--rule);border-bottom:1px solid var(--rule)}
+table.props td{padding:3px 10px;border-bottom:1px solid var(--rule-2);vertical-align:top}
+table.props td:first-child{color:var(--ink-2);width:50%;border-right:1px solid var(--rule-2)}
+table.props td:last-child{font-family:var(--f-mono);font-size:12px;font-variant-numeric:tabular-nums;text-align:right;overflow-wrap:anywhere}
+.flag{display:inline-flex;align-items:center;gap:5px;font:600 12px var(--f-ui)}
+.flag::before{content:"";width:8px;height:8px;border-radius:50%;background:currentColor;flex:none}
 .flag.ok{color:var(--ok)}.flag.warn{color:var(--warn)}.flag.crit{color:var(--red)}.flag.na{color:var(--ink-3)}
-.msg{border-left:3px solid var(--warn);background:var(--surface);padding:7px 10px;font-size:.82rem}
-.msg.crit{border-left-color:var(--red)}
+.msg{border:1px solid #e3c88f;background:#fff8e8;padding:6px 9px;font-size:12.5px}
+.msg.crit{border-color:#e7a9ab;background:var(--red-bg)}
 .msg b{font-weight:600}
-.help{font-size:.78rem;color:var(--ink-3)}
+.help{font-size:12px;color:var(--ink-3)}
 
 /* ---------- Controles ---------- */
-label.f{display:grid;gap:3px;font-size:.8rem;color:var(--ink-2)}
+label.f{display:grid;gap:2px;font-size:12.5px;color:var(--ink-2)}
 label.f .lv{display:flex;justify-content:space-between;gap:8px}
-label.f output{font:500 .8rem var(--f-mono);color:var(--ink)}
-input[type=range]{width:100%;accent-color:var(--ink)}
-select,input[type=number],input[type=text],input[type=date]{font:inherit;font-size:.85rem;color:var(--ink);background:var(--sheet);border:1px solid var(--rule);border-radius:0;padding:5px 7px;width:100%}
-.btn{background:var(--ink);color:var(--sheet);border:1px solid var(--ink);padding:6px 12px;font:600 .78rem var(--f-cond);letter-spacing:.08em;text-transform:uppercase;cursor:pointer}
-.btn.line{background:transparent;color:var(--ink)}
-.btn:disabled{opacity:.45;cursor:default}
-.toggle{display:inline-flex;border:1px solid var(--rule)}
-.toggle button{background:var(--sheet);border:0;border-right:1px solid var(--rule);padding:4px 10px;font:600 .74rem var(--f-cond);letter-spacing:.07em;text-transform:uppercase;color:var(--ink-2);cursor:pointer}
+label.f output{font:12px var(--f-mono);color:var(--ink)}
+input[type=range]{width:100%;accent-color:var(--accent)}
+select,input[type=number],input[type=text],input[type=date]{font:inherit;font-size:13px;color:var(--ink);background:var(--sheet);border:1px solid #a9b1b8;border-radius:2px;padding:3px 6px;width:100%}
+select:focus,input:focus{border-color:var(--accent)}
+.btn{background:linear-gradient(#fdfdfd,#eceef0);color:var(--ink);border:1px solid #a9b1b8;border-radius:3px;padding:4px 12px;font:13px var(--f-ui);cursor:pointer;white-space:nowrap}
+.btn:hover{background:linear-gradient(#ffffff,#e3e7ea);border-color:#8f99a2}
+.btn:active{background:#dde2e6}
+.btn.line{background:var(--sheet)}
+.btn:disabled{opacity:.5;cursor:default}
+.btn.pri{background:var(--accent);border-color:#094c8f;color:#fff}
+.toggle{display:inline-flex;border:1px solid #a9b1b8;border-radius:3px;overflow:hidden;flex-wrap:wrap}
+.toggle button{background:linear-gradient(#fdfdfd,#eceef0);border:0;border-right:1px solid #c7cdd2;padding:3px 10px;font:13px var(--f-ui);color:var(--ink);cursor:pointer}
 .toggle button:last-child{border-right:0}
-.toggle button[aria-pressed="true"]{background:var(--ink);color:var(--sheet)}
+.toggle button[aria-pressed="true"]{background:var(--accent);color:#fff}
 
 /* ---------- Lámina ---------- */
-.sheet{background:var(--sheet);border:1px solid var(--rule);box-shadow:0 1px 0 var(--rule),0 6px 18px -12px rgba(0,0,0,.35);overflow-x:auto;min-width:0}
+.sheet{background:var(--sheet);border:1px solid var(--rule);overflow-x:auto;min-width:0}
 .sheet svg{display:block;width:100%;min-width:640px;height:auto;aspect-ratio:1000/560}
 .sheet svg text{font-family:var(--f-mono);fill:var(--ink)}
-.sheet svg .cond{font-family:var(--f-cond);letter-spacing:.06em}
+.sheet svg .cond{font-family:"Arial Narrow",Arial,sans-serif;letter-spacing:.04em}
 .doc svg text{font-family:var(--f-mono)}
-.doc{background:var(--sheet);border:1px solid var(--rule);padding:22px 24px;display:grid;gap:14px;min-width:0}
-.doc h2{font:700 1.3rem var(--f-cond);letter-spacing:.04em;text-transform:uppercase;margin:0}
-.doc h3{font:600 .82rem var(--f-cond);letter-spacing:.09em;text-transform:uppercase;margin:6px 0 0;color:var(--ink-2)}
-.doc p{margin:0;max-width:78ch}
+.doc{background:var(--sheet);border:1px solid var(--rule);padding:0 14px 14px;display:grid;gap:10px;min-width:0}
+.doc h2{font:600 14px var(--f-ui);margin:0 -14px;padding:6px 14px;background:linear-gradient(#f7f8f9,#e9ecef);border-bottom:1px solid var(--rule)}
+.doc > div:first-child > h2{margin:0}
+.doc > div:first-child:has(h2){margin:0 -14px;padding:6px 14px;background:linear-gradient(#f7f8f9,#e9ecef);border-bottom:1px solid var(--rule)}
+.doc > div:first-child:has(h2) h2{background:none;border:0;padding:0;margin:0}
+.doc h3{font:600 13px var(--f-ui);margin:4px 0 0;color:var(--ink);border-bottom:1px solid var(--rule-2);padding-bottom:2px}
+.doc p{margin:0;max-width:90ch}
 .tw{overflow-x:auto;min-width:0}
-table.data{border-collapse:collapse;width:100%;font-size:.82rem}
-table.data th{font:600 .7rem var(--f-cond);letter-spacing:.08em;text-transform:uppercase;color:var(--ink-2);text-align:left;border-bottom:1.5px solid var(--ink);padding:5px 8px;white-space:nowrap}
-table.data td{padding:5px 8px;border-bottom:1px solid var(--rule-2)}
+table.data{border-collapse:collapse;width:100%;font-size:12.5px;border:1px solid var(--rule)}
+table.data th{font:600 12px var(--f-ui);color:var(--ink);text-align:left;background:#eef1f4;border:1px solid var(--rule);padding:4px 7px;white-space:nowrap}
+table.data td{padding:3px 7px;border:1px solid var(--rule-2)}
+table.data tbody tr:nth-child(even) td{background:#fafbfc}
 table.data td.n,table.data th.n{text-align:right;font-family:var(--f-mono);font-variant-numeric:tabular-nums;white-space:nowrap}
-table.data tr.hl td{background:var(--red-bg)}
-.meter{height:6px;background:var(--rule-2);min-width:54px}.meter i{display:block;height:100%;background:var(--ink-2)}
-.sheet-tools{display:flex;justify-content:flex-end;align-items:center;gap:6px;margin-bottom:-8px}
-.sheet-tools .btn{padding:3px 9px}
+table.data th.n{font-family:var(--f-ui)}
+table.data tr.hl td{background:#fff3d6}
+.meter{height:8px;background:var(--rule-2);min-width:54px;border:1px solid var(--rule)}.meter i{display:block;height:100%;background:var(--accent)}
+.sheet-tools{display:flex;justify-content:flex-end;align-items:center;gap:4px;margin-bottom:-8px}
+.sheet-tools .btn{padding:1px 8px;font-size:12px}
 .sheet-tools:has(+ .sheet[hidden]){display:none}
 [hidden]{display:none!important}
-#protoBar{position:fixed;left:0;right:0;bottom:calc(27px + env(safe-area-inset-bottom,0px));z-index:15;background:var(--surface);border-top:2px solid var(--red);box-shadow:0 -6px 18px -12px rgba(0,0,0,.4);padding-left:max(12px,env(safe-area-inset-left,0px));padding-right:max(12px,env(safe-area-inset-right,0px))}
-#protoBar .pb-in{display:flex;gap:10px;align-items:center;flex-wrap:wrap;padding-block:8px;font-size:.86rem}
-#protoBar .btn{padding:4px 10px}
+#protoBar{position:fixed;left:0;right:0;bottom:calc(23px + env(safe-area-inset-bottom,0px));z-index:15;background:#fff8e8;border-top:2px solid var(--warn);box-shadow:0 -6px 18px -12px rgba(0,0,0,.4);padding-left:max(12px,env(safe-area-inset-left,0px));padding-right:max(12px,env(safe-area-inset-right,0px))}
+#protoBar .pb-in{display:flex;gap:10px;align-items:center;flex-wrap:wrap;padding-block:7px;font-size:13px}
 body:has(#protoBar) .canvas,body:has(#protoBar) .side{padding-bottom:150px}
 details summary::-webkit-details-marker{color:var(--ink-3)}
-.row3d{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
-.b3d{background:var(--red);border-color:var(--red)}
+.row3d{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.b3d::before{content:"";display:inline-block;width:11px;height:11px;margin-right:6px;vertical-align:-1px;background:conic-gradient(from 210deg,#6c8fb6 0 120deg,#3f6a99 0 240deg,#9bb6d3 0);clip-path:polygon(50% 0,100% 25%,100% 75%,50% 100%,0 75%,0 25%)}
 #v3d{position:fixed;inset:0;z-index:40;background:var(--viewport);display:grid;grid-template-rows:auto minmax(0,1fr) auto;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
-.v3d-bar{display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;align-items:center;background:var(--surface);border-bottom:1px solid var(--rule);padding:8px max(12px,env(safe-area-inset-right,0px)) 8px max(12px,env(safe-area-inset-left,0px))}
-.v3d-t{display:grid;gap:2px;min-width:0}.v3d-t b{font:700 1.02rem var(--f-cond);letter-spacing:.06em;text-transform:uppercase}.v3d-t span{font-size:.8rem}
-.v3d-c,#v3dAnim{display:flex;gap:8px;align-items:end;flex-wrap:wrap}
+.v3d-bar{display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;align-items:center;background:var(--chrome);border-bottom:1px solid var(--rule);padding:6px max(10px,env(safe-area-inset-right,0px)) 6px max(10px,env(safe-area-inset-left,0px))}
+.v3d-t{display:grid;gap:1px;min-width:0}.v3d-t b{font:600 14px var(--f-ui)}.v3d-t span{font-size:12px}
+.v3d-c,#v3dAnim{display:flex;gap:6px;align-items:end;flex-wrap:wrap}
 .v3d-stage{position:relative;min-height:0;overflow:hidden}.v3d-stage canvas{display:block;width:100%;height:100%;touch-action:none}
-.v3d-st{position:absolute;inset:0;display:grid;place-items:center;font:.85rem var(--f-mono);color:var(--ink-2)}
-.v3d-leg{background:var(--surface);border-top:1px solid var(--rule);padding:8px max(12px,env(safe-area-inset-right,0px)) 8px max(12px,env(safe-area-inset-left,0px));font-size:.8rem;display:grid;gap:4px}
-.v3d-leg .legend{display:flex;gap:6px 16px;flex-wrap:wrap}.v3d-leg .legend span{display:inline-flex;gap:6px;align-items:center}.v3d-leg .legend i{display:inline-block;width:12px;height:12px;border-radius:2px}
-.v3d-ctl{position:absolute;left:10px;top:10px;width:min(270px,calc(100% - 20px));max-height:calc(100% - 20px);overflow:auto;background:var(--surface);border:1px solid var(--rule);padding:10px 12px;display:grid;gap:10px;font-size:.82rem;z-index:2}.v3d-ctl[hidden]{display:none}.v3d-ph{font:600 .72rem var(--f-mono);text-transform:uppercase;letter-spacing:.05em;color:var(--ink-2)}.v3d-ctl .help{margin:0}.k3row{display:flex;gap:8px;flex-wrap:wrap}
-.v3d-grad{display:grid;gap:3px;width:min(460px,100%)}.v3d-grad i{display:block;height:10px}.v3d-grad div{display:flex;justify-content:space-between;font:.72rem var(--f-mono);color:var(--ink-2)}
-.report{white-space:pre-wrap;font:400 .76rem/1.55 var(--f-mono);border:1px solid var(--rule);padding:12px;max-height:340px;overflow:auto;background:var(--surface)}
+.v3d-st{position:absolute;inset:0;display:grid;place-items:center;font:13px var(--f-ui);color:var(--ink-2)}
+.v3d-leg{background:var(--chrome);border-top:1px solid var(--rule);padding:6px max(10px,env(safe-area-inset-right,0px)) 6px max(10px,env(safe-area-inset-left,0px));font-size:12.5px;display:grid;gap:3px}
+.v3d-leg .legend{display:flex;gap:6px 16px;flex-wrap:wrap}.v3d-leg .legend span{display:inline-flex;gap:6px;align-items:center}.v3d-leg .legend i{display:inline-block;width:12px;height:12px;border:1px solid rgba(0,0,0,.25)}
+.v3d-ctl{position:absolute;left:10px;top:10px;width:min(270px,calc(100% - 20px));max-height:calc(100% - 20px);overflow:auto;background:var(--surface);border:1px solid var(--rule);box-shadow:0 4px 14px -6px rgba(0,0,0,.35);padding:0 10px 10px;display:grid;gap:9px;font-size:12.5px;z-index:2}.v3d-ctl[hidden]{display:none}.v3d-ph{font:600 12.5px var(--f-ui);color:var(--ink);margin:0 -10px;padding:5px 10px;background:linear-gradient(#f7f8f9,#e9ecef);border-bottom:1px solid var(--rule)}.v3d-ctl .help{margin:0}.k3row{display:flex;gap:6px;flex-wrap:wrap}
+.v3d-grad{display:grid;gap:3px;width:min(460px,100%)}.v3d-grad i{display:block;height:10px;border:1px solid rgba(0,0,0,.2)}.v3d-grad div{display:flex;justify-content:space-between;font:12px var(--f-ui);color:var(--ink-2)}
+.report{white-space:pre-wrap;font:12px/1.5 var(--f-mono);border:1px solid var(--rule);padding:10px;max-height:340px;overflow:auto;background:var(--sheet)}
 
 /* ---------- Visor 3D ---------- */
 .vp{position:relative;height:min(64vh,620px);min-height:300px;background:var(--viewport);border:1px solid var(--rule);overflow:hidden}
 .vp.full{position:fixed;inset:0;z-index:40;height:auto;border:0;padding-top:env(safe-area-inset-top,0px)}
-.vpbar{position:absolute;left:8px;bottom:8px;right:150px;background:var(--surface);border:1px solid var(--rule);padding:6px 10px}
+.vpbar{position:absolute;left:8px;bottom:8px;right:150px;background:var(--surface);border:1px solid var(--rule);padding:5px 9px}
 .vp.full .corner{top:max(8px,env(safe-area-inset-top,0px))}
 .vp canvas{display:block;width:100%;height:100%;touch-action:none}
-.vp .st{position:absolute;inset:0;display:grid;place-items:center;font:400 .82rem var(--f-mono);color:var(--ink-2);text-align:center;padding:16px}
-.vp .corner{position:absolute;left:8px;top:8px;font:400 .7rem var(--f-mono);color:var(--ink-2);background:var(--surface);border:1px solid var(--rule);padding:3px 7px}
+.vp .st{position:absolute;inset:0;display:grid;place-items:center;font:13px var(--f-ui);color:var(--ink-2);text-align:center;padding:16px}
+.vp .corner{position:absolute;left:8px;top:8px;font:12px var(--f-ui);color:var(--ink-2);background:rgba(255,255,255,.85);border:1px solid var(--rule);padding:2px 7px}
 .vp .tools{position:absolute;right:8px;top:8px}
 .likert{display:grid;gap:0}
-.likert .q{display:grid;grid-template-columns:28px 1fr auto;gap:10px;align-items:center;padding:6px 0;border-bottom:1px solid var(--rule-2);font-size:.84rem}
+.likert .q{display:grid;grid-template-columns:28px 1fr auto;gap:10px;align-items:center;padding:5px 0;border-bottom:1px solid var(--rule-2);font-size:13px}
 .likert .opts{display:flex}
 .likert .opts input{position:absolute;opacity:0;pointer-events:none}
-.likert .opts label{width:28px;height:26px;display:grid;place-items:center;border:1px solid var(--rule);margin-left:-1px;font:500 .76rem var(--f-mono);cursor:pointer}
-.likert .opts input:checked+label{background:var(--ink);color:var(--sheet);border-color:var(--ink)}
-.likert .opts input:focus-visible+label{outline:2px solid var(--red)}
+.likert .opts label{width:28px;height:24px;display:grid;place-items:center;border:1px solid #a9b1b8;margin-left:-1px;font:12px var(--f-ui);cursor:pointer;background:#fff}
+.likert .opts input:checked+label{background:var(--accent);color:#fff;border-color:var(--accent)}
+.likert .opts input:focus-visible+label{outline:2px solid var(--accent)}
 @media (max-width:700px){.likert .q{grid-template-columns:24px 1fr}.likert .opts{grid-column:2}}
 @media (prefers-reduced-motion: reduce){*{transition:none!important;animation:none!important}}
 </style>
 
 <div class="app">
   <header class="bar">
-    <div class="mark"><b>Puente Balta</b><span>Plataforma de inspección · v2.1</span></div>
+    <div class="mark"><b>Puente Balta · Sistema de evaluación e inspección</b><span>Gemelo digital · río Rímac, Lima · versión 2.3</span></div>
     <nav class="menu" role="tablist" aria-label="Herramientas">
       <button role="tab" data-v="modelo"><span class="k">1</span>Modelo</button>
       <button role="tab" data-v="simulacion"><span class="k">2</span>Simulación</button>
@@ -191,9 +209,9 @@ import {OrbitControls} from 'three/addons/controls/OrbitControls.js';
 window.BaltaThree={THREE,GLTFLoader,OrbitControls};
 window.dispatchEvent(new Event('three-ready'));
 </script>
-<script src="v3d.js?v=2.2.1"></script>
-<script src="op_core.js?v=2.1.0"></script>
-<script src="op_ui.js?v=2.1.0"></script>
+<script src="v3d.js?v=2.3.0"></script>
+<script src="op_core.js?v=2.3.0"></script>
+<script src="op_ui.js?v=2.3.0"></script>
 <script>
 "use strict";
 const MODEL_URL='../models/puente-balta-v12.glb';
@@ -418,7 +436,7 @@ function mcFeatures(f,phi,f0,phi0,sdof,NM=8){const dot=(a,b)=>{let s=0;for(let i
 /* ================= Lámina técnica (SVG) ================= */
 const SHEET={W:1000,H:560};
 let sheetCount=0;
-function sheet({no,title,content,notes='',scale='H 1:400 · V ×1,5'}){
+function sheet({no,title,content,notes='',scale='H 1:400 · V ×1,5',model='2D · 150 n · 221 e'}){
   const W=SHEET.W,H=SHEET.H,ink=css('--ink'),i3=css('--ink-3'),r2=css('--rule');
   let s=`<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Lámina ${no}: ${esc(title)}">`;
   s+=`<rect x="6" y="6" width="${W-12}" height="${H-12}" fill="none" stroke="${ink}" stroke-width=".6"/><rect x="18" y="18" width="${W-36}" height="${H-36}" fill="none" stroke="${ink}" stroke-width="1.6"/>`;
@@ -435,7 +453,7 @@ function sheet({no,title,content,notes='',scale='H 1:400 · V ×1,5'}){
    <text x="${bx+6}" y="${by+58}" fill="${i3}">ESCALA</text><text x="${bx+6}" y="${by+70}" font-size="9">${scale}</text>
    <text x="${bx+156}" y="${by+58}" fill="${i3}">FECHA</text><text x="${bx+156}" y="${by+70}" font-size="9">${new Date().toLocaleDateString('es-PE')}</text>
    <text x="${bx+306}" y="${by+9}" fill="${i3}">LÁMINA</text><text x="${bx+365}" y="${by+44}" class="cond" font-size="26" font-weight="700" text-anchor="middle">${no}</text>
-   <text x="${bx+306}" y="${by+58}" fill="${i3}">MODELO</text><text x="${bx+306}" y="${by+70}" font-size="9">2D · 150 n · 221 e</text></g>`;
+   <text x="${bx+306}" y="${by+58}" fill="${i3}">MODELO</text><text x="${bx+306}" y="${by+70}" font-size="9">${model}</text></g>`;
   if(notes)s+=`<g font-size="8.5" fill="${css('--ink-2')}">${notes}</g>`;
   return s+'</svg>';
 }
@@ -489,22 +507,35 @@ function statusBar(extra=''){const v=PROV.verificacion;
 function timedSolve(sc){const t=performance.now(),r=solve(sc);lastSolveMs=performance.now()-t;return r;}
 
 /* ---------- Árbol de componentes (panel izquierdo) ---------- */
-function tree(sel,onPick,{withNone=false,counts=true}={}){
-  let h='<ul class="tree">',g='';
-  if(withNone)h+=`<li><button data-z="sin_danio" aria-pressed="${sel==='sin_danio'}"><span class="sq"></span>Sin daño (referencia)<span class="ct"></span></button></li>`;
-  ZONES.forEach(z=>{if(z.grp!==g){g=z.grp;h+=`<li class="grp">${g}</li>`;}h+=`<li><button data-z="${z.id}" aria-pressed="${z.id===sel}"><span class="sq"></span>${z.name}<span class="ct">${counts?sens20[z.id].n+' el.':''}</span></button></li>`;});
-  h+='</ul>';
-  return {html:h,bind:root=>root.querySelectorAll('.tree button').forEach(b=>b.onclick=()=>onPick(b.dataset.z))};}
+// Árbol jerárquico del puente: puente → superestructura / subestructura → componentes.
+// Índice = prioridad de inspección (0–1, misma fórmula que la pestaña 5); en los niveles superiores, el máximo de sus componentes.
+// NBI = último registro de campo del componente; en los niveles superiores, el menor (peor) de sus componentes; "—" sin inspección.
+function tree(sel,onPick,{withNone=false}={}){
+  const P=priorities(),by={};P.forEach(o=>by[o.z.id]=o);
+  const lvl=sc=>sc>=.6?'alta':sc>=.4?'media':'baja',badge=sc=>`<span class="lvl ${lvl(sc)}">${({alta:'Alta',media:'Media',baja:'Baja'})[lvl(sc)]}</span>`;
+  const nbi=ids=>{const v=ids.map(id=>by[id].rec?by[id].rec.nbi:null).filter(x=>x!=null);return v.length?Math.min(...v):null;};
+  const agg=ids=>{const sc=Math.max(...ids.map(id=>by[id].score));return {sc,nbi:nbi(ids)};};
+  const SUP=['arco_a1_a2','arco_a2_a3','arco_a3_a4','montantes','tablero'],SUB=['pilares'],ALL=SUP.concat(SUB);
+  const row=(cls,name,o,id)=>`<tr class="${cls.replace(/tw\d/,'').trim()}${id&&id===sel?' on':''}${id?' pick':''}" ${id?`data-z="${id}" tabindex="0" role="button" aria-pressed="${id===sel}"`:''}><td class="${cls.match(/tw\d/)[0]}">${name}</td><td>${o?fmt(o.sc,2):''}</td><td>${o?badge(o.sc):''}</td><td>${o?(o.nbi==null?'—':o.nbi):''}</td></tr>`;
+  const leaf=(id,name)=>row('tw2',name,{sc:by[id].score,nbi:by[id].rec?by[id].rec.nbi:null},id);
+  let h=`<table class="btree"><colgroup><col><col style="width:44px"><col style="width:50px"><col style="width:34px"></colgroup><thead><tr><th>Estructura</th><th title="Índice de prioridad de inspección (0–1)">Índice</th><th>Nivel</th><th title="Condición NBI 0–9 del último registro de campo">NBI</th></tr></thead><tbody>`;
+  if(withNone)h+=`<tr class="pick${sel==='sin_danio'?' on':''}" data-z="sin_danio" tabindex="0" role="button" aria-pressed="${sel==='sin_danio'}"><td class="tw0">Sin daño (referencia)</td><td></td><td></td><td></td></tr>`;
+  h+=row('parent tw0','Puente Balta',agg(ALL))+row('parent tw1','Superestructura',agg(SUP))
+    +leaf('arco_a1_a2','Arco vano 1')+leaf('arco_a2_a3','Arco vano 2')+leaf('arco_a3_a4','Arco vano 3')+leaf('montantes','Montantes')+leaf('tablero','Tablero y vigas')
+    +row('parent tw1','Subestructura',agg(SUB))+leaf('pilares','Pilares y estribos')+'</tbody></table>';
+  h+=`<div class="pb help" style="padding-top:6px">Índice de prioridad de inspección (0–1), calculado con los pesos de la pestaña 5; en puente, superestructura y subestructura se muestra el mayor de sus componentes. NBI: condición del último registro de campo (0–9); «—» sin inspección registrada.</div>`;
+  return {html:h,bind:root=>root.querySelectorAll('.btree tr.pick').forEach(r=>{r.onclick=()=>onPick(r.dataset.z);r.onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();onPick(r.dataset.z);}};})};}
 
 /* ================= 1 · Modelo ================= */
 function vModelo(){
   const t=tree(S.zone,id=>{S.zone=id;vModelo();if(window.__hl3d)window.__hl3d(id);});
-  $('#left').innerHTML=`<div class="ph">Componentes</div>${t.html}<div class="pb help">Clic en el modelo o en la lista. El color rojo marca el componente activo en el 3D y en la lámina.</div>`;t.bind($('#left'));
+  $('#left').innerHTML=`<div class="ph">Árbol del puente</div>${t.html}<div class="pb help" style="padding-top:0">Seleccione un componente en el árbol o directamente en el modelo 3D; se marca en rojo en el 3D y en la lámina.</div>`;t.bind($('#left'));
   const z=ZONES.find(z=>z.id===S.zone),s=sens20[z.id],ids=M2.els.filter(e=>z.groups(e.group)).map(e=>e.id),sec=M2.els.find(e=>z.groups(e.group)),det=detectability()[z.id];
   const compl=z.compl==null?'<span class="flag na">sin medir</span>':`<span class="flag ${z.compl<.5?'crit':z.compl<.85?'warn':'ok'}">${pct(z.compl,0)}</span>`;
   $('#right').innerHTML=`<div class="ph">Propiedades<span class="mono dim" style="letter-spacing:0;text-transform:none">${z.id}</span></div>
    <table class="props"><tbody>
    <tr><th colspan="2">${z.long}</th></tr>
+   ${(()=>{const o=priorities().find(x=>x.z.id===z.id);return `<tr><td>Índice de prioridad</td><td>${fmt(o.score,2)} · ${o.level.toLowerCase()}</td></tr><tr><td>Condición NBI</td><td>${o.rec?`${o.rec.nbi} (${esc(o.rec.fecha)})`:'sin inspección registrada'}</td></tr>`;})()}
    <tr><td>Ubicación</td><td>${z.span}</td></tr>
    <tr><td>Material</td><td>${z.fam==='pilar'?'piedra (pilares)':'fierro fundido, 1874'}</td></tr>
    <tr><th colspan="2">Modelo 2D</th></tr>
@@ -535,7 +566,7 @@ function vModelo(){
       <div id="cloudBar" style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;font-size:.82rem"><label style="display:flex;gap:6px;align-items:center"><input type="checkbox" id="cOn"> Nube TLS (186 442 puntos)</label>
        <label style="display:flex;gap:6px;align-items:center">Color<select id="cMode" style="width:auto"><option value="rgb">Color real</option><option value="int">Intensidad</option><option value="z">Altura</option></select></label>
        <label style="display:flex;gap:6px;align-items:center"><input type="checkbox" id="cOnly"> Ocultar modelo 3D</label><span class="mono dim" id="cInfo" style="font-size:.74rem"></span></div>
-      <div class="vp" id="vp"><div class="st" id="vpst">Cargando modelo 3D…</div><span class="corner">VISTA LIBRE · arrastrar para girar · rueda para acercar</span><button class="btn b3d" id="b3dMod" style="position:absolute;right:8px;bottom:8px">Pantalla completa</button></div>
+      <div class="vp" id="vp"><div class="st" id="vpst">Cargando modelo 3D…</div><span class="corner">Vista libre: arrastre para girar, rueda para acercar</span><button class="btn b3d" id="b3dMod" style="position:absolute;right:8px;bottom:8px">Pantalla completa</button></div>
       <div class="sheet" id="elevM"></div>`;
     $('#canvas').querySelectorAll('.toggle button').forEach(b=>b.onclick=()=>{S.m3d=b.dataset.m;applyM3d();});
     $('#ovC').onchange=e=>{S.ovC=e.target.checked;if(S.ovC&&S.m3d==='3d')S.m3d='both';vModelo();};
@@ -627,7 +658,7 @@ function vSim(){
   t.bind($('#left'));
   $('#iP').value=S.pct*100;$('#iQ').value=S.q;$('#iE').value=S.E;
   $('#iP').oninput=e=>{S.pct=e.target.value/100;simCompute();};$('#iQ').oninput=e=>{S.q=+e.target.value;simCompute();};$('#iE').oninput=e=>{S.E=+e.target.value;simCompute();};
-  $('#canvas').innerHTML=`<div class="row3d">${'<button class="btn b3d" id="b3dSim">Ver en 3D a pantalla completa</button>'}<span class="help">Esfuerzos y deformada del modelo 2D sobre el puente</span></div><div class="sheet" id="simSheet"></div><div class="doc" id="dxDoc"></div><div class="sheet" id="dxSheet"></div>`;
+  $('#canvas').innerHTML=`<div class="row3d">${'<button class="btn b3d" id="b3dSim">Vista 3D</button>'}<span class="help">Esfuerzos y deformada del modelo 2D sobre el puente</span></div><div class="sheet" id="simSheet"></div><div class="doc" id="dxDoc"></div><div class="sheet" id="dxSheet"></div>`;
   $('#b3dSim').onclick=open3dSim;
   simCompute();
 }
@@ -694,7 +725,7 @@ function dxRender(){const X=S.dx;if(!X.n)X.n=1;
     <label class="f">Ruido de medición<select id="dxL">${NLEV.map((l,i)=>`<option value="${i}" ${i===X.lev?'selected':''}>${l.l}</option>`).join('')}</select></label>
     <label class="f">Medición n.º<input type="number" id="dxN" min="1" max="99999" step="1" value="${X.n}"></label></div>
    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px"><button class="btn line" id="dxGo">Nueva medición</button><button class="btn" id="dxRep">Repetir 100 mediciones</button></div>
-   <div style="margin-top:8px"><button class="btn b3d" id="b3dDx">Ver en 3D a pantalla completa</button></div><div id="dxOut"><p class="help">Calculando…</p></div><div id="dxStats"></div>`;
+   <div style="margin-top:8px"><button class="btn b3d" id="b3dDx">Vista 3D</button></div><div id="dxOut"><p class="help">Calculando…</p></div><div id="dxStats"></div>`;
   $('#b3dDx').onclick=()=>open3dDx(false);
   $('#dxZ').value=X.zone;$('#dxS').disabled=X.zone<0;
   const reset=()=>{X.n=1;$('#dxN').value=1;$('#dxStats').innerHTML='';dxRun();};
@@ -716,7 +747,7 @@ function dxRun(){const X=S.dx,B=dxBase(),L=NLEV[X.lev],C=dxClean();lastSolveMs=C
    <div class="tw"><table class="data"><thead><tr><th>Modo</th><th class="n">f₀ (Hz)</th><th class="n">Δf sin ruido</th><th class="n">Δf medido</th></tr></thead><tbody>${clean.slice(0,8).map((v,i)=>`<tr><td class="mono">${i+1}</td><td class="n">${fmt(B.f0[i],3)}</td><td class="n">${sgn(v,2)}</td><td class="n">${sgn(x[i],2)}</td></tr>`).join('')}</tbody></table>
     <p class="help" style="margin-top:6px">Δf sin ruido es la respuesta verdadera del puente dañado; Δf medido incluye el error del instrumento. Validación general con este ruido: localización ${pct(M.localizacion_acc,0)}, vano ${pct(M.vano_acc,0)}, falsas alarmas ${pct(M.falsa_alarma,0)}.</p></div></div>`;
   const red=css('--red'),blue=css('--blue');
-  $('#dxSheet').innerHTML=sheet({no:'S-06',title:`Diagnóstico · ${zlab(truth)}${truth>=0?' −'+Math.round(X.sev*100)+' %':''} · medición ${X.n}`,content:elevC({fr:B.fr,hl:t=>B.zones[t]===d.cls&&d.cls>=0?red:B.zones[t]===truth&&truth>=0?blue:null})+B.sens.map((s,k)=>{const xx=46+(s.y-28)*900/89,zz=70+(1.5-B.fr.nodes[s.node][1])*900/89*1.5;return `<path d="M${xx} ${zz-3}l-4 -7h8z" fill="${css('--sheet')}" stroke="${css('--ink')}" stroke-width=".8"/><text x="${xx}" y="${zz-13}" font-size="7.5" text-anchor="middle">S${k+1}</text>`;}).join(''),
+  $('#dxSheet').innerHTML=sheet({no:'S-06',model:`C · ${B.fr.nodes.length} n · ${B.fr.el.length} e`,title:`Diagnóstico · ${zlab(truth)}${truth>=0?' −'+Math.round(X.sev*100)+' %':''} · medición ${X.n}`,content:elevC({fr:B.fr,hl:t=>B.zones[t]===d.cls&&d.cls>=0?red:B.zones[t]===truth&&truth>=0?blue:null})+B.sens.map((s,k)=>{const xx=46+(s.y-28)*900/89,zz=70+(1.5-B.fr.nodes[s.node][1])*900/89*1.5;return `<path d="M${xx} ${zz-3}l-4 -7h8z" fill="${css('--sheet')}" stroke="${css('--ink')}" stroke-width=".8"/><text x="${xx}" y="${zz-13}" font-size="7.5" text-anchor="middle">S${k+1}</text>`;}).join(''),
     notes:legendRow([['line',blue,'Zona dañada en la simulación'],['line',red,'Zona propuesta por la IA (si coincide, solo rojo)']],40,462)+`<text x="40" y="510">Ruido: ${L.l} · ${fmt(lastSolveMs,0)} ms de cálculo</text>`});
   statusBar();}
 async function dxRepeat(){const X=S.dx,L=NLEV[X.lev],clean=dxClean().clean,truth=X.zone,N=100,btn=$('#dxRep');btn.disabled=true;
@@ -728,7 +759,7 @@ async function dxRepeat(){const X=S.dx,L=NLEV[X.lev],clean=dxClean().clean,truth
   const shown=top.slice(0,6),rest=top.slice(6).reduce((s,x)=>s+x[1],0);
   const lvl=ok>=80?['ok','Alta']:ok>=50?['warn','Media']:['crit','Baja'];
   S.dxCnt={cnt,truth,N,ok};
-  $('#dxStats').innerHTML=`<div style="margin-top:14px;border-top:1.5px solid var(--ink);padding-top:10px"><div style="margin-bottom:8px"><button class="btn b3d" onclick="open3dDx(true)">Ver en 3D dónde vota la IA</button></div>
+  $('#dxStats').innerHTML=`<div style="margin-top:14px;border-top:1.5px solid var(--ink);padding-top:10px"><div style="margin-bottom:8px"><button class="btn b3d" onclick="open3dDx(true)">Vista 3D de los votos de la IA</button></div>
    <div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;align-items:baseline"><h3 style="margin:0">Confiabilidad de la IA en este escenario · ${N} mediciones</h3><span class="flag ${lvl[0]}">Confiabilidad ${lvl[1].toLowerCase()}</span></div>
    <p class="help">${zlab(truth)}${truth>=0?` con ${pct(X.sev,0)} de pérdida de rigidez`:''} · ruido ${L.l.split(' · ')[0].toLowerCase()} · mediciones n.º 1 a ${N}</p>
    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),1fr));gap:18px">
@@ -751,7 +782,7 @@ function vCmp(){
    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px"><label class="f">Daño %<input type="number" id="c${k}p" min="0" max="90" step="5" value="${Math.round(s.pct*100)}"></label><label class="f">q kN/m<input type="number" id="c${k}q" min="5" max="400" step="5" value="${s.q}"></label><label class="f">E GPa<input type="number" id="c${k}E" min="20" max="150" step="1" value="${s.E}"></label></div></div>`;};
   $('#left').innerHTML=card('A')+card('B');
   $('#left').querySelectorAll('input,select').forEach(el=>el.addEventListener('input',cmpCompute));
-  $('#canvas').innerHTML=`<div class="row3d"><button class="btn b3d" id="b3dCmp">Ver en 3D a pantalla completa</button><span class="help">Cambio de esfuerzo de A a B sobre el puente</span></div><div class="sheet" id="cmpSheet"></div><div class="doc"><h2>Diferencias B − A</h2><div class="tw" id="cmpTbl"></div></div>`;
+  $('#canvas').innerHTML=`<div class="row3d"><button class="btn b3d" id="b3dCmp">Vista 3D</button><span class="help">Cambio de esfuerzo de A a B sobre el puente</span></div><div class="sheet" id="cmpSheet"></div><div class="doc"><h2>Diferencias B − A</h2><div class="tw" id="cmpTbl"></div></div>`;
   $('#b3dCmp').onclick=open3dCmp;
   cmpCompute();
 }
@@ -820,7 +851,7 @@ function vDin(){
   $('#id_geo').onchange=e=>{if(e.target.value==='anterior')S.dinP.geo='anterior';else delete S.dinP.geo;dinCompute();};
   DIN_P.forEach(d=>{const el=$('#id_'+d.k);el.oninput=()=>{$('#od_'+d.k).textContent=fmt(+el.value,d.step<1?2:0)+' '+d.u;};el.onchange=()=>{S.dinP[d.k]=d.k==='n_ribs'?+el.value:+el.value*d.sc;dinCompute();};});
   $('#id_spr').onchange=e=>{S.dinP.springing=e.target.value;dinCompute();};$('#dinReset').onclick=()=>{S.dinP={};vDin();};
-  $('#canvas').innerHTML=`<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><div class="toggle" role="group" aria-label="Modo" id="modeBtns"></div><label style="display:flex;gap:6px;align-items:center;font-size:.82rem"><input type="checkbox" id="showOld" ${S.showOld?'checked':''}> Superponer geometría del modelo anterior</label><button class="btn b3d" id="b3dDin">Ver en 3D a pantalla completa</button></div>
+  $('#canvas').innerHTML=`<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><div class="toggle" role="group" aria-label="Modo" id="modeBtns"></div><label style="display:flex;gap:6px;align-items:center;font-size:.82rem"><input type="checkbox" id="showOld" ${S.showOld?'checked':''}> Superponer geometría del modelo anterior</label><button class="btn b3d" id="b3dDin">Vista 3D</button></div>
    <div class="sheet" id="dinSheet"></div><div class="doc" id="calDoc"></div>`;
   $('#showOld').onchange=e=>{S.showOld=e.target.checked;dinCompute();};$('#b3dDin').onclick=open3dDin;
   dinCompute();}
@@ -829,7 +860,7 @@ function dinCompute(){const r=dinSolve(),fr=r.fr;
   $('#modeBtns').querySelectorAll('button').forEach(b=>b.onclick=()=>{S.mode=+b.dataset.i;dinCompute();});
   const pz=r.part[S.mode];
   const geoAnt=S.dinP.geo==='anterior';
-  $('#dinSheet').innerHTML=sheet({no:'S-05',title:`Modelo C${geoAnt?' · arcos anteriores':''} · modo ${S.mode+1} · ${fmt(r.f[S.mode],2)} Hz`,scale:'H 1:400 · V ×1,5',
+  $('#dinSheet').innerHTML=sheet({no:'S-05',model:`C · ${fr.nodes.length} n · ${fr.el.length} e`,title:`Modelo C${geoAnt?' · arcos anteriores':''} · modo ${S.mode+1} · ${fmt(r.f[S.mode],2)} Hz`,scale:'H 1:400 · V ×1,5',
     content:elevC({fr,phi:r.phi[S.mode],amp:2.2,showOld:S.showOld}),
     notes:legendRow([['line',css('--ink'),`Forma modal (+), participación Z ${pct(pz.Z,1)} · Y ${pct(pz.Y,1)}`],['line',css('--rule'),'Forma modal (−)']].concat(S.showOld?[['line',css('--blue'),'Geometría del modelo anterior (salidas_04)']]:[]),40,458)+`<text x="40" y="502">${geoAnt?'Arcos: eje del modelo anterior (salidas_04) llevado a las luces medidas':'Arcos: parábolas ajustadas a la nube (arch_fit.json) · caras de pilares medidas'}</text><text x="40" y="514">* Luz izquierda por simetría con la clave ajustada</text>`});
   const old=MCD.anterior.f;
@@ -909,7 +940,7 @@ function vInsp(){
   $('#left').innerHTML=`<div class="ph">Pesos de los criterios</div><div class="pb">${CRIT.map(([k,l,d])=>`<label class="f"><span class="lv">${l} <output id="o${k}">${S.W[k].toFixed(2)}</output></span><input type="range" id="w${k}" min="0" max="1" step="0.05" value="${S.W[k]}"><span class="help">${d}${k==='cond'?'. Se activa cuando hay al menos un registro de campo.':''}</span></label>`).join('')}<button class="btn line" id="wReset">Restablecer pesos</button></div>`;
   CRIT.forEach(([k])=>$('#w'+k).oninput=e=>{S.W[k]=+e.target.value;$('#o'+k).textContent=S.W[k].toFixed(2);inspCompute();});
   $('#wReset').onclick=()=>{S.W={sens:.3,geo:.3,det:.2,dem:.2,cond:.2};vInsp();};
-  $('#canvas').innerHTML=`<div class="row3d"><button class="btn b3d" id="b3dInsp">Ver en 3D a pantalla completa</button><span class="help">Prioridad de verificación por componente</span></div><div class="sheet" id="inspSheet"></div><div class="doc"><h2>Orden de verificación</h2><div class="tw" id="inspTbl"></div><p class="help" id="inspHelp"></p></div><div class="doc" id="fieldDoc"></div>`;
+  $('#canvas').innerHTML=`<div class="row3d"><button class="btn b3d" id="b3dInsp">Vista 3D</button><span class="help">Prioridad de verificación por componente</span></div><div class="sheet" id="inspSheet"></div><div class="doc"><h2>Orden de verificación</h2><div class="tw" id="inspTbl"></div><p class="help" id="inspHelp"></p></div><div class="doc" id="fieldDoc"></div>`;
   $('#right').innerHTML=`<div class="ph">Reporte<button class="btn" id="copyRep" style="padding:3px 9px">Copiar</button></div><div class="pb"><div class="report" id="report" tabindex="0"></div></div>`;
   $('#copyRep').onclick=e=>copyText($('#report').textContent,e.target,$('#report'));
   renderField();inspCompute();}

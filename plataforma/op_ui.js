@@ -179,7 +179,7 @@ function opModesShow() {
    <div class="tw" style="margin-top:8px"><table class="data"><thead><tr><th>Modo</th><th class="n">f (Hz)</th><th class="n">T (s)</th><th class="n">Part. vertical</th><th class="n">Part. longitudinal</th></tr></thead><tbody>${r.f.map((f, i) => `<tr${i === OP.modeSel ? ' class="hl"' : ''}><td class="mono">${i + 1}</td><td class="n">${fmt(f, 3)}</td><td class="n">${fmt(1 / f, 4)}</td><td class="n">${pct(r.part[i].Z, 1)}</td><td class="n">${pct(r.part[i].Y, 1)}</td></tr>`).join('')}</tbody></table></div>
    <p class="help">${fr.nodes.length} nodos · ${fr.el.length} elementos · masa ${fmt(r.totalMass, 0)} t · ${fmt(r.ms, 0)} ms</p>`;
   $('#opModOut').querySelectorAll('[data-m]').forEach(b => b.onclick = () => { OP.modeSel = +b.dataset.m; opModesShow(); });
-  $('#opSheet').innerHTML = sheet({ no: 'T-01', title: `${OP_TYPES[OP.type]} · modo ${OP.modeSel + 1} · ${fmt(r.f[OP.modeSel], 2)} Hz`, scale: 'esquema', content: opFrameSVG(fr, r.phi[OP.modeSel]), notes: `<text x="40" y="470">${esc(OP.name)}</text><text x="40" y="484">Geometría desde la nube; secciones y cargas según supuestos del usuario</text>` });
+  $('#opSheet').innerHTML = sheet({ no: 'T-01', model: `${fr.nodes.length} n · ${fr.el.length} e`, title: `${OP_TYPES[OP.type]} · modo ${OP.modeSel + 1} · ${fmt(r.f[OP.modeSel], 2)} Hz`, scale: 'esquema', content: opFrameSVG(fr, r.phi[OP.modeSel]), notes: `<text x="40" y="470">${esc(OP.name)}</text><text x="40" y="484">Geometría desde la nube; secciones y cargas según supuestos del usuario</text>` });
 }
 function opFrameSVG(fr, phi, hl) {
   const xs = fr.nodes.map(n => n[0]), zs = fr.nodes.map(n => n[1]), x0 = Math.min(...xs), x1 = Math.max(...xs), z0 = Math.min(...zs), z1 = Math.max(...zs);
@@ -197,7 +197,7 @@ function opFrameSVG(fr, phi, hl) {
 /* ---------- 5 · Entrenar la IA (Web Worker) ---------- */
 let OP_CORE_SRC = null;
 async function opWorker() {
-  if (!OP_CORE_SRC) OP_CORE_SRC = await fetch('op_core.js?v=2.1.0').then(r => { if (!r.ok) throw new Error('No se encontró op_core.js'); return r.text(); });
+  if (!OP_CORE_SRC) OP_CORE_SRC = await fetch('op_core.js?v=2.3.0').then(r => { if (!r.ok) throw new Error('No se encontró op_core.js'); return r.text(); });
   const src = OP_CORE_SRC + `\nself.onmessage = e => { const m = e.data; try {
     const camp = OPC.campaign(m.type, m.G, m.P, m.opts, (q, s) => self.postMessage({ kind: 'prog', stage: 'Simulaciones de daño', q, s }));
     self.postMessage({ kind: 'prog', stage: 'Entrenando la IA', q: 0 });
@@ -276,7 +276,7 @@ function opDxRun() {
    <div class="tw"><table class="data"><thead><tr><th>Modo</th><th class="n">f₀ (Hz)</th><th class="n">Δf sin ruido</th><th class="n">Δf medido</th></tr></thead><tbody>${OP.camp.f0.map((f, i) => `<tr><td class="mono">${i + 1}</td><td class="n">${fmt(f, 3)}</td><td class="n">${sgn(clean[i], 2)}</td><td class="n">${sgn(x[i], 2)}</td></tr>`).join('')}</tbody></table>
     <p class="help" style="margin-top:6px">Validación con este ruido: zona ${pct(M.localizacion, 0)}, vano ${pct(M.vano, 0)}, falsas alarmas ${pct(M.falsaAlarma, 0)}.</p></div></div>`;
   const red = css('--red'), blue = css('--blue'), fr = OP.model;
-  $('#odSheet').innerHTML = sheet({ no: 'T-02', title: `Diagnóstico · ${opZ(X.zone)} · medición ${X.n}`, scale: 'esquema', content: opFrameSVG(fr, null, t => fr.zoneOf[t] === d.cls && d.cls >= 0 ? red : fr.zoneOf[t] === X.zone && X.zone >= 0 ? blue : null), notes: legendRow([['line', blue, 'Zona dañada en la simulación'], ['line', red, 'Zona propuesta por la IA']], 40, 466) });
+  $('#odSheet').innerHTML = sheet({ no: 'T-02', model: `${fr.nodes.length} n · ${fr.el.length} e`, title: `Diagnóstico · ${opZ(X.zone)} · medición ${X.n}`, scale: 'esquema', content: opFrameSVG(fr, null, t => fr.zoneOf[t] === d.cls && d.cls >= 0 ? red : fr.zoneOf[t] === X.zone && X.zone >= 0 ? blue : null), notes: legendRow([['line', blue, 'Zona dañada en la simulación'], ['line', red, 'Zona propuesta por la IA']], 40, 466) });
 }
 async function opDxRepeat() {
   const X = OP.dx, L = OPC.LEVELS[X.lev], clean = opClean(), N = 100, btn = $('#odRep'); btn.disabled = true; const R = [];
