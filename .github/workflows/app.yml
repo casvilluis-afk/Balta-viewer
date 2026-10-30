@@ -1,9 +1,11 @@
 # Compila los instaladores de PuenteGemelo (Windows, macOS, Linux) y los publica en Releases.
-# Se ejecuta al publicar una etiqueta app-vX.Y.Z, o a mano desde la pestaña Actions.
+# Se ejecuta al subir cambios de la app o de la plataforma a main, o a mano desde la pestaña Actions.
+# La versión del release (app-vX.Y.Z) sale de app/package.json.
 name: App de escritorio
 on:
   push:
-    tags: ['app-v*']
+    branches: [main]
+    paths: ['app/**', 'plataforma/**', '.github/workflows/app.yml']
   workflow_dispatch:
 permissions:
   contents: write
@@ -44,14 +46,18 @@ jobs:
           if-no-files-found: error
   publicar:
     needs: compilar
-    if: startsWith(github.ref, 'refs/tags/app-v')
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@v4
+      - id: v
+        run: echo "version=$(node -p "require('./app/package.json').version")" >> "$GITHUB_OUTPUT"
       - uses: actions/download-artifact@v4
         with: { path: salida, merge-multiple: true }
       - uses: softprops/action-gh-release@v2
         with:
-          name: PuenteGemelo ${{ github.ref_name }}
+          tag_name: app-v${{ steps.v.outputs.version }}
+          target_commitish: ${{ github.sha }}
+          name: PuenteGemelo ${{ steps.v.outputs.version }}
           body: |
             Instaladores de PuenteGemelo, programa de escritorio de código abierto para el gemelo digital e inspección de puentes.
             - Windows: PuenteGemelo-…-Windows-instalador.exe (sin firma digital: «Más información» → «Ejecutar de todas formas»).

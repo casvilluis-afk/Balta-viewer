@@ -43,7 +43,7 @@ npm run dist         # genera el instalador del sistema actual en app/dist
 ```
 
 La interfaz es la misma plataforma web de `plataforma/` (HTML y JavaScript sin compilación). `tools/prepare.js` la copia a `app/web` con Three.js y el modelo 3D locales.
-Los instaladores se generan en GitHub Actions al publicar una etiqueta `app-vX.Y.Z` (`.github/workflows/app.yml`).
+Los instaladores se generan en GitHub Actions cada vez que se suben cambios de `app/` o `plataforma/` a main; el release `app-vX.Y.Z` toma la versión de `app/package.json` (`.github/workflows/app.yml`).
 
 | Archivo | Contenido |
 |---|---|
