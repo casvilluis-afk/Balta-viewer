@@ -35,6 +35,13 @@ button{font:inherit;color:inherit}
 .menu button:hover{background:#f7f8f9;color:var(--ink)}
 .menu button[aria-selected="true"]{color:var(--ink);background:var(--desk);font-weight:600;z-index:1;box-shadow:inset 0 2px 0 var(--accent)}
 .menu button .k{font:12px var(--f-ui);color:var(--ink-3);margin-right:5px}
+.menu button{padding:5px 14px}
+.submenu{display:flex;gap:2px;overflow-x:auto;scrollbar-width:none;background:var(--desk);margin:0 calc(-1 * max(8px,env(safe-area-inset-right,0px))) 0 calc(-1 * max(8px,env(safe-area-inset-left,0px)));padding:0 max(8px,env(safe-area-inset-right,0px)) 0 max(8px,env(safe-area-inset-left,0px));border-top:1px solid var(--rule)}
+.submenu::-webkit-scrollbar{display:none}
+.submenu button{flex:none;background:none;border:0;border-bottom:2px solid transparent;padding:6px 12px 5px;font:13px var(--f-ui);color:var(--ink-2);cursor:pointer}
+.submenu button:hover{color:var(--ink);background:#f4f6f8}
+.submenu button[aria-selected="true"]{color:var(--accent);border-bottom-color:var(--accent);font-weight:600}
+.submenu .gdesc{align-self:center;margin-left:auto;padding:0 6px;font-size:12px;color:var(--ink-3);white-space:nowrap}
 .work{display:grid;grid-template-columns:270px minmax(0,1fr) 316px;min-height:0}
 .side{background:var(--surface);overflow:auto;min-width:0}
 .side.l{border-right:1px solid var(--rule)}
@@ -181,22 +188,9 @@ details summary::-webkit-details-marker{color:var(--ink-3)}
 
 <div class="app">
   <header class="bar">
-    <div class="mark"><b>Puente Balta · Sistema de evaluación e inspección</b><span>Gemelo digital · río Rímac, Lima · versión 2.7</span></div>
-    <nav class="menu" role="tablist" aria-label="Herramientas">
-      <button role="tab" data-v="estado"><span class="k">0</span>Estado</button>
-      <button role="tab" data-v="modelo"><span class="k">1</span>Modelo</button>
-      <button role="tab" data-v="simulacion"><span class="k">2</span>Simulación</button>
-      <button role="tab" data-v="comparacion"><span class="k">3</span>Comparación</button>
-      <button role="tab" data-v="dinamica"><span class="k">4</span>Dinámica</button>
-      <button role="tab" data-v="inspeccion"><span class="k">5</span>Plan de inspección</button>
-      <button role="tab" data-v="validacion"><span class="k">6</span>Validación</button>
-      <button role="tab" data-v="registro"><span class="k">7</span>Registro</button>
-      <button role="tab" data-v="tupuente"><span class="k">8</span>Tu puente</button>
-      <button role="tab" data-v="oma"><span class="k">9</span>Vibración</button>
-      <button role="tab" data-v="inspmtc"><span class="k">10</span>Inspección</button>
-      <button role="tab" data-v="cargahl"><span class="k">11</span>Carga HL-93</button>
-      <button role="tab" data-v="deterioro"><span class="k">12</span>Deterioro</button>
-    </nav>
+    <div class="mark"><b>Puente Balta · Sistema de evaluación e inspección</b><span>Gemelo digital · río Rímac, Lima · versión 2.8</span></div>
+    <nav class="menu" id="mGroups" aria-label="Secciones"></nav>
+    <nav class="submenu" id="mSub" role="tablist" aria-label="Herramientas de la sección"></nav>
   </header>
   <div class="work">
     <aside class="side l" id="left" aria-label="Componentes"></aside>
@@ -214,10 +208,10 @@ import {OrbitControls} from 'three/addons/controls/OrbitControls.js';
 window.BaltaThree={THREE,GLTFLoader,OrbitControls};
 window.dispatchEvent(new Event('three-ready'));
 </script>
-<script src="v3d.js?v=2.7.0"></script>
-<script src="op_core.js?v=2.7.0"></script>
-<script src="op_ui.js?v=2.7.0"></script>
-<script src="pg_mod.js?v=2.7.0"></script>
+<script src="v3d.js?v=2.8.0"></script>
+<script src="op_core.js?v=2.8.0"></script>
+<script src="op_ui.js?v=2.8.0"></script>
+<script src="pg_mod.js?v=2.8.0"></script>
 <script>
 "use strict";
 const MODEL_URL='../models/puente-balta-v12.glb';
@@ -503,10 +497,23 @@ const S={view:'modelo',zone:'arco_a2_a3',q:100,E:50,target:'arco_a2_a3',pct:.3,n
   A:{q:100,E:50,target:'sin_danio',pct:0},B:{q:100,E:50,target:'arco_a2_a3',pct:.3},W:{sens:.3,geo:.3,det:.2,dem:.2,cond:.2}};
 let DATA_READY=false,lastSolveMs=0;
 function show(v){if(!VIEWS.includes(v))v='modelo';S.view=v;if(S.vpFull){S.vpFull=false;document.body.style.overflow='';}
-  document.querySelectorAll('.menu button').forEach(b=>b.setAttribute('aria-selected',b.dataset.v===v));
+  navRender(v);
   try{history.replaceState(null,'','#'+v);}catch(e){}
   if(DATA_READY)render();}
-document.querySelectorAll('.menu button').forEach(b=>b.addEventListener('click',()=>show(b.dataset.v)));
+// Navegación en dos niveles: secciones (arriba) y herramientas de cada sección (abajo)
+const NAV=[['inicio','Inicio','Estado del puente, alertas y línea de tiempo',[['estado','Estado del puente']]],
+ ['gemelo','Gemelo del Balta','Modelo verificado del Puente Balta',[['modelo','Modelo 3D y nube'],['simulacion','Simulación e IA'],['comparacion','Comparación de escenarios'],['dinamica','Dinámica y sismo']]],
+ ['monitoreo','Monitoreo con IA','Medición de vibración, calibración y diagnóstico',[['oma','Vibración medida e IA']]],
+ ['gestion','Inspección y gestión','Inspección, capacidad de carga y mantenimiento',[['inspeccion','Prioridades de inspección (IA)'],['inspmtc','Inspección de campo (MTC)'],['cargahl','Carga vehicular HL-93'],['deterioro','Deterioro y mantenimiento']]],
+ ['tu','Tu puente','Gemelo de cualquier puente desde su nube de puntos',[['tupuente','Tu puente']]],
+ ['verif','Verificación','Concordancia con OpenSees, prueba con evaluadores y procedencia de datos',[['validacion','Validación'],['registro','Datos y procedencia']]]];
+const NAV_LAST={};
+function navRender(v){const g=NAV.find(x=>x[3].some(t=>t[0]===v))||NAV[0];NAV_LAST[g[0]]=v;
+  $('#mGroups').innerHTML=NAV.map(x=>`<button data-g="${x[0]}" aria-selected="${x===g}" title="${x[2]}">${x[1]}</button>`).join('');
+  $('#mSub').innerHTML=g[3].map(([k,l])=>`<button role="tab" data-v="${k}" aria-selected="${k===v}">${l}</button>`).join('')+`<span class="gdesc">${g[2]}</span>`;
+  document.querySelectorAll('#mGroups button').forEach(b=>b.onclick=()=>{const x=NAV.find(q=>q[0]===b.dataset.g);show(NAV_LAST[x[0]]||x[3][0][0]);});
+  document.querySelectorAll('#mSub button').forEach(b=>b.onclick=()=>show(b.dataset.v));
+  document.querySelectorAll('#mGroups [aria-selected="true"],#mSub [aria-selected="true"]').forEach(b=>{try{b.scrollIntoView({block:'nearest',inline:'nearest'});}catch(e){}});}
 function render(){({modelo:vModelo,simulacion:vSim,comparacion:vCmp,dinamica:vDin,inspeccion:vInsp,validacion:vVal,registro:vReg,tupuente:vTu,estado:vEstado,oma:vOma,inspmtc:vInspMTC,cargahl:vHL,deterioro:vDet})[S.view]();statusBar();}
 function statusBar(extra=''){const v=PROV.verificacion;
   $('#status').innerHTML=`<span class="okdot">Solver 2D verificado · OpenSees ${v.opensees} · ${v.cases} casos</span><span>q ${fmt(S.q,0)} kN/m</span><span>E ${fmt(S.E,0)} GPa</span><span>Último cálculo ${fmt(lastSolveMs,0)} ms</span>${extra}<span class="dim">Ñuñuvero · Tarazona · UPC 2026</span>`;}
@@ -995,7 +1002,7 @@ function open3dSis(){const r=S.sis.res;if(!r)return;const A=V3D.adaptMC(r.fr),se
 /* ---------- IA con frecuencias del usuario (medidas o calculadas) ---------- */
 // Sin datos del usuario la plataforma sigue simulando la medición; con sus frecuencias, se usa una IA entrenada solo con Δf del mismo modelo.
 const FQ={};let FQ_SRC=null;
-async function fqWorker(){if(!FQ_SRC)FQ_SRC=await fetch('op_core.js?v=2.7.0').then(r=>{if(!r.ok)throw new Error('No se encontró op_core.js');return r.text();});
+async function fqWorker(){if(!FQ_SRC)FQ_SRC=await fetch('op_core.js?v=2.8.0').then(r=>{if(!r.ok)throw new Error('No se encontró op_core.js');return r.text();});
   const src=FQ_SRC+`\nself.onmessage=e=>{const m=e.data;try{if(m.kind==='camp'){const c=OPC.freqCampaign(m.type,m.G,m.P,m.opts,(q,s)=>self.postMessage({kind:'prog',stage:'Simulaciones de daño',q,s}));self.postMessage({kind:'camp',camp:c});}
    else if(m.kind==='trainM'){const I=OPC.trainModalIA(m.camp,m.sel,m.sf,m.ss,(st,q)=>self.postMessage({kind:'prog',stage:st,q}));self.postMessage({kind:'ia',ia:I});}else{const I=OPC.trainFreqIA(m.camp,m.k,m.sf,(st,q)=>self.postMessage({kind:'prog',stage:st,q}));self.postMessage({kind:'ia',ia:I});}}catch(err){self.postMessage({kind:'error',msg:err.message});}};`;
   return new Worker(URL.createObjectURL(new Blob([src],{type:'text/javascript'})));}
