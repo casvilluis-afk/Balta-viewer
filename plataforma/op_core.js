@@ -508,32 +508,53 @@ function seismic(fr, md, aY, aZ, dt, z) {
 /* ---------- IA solo con frecuencias (cuando el usuario entrega frecuencias medidas o calculadas) ---------- */
 // Campaña: Δf de los NM primeros modos ordenados por frecuencia (sin formas modales, como en una medición de solo frecuencias).
 function freqCampaign(type, G, p, opts, prog) {
-  const r = mulberry(opts.seed || 7), NM = opts.NM || 8, fr0 = build(type, G, p), f0 = modal(fr0, NM).f, Z = fr0.zoneDefs.length;
+  const r = mulberry(opts.seed || 7), NM = opts.NM || 8, fr0 = build(type, G, p), m0 = modal(fr0, NM), f0 = m0.f, Z = fr0.zoneDefs.length;
+  // formas en los sensores del tablero (para la IA con formas modales medidas): emparejadas por MAC con el modelo nominal y con el mismo signo
+  const sdof = sensorsOf(fr0).map(s => s.dof), at = u => sdof.map(d => u[d]), dot = (a, b) => { let s = 0; for (let i = 0; i < a.length; i++) s += a[i] * b[i]; return s; };
+  const sh0 = m0.phi.map(at), mac = (a, b) => dot(a, b) ** 2 / (dot(a, a) * dot(b, b) || 1);
   const jobs = []; for (let i = 0; i < opts.nUndamaged; i++) jobs.push(-1); for (let z = 0; z < Z; z++) for (let i = 0; i < opts.nPerZone; i++) jobs.push(z);
   const rows = [], t0 = Date.now();
   jobs.forEach((zz, n) => { const pp = Object.assign({}, p, { E: p.E * (1 + gaussR(r) * opts.unc / 2), w_deck: p.w_deck * (1 + gaussR(r) * opts.unc / 2) });
     const fr = build(type, G, pp), d = zz < 0 ? 0 : 0.05 + r() * 0.55, esc = new Float64Array(fr.el.length).fill(1); if (zz >= 0) fr.zoneOf.forEach((z, t) => { if (z === zz) esc[t] = 1 - d; });
-    const f = modal(fr, NM, esc, 1e-9).f; rows.push({ zona: zz, sev: d, df: f.map((v, i) => (v - f0[i]) / f0[i]) }); if (prog && n % 20 === 0) prog(n / jobs.length, (Date.now() - t0) / 1000); });
+    const md = modal(fr, NM, esc, 1e-9), f = md.f, row = { zona: zz, sev: d, df: f.map((v, i) => (v - f0[i]) / f0[i]) };
+    if (opts.shapes !== false) { const S = md.phi.map(at), used = new Set(); row.dfm = []; row.sh = [];
+      for (let i = 0; i < NM; i++) { let best = -1, j = 0; for (let k = 0; k < NM; k++) { if (used.has(k)) continue; const m = mac(sh0[i], S[k]) * (1 - Math.min(1, Math.abs(f[k] / f0[i] - 1) * 2)); if (m > best) { best = m; j = k; } } used.add(j);
+        const sg = Math.sign(dot(S[j], sh0[i])) || 1; row.dfm.push((f[j] - f0[i]) / f0[i]); row.sh.push(S[j].map(v => +(v * sg).toPrecision(6))); } }
+    rows.push(row); if (prog && n % 20 === 0) prog(n / jobs.length, (Date.now() - t0) / 1000); });
   const spanOfZone = fr0.zoneDefs.map((_, z) => { const t = fr0.zoneOf.indexOf(z); if (t < 0) return -1; const [i, j] = fr0.el[t], m = (fr0.nodes[i][0] + fr0.nodes[j][0]) / 2; return fr0.spans.findIndex(S => m >= S.a - 1e-6 && m <= S.b + 1e-6); });
-  return { rows, f0, zones: fr0.zoneDefs, NM, spanOfZone };
+  return { rows, f0, sh0, zones: fr0.zoneDefs, NM, spanOfZone };
 }
 // Entrena con los k primeros modos y el error de medición sf (fracción de la frecuencia)
-function trainFreqIA(camp, k, sf, prog) { // k: número de modos (f1…fk) o lista de índices de los modos medidos (p. ej. [0, 2, 3])
-  const idx = Array.isArray(k) ? k.slice() : Array.from({ length: k }, (_, i) => i); k = idx.length;
+function trainVecIA(camp, featOf, prog) { // featOf(row, rng) → vector de rasgos con ruido de medición
+  const k = featOf(camp.rows[0], mulberry(1)).length;
   const rows = camp.rows, Z = camp.zones.length, C = Z + 1, r = mulberry(11), byZ = {}; rows.forEach((row, i) => (byZ[row.zona] = byZ[row.zona] || []).push(i)); const tr = [], te = [];
   Object.values(byZ).forEach(ids => { const a = ids.slice(); for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(r() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } const nt = Math.round(a.length * .3); te.push(...a.slice(0, nt)); tr.push(...a.slice(nt)); });
-  const nz = (x, rr) => idx.map(j => x[j] + gaussR(rr) * sf), rr = mulberry(101), Xtr = [], ytr = [], str = [];
-  for (let rep = 0; rep < 3; rep++) tr.forEach(i => { Xtr.push(nz(rows[i].df, rr)); ytr.push(rows[i].zona + 1); str.push(rows[i].sev); });
+  const rr = mulberry(101), Xtr = [], ytr = [], str = [];
+  for (let rep = 0; rep < 3; rep++) tr.forEach(i => { Xtr.push(featOf(rows[i], rr)); ytr.push(rows[i].zona + 1); str.push(rows[i].sev); });
   const mean = new Array(k).fill(0), sd = new Array(k).fill(0); Xtr.forEach(x => x.forEach((v, j) => mean[j] += v / Xtr.length)); Xtr.forEach(x => x.forEach((v, j) => sd[j] += (v - mean[j]) ** 2 / Xtr.length)); sd.forEach((v, j) => sd[j] = Math.sqrt(v) || 1);
   const clf = trainForest(Xtr, ytr, { nTrees: 60, maxDepth: 16, minLeaf: 1, mtry: Math.max(1, Math.round(Math.sqrt(k))), seed: 3 }, true, C, q => prog && prog('Clasificador de zona', q));
   const dmg = ytr.map((y, i) => y > 0 ? i : -1).filter(i => i >= 0), Xs = dmg.map(i => Xtr[i].concat(Array.from({ length: Z }, (_, z) => z === ytr[i] - 1 ? 1 : 0))), ys = dmg.map(i => str[i]);
   const reg = trainForest(Xs, ys, { nTrees: 40, maxDepth: 14, minLeaf: 2, mtry: Math.max(1, Math.round((k + Z) / 3)), seed: 5 }, false, 1, q => prog && prog('Regresor de severidad', q));
-  const span = z => z < 0 ? -1 : camp.spanOfZone[z], rt = mulberry(201); let loc = 0, sp = 0, fp = 0, tn = 0; te.forEach(i => { const x = nz(rows[i].df, rt), pr = forestPredict(clf, x), c = pr.indexOf(Math.max(...pr)) - 1; if (c === rows[i].zona) loc++; if (span(c) === span(rows[i].zona)) sp++; if (rows[i].zona < 0) { if (c >= 0) fp++; else tn++; } });
+  const span = z => z < 0 ? -1 : camp.spanOfZone[z], rt = mulberry(201); let loc = 0, sp = 0, fp = 0, tn = 0; te.forEach(i => { const x = featOf(rows[i], rt), pr = forestPredict(clf, x), c = pr.indexOf(Math.max(...pr)) - 1; if (c === rows[i].zona) loc++; if (span(c) === span(rows[i].zona)) sp++; if (rows[i].zona < 0) { if (c >= 0) fp++; else tn++; } });
   const rs = mulberry(9), sub = []; for (let i = 0; i < Math.min(1500, Xtr.length); i++) sub.push(Xtr[Math.floor(rs() * Xtr.length)].map((v, j) => (v - mean[j]) / sd[j]));
   const nn = x => { const zz = x.map((v, j) => (v - mean[j]) / sd[j]); let b = Infinity; for (const s of sub) { let d = 0; for (let j = 0; j < k; j++) d += (zz[j] - s[j]) ** 2; if (d < b) b = d; } return Math.sqrt(b); };
-  const r3 = mulberry(300), dd = te.map(i => nn(nz(rows[i].df, r3))).sort((a, b) => a - b), thr = dd[Math.floor(.99 * (dd.length - 1))];
-  return { clf, reg, mean, sd, sub, oodThr: thr, k, sf, metrics: { localizacion: loc / te.length, vano: sp / te.length, falsaAlarma: fp / Math.max(1, fp + tn), nTest: te.length } };
+  const r3 = mulberry(300), dd = te.map(i => nn(featOf(rows[i], r3))).sort((a, b) => a - b), thr = dd[Math.floor(.99 * (dd.length - 1))];
+  return { clf, reg, mean, sd, sub, oodThr: thr, k, metrics: { localizacion: loc / te.length, vano: sp / te.length, falsaAlarma: fp / Math.max(1, fp + tn), nTest: te.length } };
 }
+function trainFreqIA(camp, k, sf, prog) { // k: número de modos (f1…fk) o lista de índices de los modos medidos (p. ej. [0, 2, 3])
+  const idx = Array.isArray(k) ? k.slice() : Array.from({ length: k }, (_, i) => i), I = trainVecIA(camp, (row, rr) => idx.map(j => row.df[j] + gaussR(rr) * sf), prog); I.sf = sf; return I; }
+// Rasgos con formas modales medidas: Δf de los modos sel.f (emparejados por MAC) + cambio de forma de los modos sel.s en los sensores sel.sens
+// (cada forma normalizada a su máximo en esos sensores; se resta la forma del modelo de referencia). ss: error de forma (fracción del máximo).
+function modalFeat(row, sh0, sel, sf, ss, rr) { const out = sel.f.map(j => row.dfm[j] + (rr ? gaussR(rr) * sf : 0));
+  sel.s.forEach(j => { const v = sel.sens.map(i => row.sh[j][i]), m0 = Math.max(...v.map(Math.abs)) || 1, vn = v.map(x => x / m0 + (rr ? gaussR(rr) * ss : 0)), mx = Math.max(...vn.map(Math.abs)) || 1;
+    const r0 = sel.sens.map(i => sh0[j][i]), q = Math.max(...r0.map(Math.abs)) || 1; vn.forEach((x, t) => out.push(x / mx - r0[t] / q)); });
+  return out; }
+function trainModalIA(camp, sel, sf, ss, prog) { if (!camp.rows[0].sh) throw new Error('La campaña no tiene formas modales.'); const I = trainVecIA(camp, (row, rr) => modalFeat(row, camp.sh0, sel, sf, ss, rr), prog); I.sel = sel; I.sf = sf; I.ss = ss; return I; }
+// vector medido en el mismo formato: fm (Hz por modo del modelo), shapes {modo: [valores en sel.sens]}
+function modalMeasFeat(camp, sel, fm, shapes) { const out = sel.f.map(j => fm[j] / camp.f0[j] - 1);
+  sel.s.forEach(j => { const v = shapes[j], r0 = sel.sens.map(i => camp.sh0[j][i]), sg = Math.sign(v.reduce((a, x, t) => a + x * r0[t], 0)) || 1, mx = Math.max(...v.map(Math.abs)) || 1, q = Math.max(...r0.map(Math.abs)) || 1;
+    v.forEach((x, t) => out.push(sg * x / mx - r0[t] / q)); });
+  return out; }
 function freqPredict(I, Z, x) { const pr = forestPredict(I.clf, x), o = pr.map((p, i) => [p, i - 1]).sort((a, b) => b[0] - a[0]), cls = o[0][1];
   const zz = x.map((v, j) => (v - I.mean[j]) / I.sd[j]); let b = Infinity; for (const s of I.sub) { let d = 0; for (let j = 0; j < zz.length; j++) d += (zz[j] - s[j]) ** 2; if (d < b) b = d; } const dist = Math.sqrt(b);
   const sev = cls >= 0 ? forestPredict(I.reg, x.concat(Array.from({ length: Z }, (_, z) => z === cls ? 1 : 0)))[0] : null;
@@ -757,6 +778,29 @@ function liveLoad(fr, c, opts) { const I = influence(fr, c), nl = Math.max(1, op
   const defl = I.DEF.map(y => { const e = hl93Extremes(I.s, y); return Math.min(0, e.min) * k; });
   return { el, s: I.s, defl, nl, mp, IL: I.IL, DEF: I.DEF, dcDef: I.nodes.map(n => I.Udc[3 * n + 1]) }; }
 
+/* ======================= Calibración del modelo con mediciones (actualización de modelo) ======================= */
+// Nelder-Mead acotado sobre parámetros normalizados a [0, 1]
+function nelderMead(fun, x0, { iters = 160, step = .15, tol = 1e-7 } = {}) { const n = x0.length, cl = x => x.map(v => Math.min(1, Math.max(0, v))), F = x => fun(cl(x));
+  let S = [x0.slice()]; for (let i = 0; i < n; i++) { const x = x0.slice(); x[i] = x[i] + (x[i] + step <= 1 ? step : -step); S.push(x); } let V = S.map(F), it = 0;
+  for (; it < iters; it++) { const o = V.map((v, i) => i).sort((a, b) => V[a] - V[b]); S = o.map(i => S[i]); V = o.map(i => V[i]); if (Math.abs(V[n] - V[0]) < tol) break;
+    const c = new Array(n).fill(0); for (let i = 0; i < n; i++) for (let j = 0; j < n; j++) c[j] += S[i][j] / n; const P = (t) => c.map((v, j) => v + t * (S[n][j] - v));
+    const xr = P(-1), fr = F(xr); if (fr < V[0]) { const xe = P(-2), fe = F(xe); if (fe < fr) { S[n] = xe; V[n] = fe; } else { S[n] = xr; V[n] = fr; } }
+    else if (fr < V[n - 1]) { S[n] = xr; V[n] = fr; } else { const xc = fr < V[n] ? P(-.5) : P(.5), fc = F(xc); if (fc < Math.min(fr, V[n])) { S[n] = xc; V[n] = fc; } else { for (let i = 1; i <= n; i++) { S[i] = S[i].map((v, j) => S[0][j] + .5 * (v - S[0][j])); V[i] = F(S[i]); } } } }
+  const k = V.indexOf(Math.min(...V)); return { x: cl(S[k]), v: V[k], iters: it }; }
+// meas: { f: {j: Hz}, sh: {j: [valores en sens]}, sens: [índices de sensor] } con j = índice del modo en el modelo nominal
+// params: [{ k, min, max }] sobre P (mismas unidades que P). Objetivo: Σ (f_mod/f_med − 1)² + β Σ (1 − MAC)², emparejando por MAC en los sensores.
+function calibrateModel(type, G, P, meas, params, { beta = .05, iters = 160, prog } = {}) {
+  const fr0 = build(type, G, P), sensAll = sensorsOf(fr0), sd = (meas.sens || []).map(i => sensAll[i].dof), js = Object.keys(meas.f).map(Number), hasSh = meas.sh && sd.length >= 3;
+  const dot = (a, b) => { let s = 0; for (let i = 0; i < a.length; i++) s += a[i] * b[i]; return s; }, mac = (a, b) => dot(a, b) ** 2 / (dot(a, a) * dot(b, b) || 1), NM = Math.max(8, Math.max(...js) + 3);
+  const P0 = params.map(p => P[p.k]), toX = P0.map((v, i) => (v - params[i].min) / (params[i].max - params[i].min)), toP = x => { const q = Object.assign({}, P); params.forEach((p, i) => q[p.k] = p.min + x[i] * (p.max - p.min)); return q; };
+  const evalP = q => { const md = modal(build(type, G, q), NM), used = new Set(), out = {}; let J = 0;
+    js.forEach(j => { let best = -1, b = j; for (let k = 0; k < md.f.length; k++) { if (used.has(k)) continue; const m = hasSh ? mac(meas.sh[j], sd.map(d => md.phi[k][d])) : 1, df = Math.abs(md.f[k] / meas.f[j] - 1), sc = (hasSh ? m : 0) - 3 * df; if (sc > best) { best = sc; b = k; } }
+      used.add(b); const m = hasSh ? mac(meas.sh[j], sd.map(d => md.phi[b][d])) : null; out[j] = { f: md.f[b], mac: m, k: b }; J += (md.f[b] / meas.f[j] - 1) ** 2 + (hasSh ? beta * (1 - m) ** 2 : 0); });
+    return { J, out }; };
+  let n = 0; const before = evalP(P), r = nelderMead(x => { n++; if (prog && n % 10 === 0) prog(Math.min(1, n / (iters * 1.6))); return evalP(toP(x)).J; }, toX.map(v => Math.min(1, Math.max(0, v))), { iters });
+  const Pc = toP(r.x), after = evalP(Pc), atBound = params.filter((p, i) => r.x[i] < .01 || r.x[i] > .99).map(p => p.k);
+  return { P: Pc, params: params.map((p, i) => ({ ...p, v0: P0[i], v: Pc[p.k] })), before, after, evals: n, atBound }; }
+
 /* ======================= Deterioro (Markov) y plan de mantenimiento ======================= */
 const CS_WF = [1, 2 / 3, 1 / 3, 0];
 const pTrans = t => t > 0 ? 1 - Math.pow(.5, 1 / t) : 0; // probabilidad anual de pasar al estado siguiente; t = años medianos
@@ -777,7 +821,7 @@ function maintenancePlan(els, { years = 20, budget = 0, thr = 60 } = {}) { const
   const life = arr => { const k = arr.findIndex(v => v != null && v < thr); return k < 0 ? null : k; };
   return { plan, hi, hi0, total, vidaSin: life(hi0), vidaCon: life(hi) }; }
 
-return { fftInPlace, detrend, csdMatrix, fdd, efdd, fddModes, pickPeaks, staticPrep, fiberStress, influence, HL93, hl93Extremes, liveLoad, CS_WF, pTrans, markovStep, elemHI, bridgeHI, calibrateAlpha, maintenancePlan, Dxf, bridgePlans, sensorsOf, readAccel, sdof, spectrum, seismic, freqCampaign, trainFreqIA, freqPredict, build, modal, archAll, parseCloud, orient, bounds, deckLevel, groundLevel, detectSupports, spansOf, envelope, fitParabola, polyval, archGeometry, spanCoverage, MATERIALS,
+return { fftInPlace, detrend, csdMatrix, fdd, efdd, fddModes, pickPeaks, staticPrep, fiberStress, influence, HL93, hl93Extremes, liveLoad, CS_WF, pTrans, markovStep, elemHI, bridgeHI, calibrateAlpha, maintenancePlan, Dxf, bridgePlans, sensorsOf, readAccel, sdof, spectrum, seismic, freqCampaign, calibrateModel, nelderMead, trainFreqIA, trainVecIA, trainModalIA, modalFeat, modalMeasFeat, freqPredict, build, modal, archAll, parseCloud, orient, bounds, deckLevel, groundLevel, detectSupports, spansOf, envelope, fitParabola, polyval, archGeometry, spanCoverage, MATERIALS,
   build, sensorsOf, modal, signConvention, features, campaign, trainIA, forestPredict, LEVELS, noisy, mulberry, gaussR, quantile, median };
 })();
 if (typeof module !== 'undefined') module.exports = OPC;

@@ -40,7 +40,7 @@
       formato: 'PuenteGemelo', version: 1, guardado: new Date().toISOString(), nombre: OP.name,
       nube: { puntos: m, total: c.total, usados: c.kept, offset: c.offset, eje_vertical: OP.up || 'z', escala: OP.unit || 1, xyz_float32_base64: b64(new Uint8Array(f.buffer)) },
       estado: { step: OP.step, deckTop: OP.deckTop, deckThick: OP.deckThick, ground: OP.ground, zSlab: OP.zSlab, supports: OP.supports, ends: OP.ends, type: OP.type, band: OP.band, minPts: OP.minPts, geo: OP.geo, mat: OP.mat, P: OP.P, nz: OP.nz, dx: OP.dx, camp: OP.camp, ia: OP.ia },
-      expediente: typeof PG !== 'undefined' ? PG.I[K] || null : null, mantenimiento: typeof PG !== 'undefined' ? PG.det[K] || null : null
+      expediente: typeof PG !== 'undefined' ? PG.I[K] || null : null, mantenimiento: typeof PG !== 'undefined' ? PG.det[K] || null : null, historia: typeof PG !== 'undefined' ? PG.H[K] || null : null, calibracion: typeof PG !== 'undefined' ? PG.cal[K] || null : null
     };
     const nombre = (OP.name || 'puente').replace(/\.[a-z0-9]+$/i, '').replace(/[^\wáéíóúñÁÉÍÓÚÑ -]+/g, '').trim() || 'puente';
     download(nombre + '.puente', 'application/json', JSON.stringify(P, plain));
@@ -55,7 +55,7 @@
       OP.O = OPC.orient(OP.cloud, OP.up, OP.unit);
       if (OP.geo && OP.P) { try { OP.model = OPC.build(OP.type, opModelG(), OP.P); OP.modes = OPC.modal(OP.model, 6); OP.modes.ms = 0; OP.modeSel = 0; } catch (e) { OP.model = OP.modes = null; } }
       if (!OP.modes) { OP.camp = OP.ia = null; }
-      if (typeof PG !== 'undefined') { const K = 'tu:' + (OP.name || 'sin nombre'); if (P.expediente) PG.I[K] = P.expediente; if (P.mantenimiento) PG.det[K] = P.mantenimiento; pgSave(); }
+      if (typeof PG !== 'undefined') { const K = 'tu:' + (OP.name || 'sin nombre'); if (P.expediente) PG.I[K] = P.expediente; if (P.mantenimiento) PG.det[K] = P.mantenimiento; if (P.historia) { PG.H[K] = P.historia; PG_DB.set('hist', PG.H); } if (P.calibracion) { PG.cal[K] = P.calibracion; pgSaveCal(); } pgSave(); }
       OP.step = Math.min(OP.step || 1, OP.ia ? 7 : OP.modes ? 5 : OP.geo ? 4 : 2);
       inicio(false); show('tupuente'); toast(`Proyecto «${P.nombre}» abierto.`);
     } catch (e) { toast('No se pudo abrir el proyecto: ' + e.message); }

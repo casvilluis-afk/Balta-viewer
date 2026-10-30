@@ -78,7 +78,19 @@ ok('Modelo C: 18 zonas de daño', frB.zoneDefs.length === 18);
   const pl = OPC.maintenancePlan([{ id: 'Arco', w: 10, q: 100, d: [.5, .3, .15, .05], T, acciones: [{ nombre: 'Reparación', costo: 50, de: [2, 3], a: 0 }] }], { years: 10, budget: 2000, thr: 70 });
   ok('Plan de mantenimiento: mantiene el índice sobre el umbral', pl.plan.length > 0 && Math.min(...pl.hi) >= 70 && pl.hi0[pl.hi0.length - 1] < 70, `con plan mín ${Math.min(...pl.hi).toFixed(0)}, sin plan final ${pl.hi0[pl.hi0.length - 1].toFixed(0)}`); }
 
-// 11. Solver 2D de la plataforma contra OpenSees: se verifica en el navegador (pestaña Validación) con los 450 casos de data/fem_525.csv
+// 12. Calibración del modelo (prueba ciega): puente "real" con E 88 GPa, peralte 0,66 m y pilares 6,5 GPa; se miden 5 modos con formas en los 9 sensores
+{ const truth = Object.assign({}, PB, { E: 88, rib_h: .66, E_pier: 6.5 }), frT = OPC.build('arco', GB, truth), mT = OPC.modal(frT, 8), sens = OPC.sensorsOf(frB), m0 = OPC.modal(frB, 8);
+  const dot = (a, b) => a.reduce((s, v, i) => s + v * b[i], 0), meas = { f: {}, sh: {}, sens: [0, 1, 2, 3, 4, 5, 6, 7, 8] };
+  [0, 2, 3, 4, 5].forEach(j => { const v0 = sens.map(s => m0.phi[j][s.dof]); let best = -1, b = j; mT.phi.forEach((ph, k) => { const v = sens.map(s => ph[s.dof]), m = dot(v, v0) ** 2 / (dot(v, v) * dot(v0, v0)); if (m > best) { best = m; b = k; } }); meas.f[j] = mT.f[b]; meas.sh[j] = sens.map(s => mT.phi[b][s.dof]); });
+  const r = OPC.calibrateModel('arco', GB, PB, meas, [{ k: 'E', min: 66, max: 111 }, { k: 'rib_h', min: .55, max: .85 }, { k: 'E_pier', min: 3, max: 10 }]), v = k => r.P[k];
+  ok('Calibración ciega: recupera E y peralte (±3 %) y E de pilares (±10 %)', Math.abs(v('E') / 88 - 1) < .03 && Math.abs(v('rib_h') / .66 - 1) < .03 && Math.abs(v('E_pier') / 6.5 - 1) < .1, `E ${v('E').toFixed(1)} GPa · peralte ${v('rib_h').toFixed(3)} m · pilares ${v('E_pier').toFixed(2)} GPa · ${r.evals} evaluaciones`); }
+
+// 13. IA con formas modales medidas frente a IA solo con frecuencias (campaña reducida del modelo C, error medio)
+{ const camp = OPC.freqCampaign('arco', GB, PB, { nPerZone: 30, nUndamaged: 60, unc: .05, seed: 7, NM: 8 }), all = [0, 1, 2, 3, 4, 5], sens = [0, 1, 2, 3, 4, 5, 6, 7, 8];
+  const IF = OPC.trainModalIA(camp, { f: all, s: [], sens }, .005, .05), IM = OPC.trainModalIA(camp, { f: all, s: all, sens }, .005, .05);
+  ok('IA: las formas modales mejoran la localización', IM.metrics.localizacion > IF.metrics.localizacion + .15, `zona exacta ${(100 * IF.metrics.localizacion).toFixed(0)} % → ${(100 * IM.metrics.localizacion).toFixed(0)} % · vano ${(100 * IF.metrics.vano).toFixed(0)} % → ${(100 * IM.metrics.vano).toFixed(0)} %`); }
+
+// 14. Solver 2D de la plataforma contra OpenSees: se verifica en el navegador (pestaña Validación) con los 450 casos de data/fem_525.csv
 ok('Dataset OpenSees presente', fs.existsSync(path.join(P, 'data', 'fem_525.csv')));
 
 console.log(fails ? `\n${fails} prueba(s) fallaron` : '\nTodas las pruebas pasaron');

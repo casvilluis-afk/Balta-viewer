@@ -31,7 +31,7 @@ button{font:inherit;color:inherit}
 .mark span{font:12px var(--f-ui);color:var(--ink-2)}
 .menu{display:flex;gap:2px;overflow-x:auto;scrollbar-width:none;min-width:0;padding-top:6px}
 .menu::-webkit-scrollbar{display:none}
-.menu button{flex:none;background:#eef0f2;border:1px solid var(--rule);border-bottom:0;border-radius:3px 3px 0 0;padding:5px 10px;font:13px var(--f-ui);color:var(--ink-2);cursor:pointer;position:relative;top:1px}
+.menu button{flex:none;background:#eef0f2;border:1px solid var(--rule);border-bottom:0;border-radius:3px 3px 0 0;padding:5px 7px;font:13px var(--f-ui);color:var(--ink-2);cursor:pointer;position:relative;top:1px}
 .menu button:hover{background:#f7f8f9;color:var(--ink)}
 .menu button[aria-selected="true"]{color:var(--ink);background:var(--desk);font-weight:600;z-index:1;box-shadow:inset 0 2px 0 var(--accent)}
 .menu button .k{font:12px var(--f-ui);color:var(--ink-3);margin-right:5px}
@@ -181,8 +181,9 @@ details summary::-webkit-details-marker{color:var(--ink-3)}
 
 <div class="app">
   <header class="bar">
-    <div class="mark"><b>Puente Balta · Sistema de evaluación e inspección</b><span>Gemelo digital · río Rímac, Lima · versión 2.6</span></div>
+    <div class="mark"><b>Puente Balta · Sistema de evaluación e inspección</b><span>Gemelo digital · río Rímac, Lima · versión 2.7</span></div>
     <nav class="menu" role="tablist" aria-label="Herramientas">
+      <button role="tab" data-v="estado"><span class="k">0</span>Estado</button>
       <button role="tab" data-v="modelo"><span class="k">1</span>Modelo</button>
       <button role="tab" data-v="simulacion"><span class="k">2</span>Simulación</button>
       <button role="tab" data-v="comparacion"><span class="k">3</span>Comparación</button>
@@ -213,10 +214,10 @@ import {OrbitControls} from 'three/addons/controls/OrbitControls.js';
 window.BaltaThree={THREE,GLTFLoader,OrbitControls};
 window.dispatchEvent(new Event('three-ready'));
 </script>
-<script src="v3d.js?v=2.6.0"></script>
-<script src="op_core.js?v=2.6.0"></script>
-<script src="op_ui.js?v=2.6.0"></script>
-<script src="pg_mod.js?v=2.6.0"></script>
+<script src="v3d.js?v=2.7.0"></script>
+<script src="op_core.js?v=2.7.0"></script>
+<script src="op_ui.js?v=2.7.0"></script>
+<script src="pg_mod.js?v=2.7.0"></script>
 <script>
 "use strict";
 const MODEL_URL='../models/puente-balta-v12.glb';
@@ -497,7 +498,7 @@ function elevation({res=null,amp=0,highlight=null,colorBy=null,sensors=false,box
 function legendRow(items,x,y){return items.map(([type,col,label],i)=>{const xx=x,yy=y+i*13;const mk=type==='line'?`<line x1="${xx}" x2="${xx+18}" y1="${yy-3}" y2="${yy-3}" stroke="${col}" stroke-width="2"/>`:`<rect x="${xx}" y="${yy-8}" width="18" height="8" fill="${col}"/>`;return mk+`<text x="${xx+24}" y="${yy}">${label}</text>`;}).join('');}
 
 /* ================= Estado y navegación ================= */
-const VIEWS=['modelo','simulacion','comparacion','dinamica','inspeccion','validacion','registro','tupuente','oma','inspmtc','cargahl','deterioro'];
+const VIEWS=['estado','modelo','simulacion','comparacion','dinamica','inspeccion','validacion','registro','tupuente','oma','inspmtc','cargahl','deterioro'];
 const S={view:'modelo',zone:'arco_a2_a3',q:100,E:50,target:'arco_a2_a3',pct:.3,noise:.005,m3d:'3d',
   A:{q:100,E:50,target:'sin_danio',pct:0},B:{q:100,E:50,target:'arco_a2_a3',pct:.3},W:{sens:.3,geo:.3,det:.2,dem:.2,cond:.2}};
 let DATA_READY=false,lastSolveMs=0;
@@ -506,7 +507,7 @@ function show(v){if(!VIEWS.includes(v))v='modelo';S.view=v;if(S.vpFull){S.vpFull
   try{history.replaceState(null,'','#'+v);}catch(e){}
   if(DATA_READY)render();}
 document.querySelectorAll('.menu button').forEach(b=>b.addEventListener('click',()=>show(b.dataset.v)));
-function render(){({modelo:vModelo,simulacion:vSim,comparacion:vCmp,dinamica:vDin,inspeccion:vInsp,validacion:vVal,registro:vReg,tupuente:vTu,oma:vOma,inspmtc:vInspMTC,cargahl:vHL,deterioro:vDet})[S.view]();statusBar();}
+function render(){({modelo:vModelo,simulacion:vSim,comparacion:vCmp,dinamica:vDin,inspeccion:vInsp,validacion:vVal,registro:vReg,tupuente:vTu,estado:vEstado,oma:vOma,inspmtc:vInspMTC,cargahl:vHL,deterioro:vDet})[S.view]();statusBar();}
 function statusBar(extra=''){const v=PROV.verificacion;
   $('#status').innerHTML=`<span class="okdot">Solver 2D verificado · OpenSees ${v.opensees} · ${v.cases} casos</span><span>q ${fmt(S.q,0)} kN/m</span><span>E ${fmt(S.E,0)} GPa</span><span>Último cálculo ${fmt(lastSolveMs,0)} ms</span>${extra}<span class="dim">Ñuñuvero · Tarazona · UPC 2026</span>`;}
 function timedSolve(sc){const t=performance.now(),r=solve(sc);lastSolveMs=performance.now()-t;return r;}
@@ -994,9 +995,9 @@ function open3dSis(){const r=S.sis.res;if(!r)return;const A=V3D.adaptMC(r.fr),se
 /* ---------- IA con frecuencias del usuario (medidas o calculadas) ---------- */
 // Sin datos del usuario la plataforma sigue simulando la medición; con sus frecuencias, se usa una IA entrenada solo con Δf del mismo modelo.
 const FQ={};let FQ_SRC=null;
-async function fqWorker(){if(!FQ_SRC)FQ_SRC=await fetch('op_core.js?v=2.6.0').then(r=>{if(!r.ok)throw new Error('No se encontró op_core.js');return r.text();});
+async function fqWorker(){if(!FQ_SRC)FQ_SRC=await fetch('op_core.js?v=2.7.0').then(r=>{if(!r.ok)throw new Error('No se encontró op_core.js');return r.text();});
   const src=FQ_SRC+`\nself.onmessage=e=>{const m=e.data;try{if(m.kind==='camp'){const c=OPC.freqCampaign(m.type,m.G,m.P,m.opts,(q,s)=>self.postMessage({kind:'prog',stage:'Simulaciones de daño',q,s}));self.postMessage({kind:'camp',camp:c});}
-   else{const I=OPC.trainFreqIA(m.camp,m.k,m.sf,(st,q)=>self.postMessage({kind:'prog',stage:st,q}));self.postMessage({kind:'ia',ia:I});}}catch(err){self.postMessage({kind:'error',msg:err.message});}};`;
+   else if(m.kind==='trainM'){const I=OPC.trainModalIA(m.camp,m.sel,m.sf,m.ss,(st,q)=>self.postMessage({kind:'prog',stage:st,q}));self.postMessage({kind:'ia',ia:I});}else{const I=OPC.trainFreqIA(m.camp,m.k,m.sf,(st,q)=>self.postMessage({kind:'prog',stage:st,q}));self.postMessage({kind:'ia',ia:I});}}catch(err){self.postMessage({kind:'error',msg:err.message});}};`;
   return new Worker(URL.createObjectURL(new Blob([src],{type:'text/javascript'})));}
 function fqRun(ctx,msg,onProg){return new Promise(async(res,rej)=>{let w;try{w=await fqWorker();}catch(e){rej(e);return;}
   w.onmessage=ev=>{const m=ev.data;if(m.kind==='prog')onProg(m);else if(m.kind==='error'){w.terminate();rej(new Error(m.msg));}else{w.terminate();res(m);}};w.postMessage(msg);});}
@@ -1400,7 +1401,7 @@ function parseCSV(t){const [h,...ls]=t.trim().split(/\r?\n/);const k=h.split(','
   try{const get=p=>fetch(p).then(r=>{if(!r.ok)throw new Error(p);return r;});
     const [m,rf,svm,met,prov,fem,mcd,miac]=await Promise.all([get('data/modelo_2d.json').then(r=>r.json()),get('data/rf_surrogate.json').then(r=>r.json()),get('data/svm_inverse.json').then(r=>r.json()),get('data/metrics_ia.json').then(r=>r.json()),get('data/procedencia.json').then(r=>r.json()),get('data/fem_525.csv').then(r=>r.text()),get('data/modelo_c.json').then(r=>r.json()),get('data/metrics_ia_c.json').then(r=>r.json())]);
     M2=prepModel(m);RF=rf;SVM=svm;MET=met;PROV=prov;FEM=parseCSV(fem);MCD=mcd;MIAC=miac;computeSensitivity();DATA_READY=true;
-    const h=(location.hash||'').slice(1);show(VIEWS.includes(h)?h:'modelo');if(S.proto)protoBar();
+    const h=(location.hash||'').slice(1);show(VIEWS.includes(h)?h:'estado');if(S.proto)protoBar();
   }catch(e){$('#canvas').innerHTML=`<div class="msg crit"><b>No se pudieron cargar los datos.</b> Falta el archivo ${esc(e.message)}; publique la carpeta data/ junto a la página.</div>`;}
 })();
 </script>
