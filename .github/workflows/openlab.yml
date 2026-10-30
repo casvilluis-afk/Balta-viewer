@@ -1,0 +1,55 @@
+# Datos públicos del puente openLAB (TU Dresden, Zenodo 10782663): exploración y extracción de ventanas de vibración + temperatura para probar PuenteGemelo.
+name: Datos openLAB
+on:
+  workflow_dispatch:
+    inputs:
+      modo:
+        description: 'explorar | extraer'
+        default: 'explorar'
+      dias:
+        description: 'Archivos a extraer (separados por ;), solo en modo extraer'
+        default: ''
+permissions:
+  contents: write
+jobs:
+  datos:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/setup-python@v5
+        with: { python-version: '3.12' }
+      - run: pip install numpy pandas requests
+      - name: Procesar
+        env: { MODO: '${{ github.event.inputs.modo }}', DIAS: '${{ github.event.inputs.dias }}' }
+        run: |
+          mkdir -p out
+          python - <<'PY'
+          import os, json, requests, io, numpy as np, pandas as pd
+          rec = requests.get('https://zenodo.org/api/records/10782663', timeout=60).json()
+          meta = rec.get('metadata', {}); files = rec.get('files', [])
+          info = {'titulo': meta.get('title'), 'licencia': (meta.get('license') or {}), 'doi': rec.get('doi'), 'creadores': [c.get('name') for c in meta.get('creators', [])],
+                  'descripcion': (meta.get('description') or '')[:3000], 'archivos': [{'key': f['key'], 'size': f['size']} for f in files]}
+          def get(key):
+              f = next(f for f in files if f['key'] == key); r = requests.get(f['links']['self'], timeout=600); r.raise_for_status(); return r.content
+          if os.environ['MODO'] == 'explorar':
+              csvs = [f for f in files if f['key'].lower().endswith('.csv')]
+              if csvs:
+                  k = sorted(csvs, key=lambda f: f['size'])[len(csvs)//2]['key']; raw = get(k); txt = raw[:4000].decode('latin1')
+                  info['muestra'] = {'archivo': k, 'cabecera': txt.splitlines()[:12]}
+                  df = pd.read_csv(io.BytesIO(raw), sep=None, engine='python', nrows=None)
+                  info['muestra'].update({'filas': len(df), 'columnas': list(df.columns), 'describe': json.loads(df.describe().to_json())})
+                  t = pd.to_datetime(df.iloc[:, 0], errors='coerce'); dt = t.diff().dt.total_seconds()
+                  info['muestra']['dt'] = {'mediana': float(dt.median()), 'saltos>1s': int((dt > 1).sum()), 'inicio': str(t.iloc[0]), 'fin': str(t.iloc[-1])}
+                  gaps = t[dt > 1]; info['muestra']['bloques'] = [str(x) for x in gaps.head(20)]
+              else:
+                  for f in files:
+                      if f['size'] < 5e6 and not f['key'].endswith('.zip'): info.setdefault('textos', {})[f['key']] = get(f['key'])[:3000].decode('latin1', 'replace')
+          json.dump(info, open('out/openlab_info.json', 'w'), indent=1, ensure_ascii=False, default=str); print(json.dumps(info, indent=1, ensure_ascii=False, default=str)[:6000])
+          PY
+      - uses: softprops/action-gh-release@v2
+        with:
+          tag_name: datos-openlab
+          name: Datos de prueba · puente openLAB (TU Dresden, Zenodo 10782663)
+          prerelease: true
+          make_latest: false
+          body: Extractos del conjunto público openLAB para probar PuenteGemelo. Ver licencia y autores en openlab_info.json y en Zenodo 10782663.
+          files: out/*
