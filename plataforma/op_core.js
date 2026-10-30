@@ -457,7 +457,88 @@ function trainIA(camp, prog) {
   return { clf, reg, mean, sd, sub, oodThr: thr, metrics, nTrain: tr.length, nTest: te.length };
 }
 
-return { archAll, parseCloud, orient, bounds, deckLevel, groundLevel, detectSupports, spansOf, envelope, fitParabola, polyval, archGeometry, spanCoverage, MATERIALS,
+/* ---------- registros sísmicos (CISMID, IGP u otros en texto) ---------- */
+// Lee columnas numéricas de un archivo de texto. Busca el intervalo de muestreo en el encabezado (dt, delta, intervalo, muestreo, sps, Hz).
+function readAccel(text) {
+  const lines = text.split(/\r?\n/), head = [], rows = [];
+  for (const l of lines) { const t = l.trim(); if (!t) continue; const parts = t.replace(/[;,\t]+/g, ' ').split(/\s+/); const nums = parts.map(Number);
+    if (parts.length >= 1 && parts.length <= 6 && nums.every(Number.isFinite)) rows.push(nums); else if (!rows.length || rows.length < 5) head.push(t); }
+  if (rows.length < 50) throw new Error('No se encontraron columnas numéricas suficientes (al menos 50 filas).');
+  const nc = rows.map(r => r.length).reduce((a, b, _, arr) => { const c = {}; arr.forEach(x => c[x] = (c[x] || 0) + 1); return +Object.entries(c).sort((p, q) => q[1] - p[1])[0][0]; }, 0);
+  const R = rows.filter(r => r.length === nc), cols = Array.from({ length: nc }, (_, k) => Float64Array.from(R, r => r[k]));
+  const H = head.join('\n'); let dt = null, how = '';
+  const m1 = H.match(/(?:\bdt\b|delta\s*t|intervalo(?:\s+de\s+muestreo)?|time\s*step|sampling\s*interval)\s*[:=]?\s*([0-9]*[.,]?[0-9]+)\s*(ms|s)?/i);
+  const m2 = H.match(/(?:muestreo|sampling(?:\s*rate)?|frecuencia\s+de\s+muestreo|sps|samples\s*per\s*second)\s*[:=]?\s*([0-9]+[.,]?[0-9]*)\s*(hz|sps|m\/s)?/i);
+  if (m1) { dt = parseFloat(m1[1].replace(',', '.')) * (m1[2] && m1[2].toLowerCase() === 'ms' ? 1e-3 : 1); how = 'encabezado (intervalo)'; }
+  else if (m2) { const fs = parseFloat(m2[1].replace(',', '.')); if (fs > 1) { dt = 1 / fs; how = 'encabezado (frecuencia de muestreo)'; } }
+  // si la primera columna crece de forma uniforme es el tiempo
+  let tcol = -1; if (nc >= 2) { const c = cols[0], d = c[1] - c[0]; let ok = d > 0; for (let i = 2; i < Math.min(c.length, 2000) && ok; i++) if (Math.abs((c[i] - c[i - 1]) - d) > 1e-6 + 1e-3 * d) ok = false; if (ok) { tcol = 0; if (!dt) { dt = d; how = 'columna de tiempo'; } } }
+  return { cols, tcol, dt, how, header: H.slice(0, 1500), n: R.length };
+}
+// Integración exacta por tramos lineales (Nigam y Jennings) de u'' + 2ζω u' + ω² u = −a(t)
+function nigam(w, z, dt) {
+  const wd = w * Math.sqrt(1 - z * z), e = Math.exp(-z * w * dt), s = Math.sin(wd * dt), c = Math.cos(wd * dt), k = w * w, r = Math.sqrt(1 - z * z);
+  return { A: e * (z / r * s + c), B: e * s / wd,
+    C: (2 * z / (w * dt) + e * (((1 - 2 * z * z) / (wd * dt) - z / r) * s - (1 + 2 * z / (w * dt)) * c)) / k,
+    D: (1 - 2 * z / (w * dt) + e * ((2 * z * z - 1) / (wd * dt) * s + 2 * z / (w * dt) * c)) / k,
+    A1: -e * (w / r * s), B1: e * (c - z / r * s),
+    C1: (-1 / dt + e * ((w / r + z / (dt * r)) * s + c / dt)) / k,
+    D1: (1 - e * (z / r * s + c)) / (k * dt) };
+}
+function sdof(ag, dt, w, z) { const q = nigam(w, z, dt), n = ag.length, u = new Float64Array(n); let x = 0, v = 0;
+  for (let i = 0; i < n - 1; i++) { const p0 = -ag[i], p1 = -ag[i + 1], xn = q.A * x + q.B * v + q.C * p0 + q.D * p1, vn = q.A1 * x + q.B1 * v + q.C1 * p0 + q.D1 * p1; x = xn; v = vn; u[i + 1] = x; } return u; }
+function spectrum(ag, dt, z, T) { return T.map(t => { const w = 2 * Math.PI / t, u = sdof(ag, dt, w, z); let m = 0; for (let i = 0; i < u.length; i++) m = Math.max(m, Math.abs(u[i])); return { T: t, Sd: m, Sa: w * w * m }; }); }
+// Superposición modal: excitación uniforme en la base; aY longitudinal y aZ vertical en m/s² (cualquiera puede ser null)
+function seismic(fr, md, aY, aZ, dt, z) {
+  const N = fr.nodes.length, nd = 3 * N, Md = new Float64Array(nd); for (let i = 0; i < N; i++) { Md[3 * i] = Md[3 * i + 1] = fr.mass[i]; Md[3 * i + 2] = fr.mass[i] * 1e-4; }
+  let mt = 0; for (let i = 0; i < N; i++) mt += Md[3 * i];
+  const n = (aY || aZ).length, modes = md.phi.map((u, k) => { let mm = 0, LY = 0, LZ = 0; for (let i = 0; i < nd; i++) mm += u[i] * u[i] * Md[i]; for (let i = 0; i < N; i++) { LY += u[3 * i] * Md[3 * i]; LZ += u[3 * i + 1] * Md[3 * i + 1]; }
+    const GY = LY / mm, GZ = LZ / mm, w = 2 * Math.PI * md.f[k], q = new Float64Array(n);
+    if (aY) { const d = sdof(aY, dt, w, z); for (let i = 0; i < n; i++) q[i] += GY * d[i]; }
+    if (aZ) { const d = sdof(aZ, dt, w, z); for (let i = 0; i < n; i++) q[i] += GZ * d[i]; }
+    let qm = 0; for (let i = 0; i < n; i++) qm = Math.max(qm, Math.abs(q[i]));
+    return { f: md.f[k], GY, GZ, mY: LY * LY / mm / mt, mZ: LZ * LZ / mm / mt, q, qmax: qm }; });
+  // historia de desplazamientos nodales (y, z) y sus máximos
+  const peakY = new Float64Array(N), peakZ = new Float64Array(N); let gmax = 0, tmax = 0, nmax = -1;
+  const M = modes.length; for (let i = 0; i < n; i++) for (let j = 0; j < N; j++) { let y = 0, zz = 0; for (let k = 0; k < M; k++) { const ph = md.phi[k], qi = modes[k].q[i]; y += ph[3 * j] * qi; zz += ph[3 * j + 1] * qi; }
+    const ay = Math.abs(y), az = Math.abs(zz); if (ay > peakY[j]) peakY[j] = ay; if (az > peakZ[j]) peakZ[j] = az; const h = Math.hypot(y, zz); if (h > gmax) { gmax = h; tmax = i * dt; nmax = j; } }
+  return { modes, peakY, peakZ, gmax, tmax, nmax, n, dt, cumY: modes.reduce((s, m) => s + m.mY, 0), cumZ: modes.reduce((s, m) => s + m.mZ, 0) };
+}
+
+/* ---------- IA solo con frecuencias (cuando el usuario entrega frecuencias medidas o calculadas) ---------- */
+// Campaña: Δf de los NM primeros modos ordenados por frecuencia (sin formas modales, como en una medición de solo frecuencias).
+function freqCampaign(type, G, p, opts, prog) {
+  const r = mulberry(opts.seed || 7), NM = opts.NM || 8, fr0 = build(type, G, p), f0 = modal(fr0, NM).f, Z = fr0.zoneDefs.length;
+  const jobs = []; for (let i = 0; i < opts.nUndamaged; i++) jobs.push(-1); for (let z = 0; z < Z; z++) for (let i = 0; i < opts.nPerZone; i++) jobs.push(z);
+  const rows = [], t0 = Date.now();
+  jobs.forEach((zz, n) => { const pp = Object.assign({}, p, { E: p.E * (1 + gaussR(r) * opts.unc / 2), w_deck: p.w_deck * (1 + gaussR(r) * opts.unc / 2) });
+    const fr = build(type, G, pp), d = zz < 0 ? 0 : 0.05 + r() * 0.55, esc = new Float64Array(fr.el.length).fill(1); if (zz >= 0) fr.zoneOf.forEach((z, t) => { if (z === zz) esc[t] = 1 - d; });
+    const f = modal(fr, NM, esc, 1e-9).f; rows.push({ zona: zz, sev: d, df: f.map((v, i) => (v - f0[i]) / f0[i]) }); if (prog && n % 20 === 0) prog(n / jobs.length, (Date.now() - t0) / 1000); });
+  const spanOfZone = fr0.zoneDefs.map((_, z) => { const t = fr0.zoneOf.indexOf(z); if (t < 0) return -1; const [i, j] = fr0.el[t], m = (fr0.nodes[i][0] + fr0.nodes[j][0]) / 2; return fr0.spans.findIndex(S => m >= S.a - 1e-6 && m <= S.b + 1e-6); });
+  return { rows, f0, zones: fr0.zoneDefs, NM, spanOfZone };
+}
+// Entrena con los k primeros modos y el error de medición sf (fracción de la frecuencia)
+function trainFreqIA(camp, k, sf, prog) {
+  const rows = camp.rows, Z = camp.zones.length, C = Z + 1, r = mulberry(11), byZ = {}; rows.forEach((row, i) => (byZ[row.zona] = byZ[row.zona] || []).push(i)); const tr = [], te = [];
+  Object.values(byZ).forEach(ids => { const a = ids.slice(); for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(r() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } const nt = Math.round(a.length * .3); te.push(...a.slice(0, nt)); tr.push(...a.slice(nt)); });
+  const nz = (x, rr) => x.slice(0, k).map(v => v + gaussR(rr) * sf), rr = mulberry(101), Xtr = [], ytr = [], str = [];
+  for (let rep = 0; rep < 3; rep++) tr.forEach(i => { Xtr.push(nz(rows[i].df, rr)); ytr.push(rows[i].zona + 1); str.push(rows[i].sev); });
+  const mean = new Array(k).fill(0), sd = new Array(k).fill(0); Xtr.forEach(x => x.forEach((v, j) => mean[j] += v / Xtr.length)); Xtr.forEach(x => x.forEach((v, j) => sd[j] += (v - mean[j]) ** 2 / Xtr.length)); sd.forEach((v, j) => sd[j] = Math.sqrt(v) || 1);
+  const clf = trainForest(Xtr, ytr, { nTrees: 60, maxDepth: 16, minLeaf: 1, mtry: Math.max(1, Math.round(Math.sqrt(k))), seed: 3 }, true, C, q => prog && prog('Clasificador de zona', q));
+  const dmg = ytr.map((y, i) => y > 0 ? i : -1).filter(i => i >= 0), Xs = dmg.map(i => Xtr[i].concat(Array.from({ length: Z }, (_, z) => z === ytr[i] - 1 ? 1 : 0))), ys = dmg.map(i => str[i]);
+  const reg = trainForest(Xs, ys, { nTrees: 40, maxDepth: 14, minLeaf: 2, mtry: Math.max(1, Math.round((k + Z) / 3)), seed: 5 }, false, 1, q => prog && prog('Regresor de severidad', q));
+  const span = z => z < 0 ? -1 : camp.spanOfZone[z], rt = mulberry(201); let loc = 0, sp = 0, fp = 0, tn = 0; te.forEach(i => { const x = nz(rows[i].df, rt), pr = forestPredict(clf, x), c = pr.indexOf(Math.max(...pr)) - 1; if (c === rows[i].zona) loc++; if (span(c) === span(rows[i].zona)) sp++; if (rows[i].zona < 0) { if (c >= 0) fp++; else tn++; } });
+  const rs = mulberry(9), sub = []; for (let i = 0; i < Math.min(1500, Xtr.length); i++) sub.push(Xtr[Math.floor(rs() * Xtr.length)].map((v, j) => (v - mean[j]) / sd[j]));
+  const nn = x => { const zz = x.map((v, j) => (v - mean[j]) / sd[j]); let b = Infinity; for (const s of sub) { let d = 0; for (let j = 0; j < k; j++) d += (zz[j] - s[j]) ** 2; if (d < b) b = d; } return Math.sqrt(b); };
+  const r3 = mulberry(300), dd = te.map(i => nn(nz(rows[i].df, r3))).sort((a, b) => a - b), thr = dd[Math.floor(.99 * (dd.length - 1))];
+  return { clf, reg, mean, sd, sub, oodThr: thr, k, sf, metrics: { localizacion: loc / te.length, vano: sp / te.length, falsaAlarma: fp / Math.max(1, fp + tn), nTest: te.length } };
+}
+function freqPredict(I, Z, x) { const pr = forestPredict(I.clf, x), o = pr.map((p, i) => [p, i - 1]).sort((a, b) => b[0] - a[0]), cls = o[0][1];
+  const zz = x.map((v, j) => (v - I.mean[j]) / I.sd[j]); let b = Infinity; for (const s of I.sub) { let d = 0; for (let j = 0; j < zz.length; j++) d += (zz[j] - s[j]) ** 2; if (d < b) b = d; } const dist = Math.sqrt(b);
+  const sev = cls >= 0 ? forestPredict(I.reg, x.concat(Array.from({ length: Z }, (_, z) => z === cls ? 1 : 0)))[0] : null;
+  return { cls, p: o[0][0], top: o.slice(0, 4), conclusive: o[0][0] >= .4 && o[0][0] - o[1][0] >= .1, dist, ood: dist > I.oodThr, sev }; }
+
+return { readAccel, sdof, spectrum, seismic, freqCampaign, trainFreqIA, freqPredict, build, modal, archAll, parseCloud, orient, bounds, deckLevel, groundLevel, detectSupports, spansOf, envelope, fitParabola, polyval, archGeometry, spanCoverage, MATERIALS,
   build, sensorsOf, modal, signConvention, features, campaign, trainIA, forestPredict, LEVELS, noisy, mulberry, gaussR, quantile, median };
 })();
 if (typeof module !== 'undefined') module.exports = OPC;

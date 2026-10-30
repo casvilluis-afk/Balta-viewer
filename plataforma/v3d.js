@@ -92,7 +92,7 @@ const V3D = (() => {
     let ov = document.getElementById('v3d'); if (ov) return ov;
     ov = document.createElement('div'); ov.id = 'v3d'; ov.setAttribute('role', 'dialog'); ov.setAttribute('aria-modal', 'true'); ov.setAttribute('aria-label', 'Vista 3D'); ov.hidden = true;
     ov.innerHTML = `<div class="v3d-bar"><div class="v3d-t"><b id="v3dTitle"></b><span id="v3dSub" class="dim"></span></div>
-      <div class="v3d-c"><span id="v3dAnim"><button class="btn line" id="v3dPlay">Pausar</button><label class="f" style="width:190px"><span class="lv">Desplazamiento dibujado <output id="v3dAo"></output></span><input type="range" id="v3dAmp" min="0" max="5" step="0.1"></label></span>
+      <div class="v3d-c"><span id="v3dAnim"><button class="btn line" id="v3dPlay">Pausar</button><span id="v3dTime" class="mono" style="align-self:center;min-width:64px"></span><label class="f" style="width:190px"><span class="lv">Desplazamiento dibujado <output id="v3dAo"></output></span><input type="range" id="v3dAmp" min="0" max="5" step="0.1"></label></span>
       <button class="btn line" id="v3dCtlB" hidden aria-expanded="true">Parámetros</button><button class="btn line" id="v3dHome">Vista inicial</button><button class="btn" id="v3dClose">Cerrar · Esc</button></div></div>
       <div class="v3d-stage" id="v3dStage"><div class="v3d-st" id="v3dSt">Cargando modelo 3D…</div><div class="v3d-ctl" id="v3dCtl" hidden></div></div><div class="v3d-leg" id="v3dLeg"></div>`;
     document.body.append(ov);
@@ -121,15 +121,15 @@ const V3D = (() => {
     if (!sp.controls) { pc.hidden = true; pc.innerHTML = ''; pb.hidden = true; }
     else if (!wasOpen || sp.controls.key !== prevKey) { pc.innerHTML = '<div class="v3d-ph">Parámetros · el puente se actualiza al cambiarlos</div>' + sp.controls.html; pc.hidden = false; pb.hidden = false; pb.setAttribute('aria-expanded', 'true'); sp.controls.bind(pc); }
     document.getElementById('v3dTitle').textContent = sp.title; document.getElementById('v3dSub').textContent = sp.sub || ''; document.getElementById('v3dLeg').innerHTML = sp.legend || '';
-    const hasDisp = !!sp.disp; document.getElementById('v3dAnim').hidden = !hasDisp; playing = sp.animate !== false; document.getElementById('v3dPlay').textContent = playing ? 'Pausar' : 'Animar';
+    const hasDisp = !!sp.disp || !!sp.series; document.getElementById('v3dAnim').hidden = !hasDisp; playing = sp.animate !== false; document.getElementById('v3dPlay').textContent = playing ? 'Pausar' : 'Animar';
     if (!wasOpen) { amp = sp.ampDefault || 1.5; document.getElementById('v3dAmp').value = amp; } realMax = 0;
     let eng; try { eng = await engine(q => { const s = document.getElementById('v3dSt'); if (s) s.textContent = `Cargando modelo 3D… ${Math.round(100 * q)} %`; }); }
     catch (e) { document.getElementById('v3dSt').textContent = e.message; return; }
     if (spec !== sp) return;
     const stg = document.getElementById('v3dStage'), st = document.getElementById('v3dSt'); if (st) st.remove(); if (eng.renderer.domElement.parentNode !== stg) stg.prepend(eng.renderer.domElement); resize(); if (!wasOpen) fitHome();
     const base = famBase();
-    eng.meshes.forEach(m => { m.disp = hasDisp ? sp.disp(m) : null; if (!hasDisp) { m.o.geometry.attributes.position.array.set(m.base); m.o.geometry.attributes.position.needsUpdate = true; m.o.geometry.computeVertexNormals(); } });
-    if (hasDisp) { let mx = 0; eng.meshes.forEach(m => { const D = m.disp; for (let i = 0; i < D.length; i += 2) mx = Math.max(mx, Math.hypot(D[i], D[i + 1])); });
+    eng.meshes.forEach(m => { m.ser = sp.series ? sp.series.fields.map(fn => fn(m)) : null; m.disp = sp.disp ? sp.disp(m) : null; if (!hasDisp) { m.o.geometry.attributes.position.array.set(m.base); m.o.geometry.attributes.position.needsUpdate = true; m.o.geometry.computeVertexNormals(); } });
+    if (sp.series) realMax = sp.series.peak; if (sp.disp) { let mx = 0; eng.meshes.forEach(m => { const D = m.disp; for (let i = 0; i < D.length; i += 2) mx = Math.max(mx, Math.hypot(D[i], D[i + 1])); });
       if (mx > 0) eng.meshes.forEach(m => { const D = m.disp; for (let i = 0; i < D.length; i++) D[i] /= mx; }); realMax = sp.physical ? mx : 0; }
     let f0 = Infinity, f1 = -Infinity, g0 = Infinity, g1 = -Infinity;
     eng.meshes.forEach(m => { const col = m.o.geometry.attributes.color, n = m.s.length;
@@ -140,8 +140,15 @@ const V3D = (() => {
     upAmp();
     t0 = performance.now(); cancelAnimationFrame(raf);
     const v = new eng.THREE.Vector3();
+    let simT = 0, lastNow = 0; const tEl = document.getElementById('v3dTime'); if (tEl) tEl.textContent = '';
     const loop = () => { raf = requestAnimationFrame(loop); eng.ctl.update();
-      if (hasDisp) { const k = playing ? (sp.animate === 'static' ? 1 : Math.sin(2 * Math.PI * (performance.now() - t0) / 1000 * .6)) : (sp.animate === 'static' ? 1 : 1); const f = amp * k;
+      if (sp.series) { const Sr = sp.series, now = performance.now(); if (playing) simT += Math.min(.1, (now - (lastNow || now)) / 1000); lastNow = now;
+        const N = Sr.q[0].length, k = Math.floor(simT / Sr.dt) % N, qk = Sr.q.map(a => a[k]), M = qk.length, f = amp; if (tEl) tEl.textContent = 't = ' + fmt(k * Sr.dt, 1) + ' s';
+        eng.meshes.forEach(m => { if (!m.ser) return; const pos = m.o.geometry.attributes.position, a = pos.array, b = m.base, e = m.inv.elements;
+          for (let i = 0; i < m.s.length; i++) { let dz = 0, dy = 0; for (let j = 0; j < M; j++) { const F = m.ser[j]; dz += qk[j] * F[2 * i]; dy += qk[j] * F[2 * i + 1]; } dz *= f; dy *= f;
+            a[3 * i] = b[3 * i] + e[3] * dy + e[6] * dz; a[3 * i + 1] = b[3 * i + 1] + e[4] * dy + e[7] * dz; a[3 * i + 2] = b[3 * i + 2] + e[5] * dy + e[8] * dz; }
+          pos.needsUpdate = true; }); }
+      else if (hasDisp) { const k = playing ? (sp.animate === 'static' ? 1 : Math.sin(2 * Math.PI * (performance.now() - t0) / 1000 * .6)) : (sp.animate === 'static' ? 1 : 1); const f = amp * k;
         eng.meshes.forEach(m => { if (!m.disp) return; const pos = m.o.geometry.attributes.position, a = pos.array, b = m.base, D = m.disp, e = m.inv.elements;
           for (let i = 0; i < m.s.length; i++) { const dz = D[2 * i] * f, dy = D[2 * i + 1] * f; // mundo (0, dy, dz) → local con la inversa de la rotación
             a[3 * i] = b[3 * i] + e[3] * dy + e[6] * dz; a[3 * i + 1] = b[3 * i + 1] + e[4] * dy + e[7] * dz; a[3 * i + 2] = b[3 * i + 2] + e[5] * dy + e[8] * dz; }
@@ -151,5 +158,5 @@ const V3D = (() => {
   }
   function legendGradient(stops, labels) { return `<div class="v3d-grad"><i style="background:linear-gradient(90deg,${stops.join(',')})"></i><div>${labels.map(l => `<span>${l}</span>`).join('')}</div></div>`; }
   function legendCats(items) { return `<div class="legend">${items.map(([c, l]) => `<span><i style="background:${c}"></i>${l}</span>`).join('')}</div>`; }
-  return { open, close, adaptM2, adaptMC, dispField, elemLookup, diverging, sequential, rgb, legendGradient, legendCats };
+  return { info: () => E ? { meshes: E.meshes.length, verts: E.meshes.reduce((a, m) => a + m.s.length, 0) } : null, open, close, adaptM2, adaptMC, dispField, elemLookup, diverging, sequential, rgb, legendGradient, legendCats };
 })();

@@ -197,7 +197,7 @@ function opFrameSVG(fr, phi, hl) {
 /* ---------- 5 · Entrenar la IA (Web Worker) ---------- */
 let OP_CORE_SRC = null;
 async function opWorker() {
-  if (!OP_CORE_SRC) OP_CORE_SRC = await fetch('op_core.js?v=2.3.0').then(r => { if (!r.ok) throw new Error('No se encontró op_core.js'); return r.text(); });
+  if (!OP_CORE_SRC) OP_CORE_SRC = await fetch('op_core.js?v=2.4.0').then(r => { if (!r.ok) throw new Error('No se encontró op_core.js'); return r.text(); });
   const src = OP_CORE_SRC + `\nself.onmessage = e => { const m = e.data; try {
     const camp = OPC.campaign(m.type, m.G, m.P, m.opts, (q, s) => self.postMessage({ kind: 'prog', stage: 'Simulaciones de daño', q, s }));
     self.postMessage({ kind: 'prog', stage: 'Entrenando la IA', q: 0 });
@@ -256,12 +256,12 @@ function opDiag() {
     <label class="f">Ruido de medición<select id="odL">${Lv.map((l, i) => `<option value="${i}" ${i === X.lev ? 'selected' : ''}>${['Bajo · Δf 0,2 %', 'Medio · Δf 0,5 %', 'Alto · Δf 1 %'][i]}</option>`).join('')}</select></label>
     <label class="f">Medición n.º<input type="number" id="odN" min="1" step="1" value="${X.n}"></label></div>
    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px"><button class="btn line" id="odGo">Nueva medición</button><button class="btn" id="odRep">Repetir 100 mediciones</button></div>
-   <div id="odOut"></div><div id="odStats"></div></div><div class="sheet" id="odSheet"></div>`;
+   <div id="odOut"></div><div id="odStats"></div></div><div class="sheet" id="odSheet"></div><div class="doc" id="fqDocTu"></div>`;
   $('#odZ').value = X.zone; $('#odS').disabled = X.zone < 0;
   const reset = () => { X.n = 1; $('#odN').value = 1; $('#odStats').innerHTML = ''; opDxRun(); };
   $('#odZ').onchange = e => { X.zone = +e.target.value; $('#odS').disabled = X.zone < 0; reset(); }; $('#odS').oninput = e => $('#odSo').textContent = e.target.value + ' %'; $('#odS').onchange = e => { X.sev = e.target.value / 100; reset(); };
   $('#odL').onchange = e => { X.lev = +e.target.value; reset(); }; $('#odN').onchange = e => { X.n = Math.max(1, Math.round(+e.target.value || 1)); e.target.value = X.n; opDxRun(); };
-  $('#odGo').onclick = () => { X.n++; $('#odN').value = X.n; opDxRun(); }; $('#odRep').onclick = opDxRepeat; opDxRun();
+  $('#odGo').onclick = () => { X.n++; $('#odN').value = X.n; opDxRun(); }; $('#odRep').onclick = opDxRepeat; opDxRun(); fqRender($('#fqDocTu'), { id: 'tu', type: OP.type, G: opModelG(), P: OP.P, title: OP.name });
   opRightHelp('<p>La confianza combina dos controles: la fracción de árboles que vota por la zona elegida (se exige al menos 40 % y 10 puntos de ventaja sobre la segunda) y la distancia de la medición a los casos de entrenamiento.</p>');
 }
 function opVerdict(d, truth) { return d.ood ? ['crit', 'Medición fuera de dominio'] : !d.conclusive ? ['warn', 'No concluyente'] : d.cls === truth ? ['ok', 'Zona correcta'] : opSpan(d.cls) === opSpan(truth) ? ['warn', 'Vano correcto, zona distinta'] : ['crit', 'No coincide']; }

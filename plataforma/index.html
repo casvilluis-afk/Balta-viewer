@@ -181,7 +181,7 @@ details summary::-webkit-details-marker{color:var(--ink-3)}
 
 <div class="app">
   <header class="bar">
-    <div class="mark"><b>Puente Balta · Sistema de evaluación e inspección</b><span>Gemelo digital · río Rímac, Lima · versión 2.3</span></div>
+    <div class="mark"><b>Puente Balta · Sistema de evaluación e inspección</b><span>Gemelo digital · río Rímac, Lima · versión 2.4</span></div>
     <nav class="menu" role="tablist" aria-label="Herramientas">
       <button role="tab" data-v="modelo"><span class="k">1</span>Modelo</button>
       <button role="tab" data-v="simulacion"><span class="k">2</span>Simulación</button>
@@ -209,9 +209,9 @@ import {OrbitControls} from 'three/addons/controls/OrbitControls.js';
 window.BaltaThree={THREE,GLTFLoader,OrbitControls};
 window.dispatchEvent(new Event('three-ready'));
 </script>
-<script src="v3d.js?v=2.3.0"></script>
-<script src="op_core.js?v=2.3.0"></script>
-<script src="op_ui.js?v=2.3.0"></script>
+<script src="v3d.js?v=2.4.0"></script>
+<script src="op_core.js?v=2.4.0"></script>
+<script src="op_ui.js?v=2.4.0"></script>
 <script>
 "use strict";
 const MODEL_URL='../models/puente-balta-v12.glb';
@@ -658,9 +658,9 @@ function vSim(){
   t.bind($('#left'));
   $('#iP').value=S.pct*100;$('#iQ').value=S.q;$('#iE').value=S.E;
   $('#iP').oninput=e=>{S.pct=e.target.value/100;simCompute();};$('#iQ').oninput=e=>{S.q=+e.target.value;simCompute();};$('#iE').oninput=e=>{S.E=+e.target.value;simCompute();};
-  $('#canvas').innerHTML=`<div class="row3d">${'<button class="btn b3d" id="b3dSim">Vista 3D</button>'}<span class="help">Esfuerzos y deformada del modelo 2D sobre el puente</span></div><div class="sheet" id="simSheet"></div><div class="doc" id="dxDoc"></div><div class="sheet" id="dxSheet"></div>`;
+  $('#canvas').innerHTML=`<div class="row3d">${'<button class="btn b3d" id="b3dSim">Vista 3D</button>'}<span class="help">Esfuerzos y deformada del modelo 2D sobre el puente</span></div><div class="sheet" id="simSheet"></div><div class="doc" id="dxDoc"></div><div class="sheet" id="dxSheet"></div><div class="doc" id="fqDoc"></div>`;
   $('#b3dSim').onclick=open3dSim;
-  simCompute();
+  simCompute();fqRender($('#fqDoc'),baltaCtx());
 }
 function simCompute(){
   const sc={q:S.q,E:S.E,target:S.target,pct:S.target==='sin_danio'?0:S.pct};
@@ -852,7 +852,7 @@ function vDin(){
   DIN_P.forEach(d=>{const el=$('#id_'+d.k);el.oninput=()=>{$('#od_'+d.k).textContent=fmt(+el.value,d.step<1?2:0)+' '+d.u;};el.onchange=()=>{S.dinP[d.k]=d.k==='n_ribs'?+el.value:+el.value*d.sc;dinCompute();};});
   $('#id_spr').onchange=e=>{S.dinP.springing=e.target.value;dinCompute();};$('#dinReset').onclick=()=>{S.dinP={};vDin();};
   $('#canvas').innerHTML=`<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><div class="toggle" role="group" aria-label="Modo" id="modeBtns"></div><label style="display:flex;gap:6px;align-items:center;font-size:.82rem"><input type="checkbox" id="showOld" ${S.showOld?'checked':''}> Superponer geometría del modelo anterior</label><button class="btn b3d" id="b3dDin">Vista 3D</button></div>
-   <div class="sheet" id="dinSheet"></div><div class="doc" id="calDoc"></div>`;
+   <div class="sheet" id="dinSheet"></div><div class="doc" id="calDoc"></div><div class="doc" id="sisDoc"></div>`;
   $('#showOld').onchange=e=>{S.showOld=e.target.checked;dinCompute();};$('#b3dDin').onclick=open3dDin;
   dinCompute();}
 function dinCompute(){const r=dinSolve(),fr=r.fr;
@@ -872,7 +872,7 @@ function dinCompute(){const r=dinSolve(),fr=r.fr;
    <div class="tw"><table class="data"><thead><tr><th></th><th class="n">Arcos medidos</th><th class="n">Arcos anteriores</th><th class="n">Cambio</th></tr></thead><tbody>${[0,1,2].map(i=>`<tr><td class="mono">f${i+1}</td><td class="n">${fmt([7.437,7.517,7.712][i],2)}</td><td class="n">${fmt(MCD.anterior_en_C.f[i],2)}</td><td class="n">${sgn(MCD.anterior_en_C.f[i]/[7.437,7.517,7.712][i]-1)}</td></tr>`).join('')}</tbody></table></div>
    <div class="pb help">Mismo modelo C (material, masas, pilares y tablero); solo cambia el perfil de los arcos. Método: geometria_anterior.py.</div>
    <div class="pb help">Anterior: ${esc(MCD.anterior.fuente)}. Cambian a la vez la geometría, el material (E 50 → 100 GPa) y la masa (q 60 → 120 kN/m más peso propio).</div>`;
-  calRender();statusBar();}
+  calRender();sisRender();statusBar();}
 function calRender(){const k=S.fWhich,fm=parseFloat(String(S.fMeas).replace(',','.')),tol=S.fTol,c=MCD.mc.cols,ci=n=>c.indexOf(n);
   const fs=MCD.mc.rows.map(r=>r[ci('f'+(k+1))]);
   let res='';
@@ -914,6 +914,136 @@ function histogram(fs,fm,tol,k){const ink=css('--ink'),i3=css('--ink-3'),red=css
   for(let f=Math.ceil(lo);f<=hi;f++)s+=`<line x1="${X(f)}" x2="${X(f)}" y1="${H-pb}" y2="${H-pb+4}" stroke="${ink}"/><text x="${X(f)}" y="${H-pb+15}" font-size="9" text-anchor="middle" fill="${ink}">${f}</text>`;
   s+=`<text x="${W-pr}" y="${H-3}" font-size="9" text-anchor="end" fill="${i3}">f${k+1} (Hz) · ${fs.length} casos Monte Carlo, modelo C</text><text x="${pl-6}" y="${Y(cm)+3}" font-size="9" text-anchor="end" fill="${i3}">${cm}</text>`;
   return s+'</svg></div>';}
+
+/* ---------- Sismo registrado (CISMID, IGP): aproximación por superposición modal del modelo C ---------- */
+const SIS_UNITS={gal:['gal (cm/s²)',.01],ms2:['m/s²',1],g:['g',9.80665]};
+S.sis={rec:null,name:'',colY:-1,colZ:-1,unit:'gal',dt:null,zeta:.02,scale:1,res:null,key:''};
+function sisSeries(k){const R=S.sis.rec,c=R.cols[k],u=SIS_UNITS[S.sis.unit][1]*S.sis.scale;let m=0;for(const v of c)m+=v;m/=c.length;return Float64Array.from(c,v=>(v-m)*u);} // m/s², sin componente media
+function sisPlot(series,dt,names,cols){const W=760,H=150,pl=48,pr=10,pt=10,pb=24,n=series[0].length,T=n*dt;let mx=0;series.forEach(s=>{for(const v of s)mx=Math.max(mx,Math.abs(v));});mx=mx||1;
+  const X=t=>pl+t/T*(W-pl-pr),Y=v=>pt+(H-pt-pb)/2*(1-v/mx),step=Math.max(1,Math.floor(n/1400));
+  let s=`<div class="tw"><svg viewBox="0 0 ${W} ${H}" style="width:100%;min-width:520px;height:auto" role="img" aria-label="Acelerograma">`;
+  s+=`<line x1="${pl}" x2="${W-pr}" y1="${Y(0)}" y2="${Y(0)}" stroke="${css('--rule')}"/>`;
+  series.forEach((a,k)=>{let d='';for(let i=0;i<n;i+=step){let lo=Infinity,hi=-Infinity;for(let j=i;j<Math.min(n,i+step);j++){lo=Math.min(lo,a[j]);hi=Math.max(hi,a[j]);}d+=`M${X(i*dt).toFixed(1)} ${Y(hi).toFixed(1)}V${Y(lo).toFixed(1)}`;}s+=`<path d="${d}" stroke="${cols[k]}" stroke-width="1" fill="none" opacity=".85"/>`;});
+  for(let t=0;t<=T;t+=T>120?20:T>40?10:5)s+=`<text x="${X(t)}" y="${H-8}" font-size="9" text-anchor="middle" fill="${css('--ink-3')}">${t}</text>`;
+  s+=`<text x="${pl-6}" y="${Y(mx)+3}" font-size="9" text-anchor="end" fill="${css('--ink-3')}">${fmt(mx,2)}</text><text x="${pl-6}" y="${Y(-mx)+3}" font-size="9" text-anchor="end" fill="${css('--ink-3')}">−${fmt(mx,2)}</text><text x="${W-pr}" y="${pt+8}" font-size="9" text-anchor="end" fill="${css('--ink-3')}">m/s² · t (s) · ${names.join(' · ')}</text>`;
+  return s+'</svg></div>';}
+function sisSpecPlot(sp,cols,names,Tb){const W=760,H=190,pl=48,pr=10,pt=10,pb=28,Tmin=.02,Tmax=3;let mx=0;sp.forEach(a=>a.forEach(o=>mx=Math.max(mx,o.Sa)));mx=mx||1;
+  const X=t=>pl+(Math.log(t)-Math.log(Tmin))/(Math.log(Tmax)-Math.log(Tmin))*(W-pl-pr),Y=v=>H-pb-v/mx*(H-pt-pb);
+  let s=`<div class="tw"><svg viewBox="0 0 ${W} ${H}" style="width:100%;min-width:520px;height:auto" role="img" aria-label="Espectro de respuesta">`;
+  Tb.forEach((t,i)=>{if(t>=Tmin&&t<=Tmax)s+=`<line x1="${X(t)}" x2="${X(t)}" y1="${pt}" y2="${H-pb}" stroke="${css('--red')}" stroke-dasharray="3 2" opacity=".7"/>${i<3?`<text x="${X(t)+3}" y="${pt+9+i*10}" font-size="8.5" fill="${css('--red')}">T${i+1}</text>`:''}`;});
+  sp.forEach((a,k)=>{s+=`<path d="${a.map((o,i)=>(i?'L':'M')+X(o.T).toFixed(1)+' '+Y(o.Sa).toFixed(1)).join('')}" stroke="${cols[k]}" stroke-width="1.6" fill="none"/>`;});
+  s+=`<line x1="${pl}" x2="${W-pr}" y1="${H-pb}" y2="${H-pb}" stroke="${css('--ink')}" stroke-width=".8"/>`;
+  [.02,.05,.1,.2,.5,1,2,3].forEach(t=>s+=`<text x="${X(t)}" y="${H-pb+13}" font-size="9" text-anchor="middle" fill="${css('--ink-3')}">${fmt(t,t<.1?2:1)}</text>`);
+  s+=`<text x="${pl-6}" y="${Y(mx)+3}" font-size="9" text-anchor="end" fill="${css('--ink-3')}">${fmt(mx/9.80665,2)} g</text><text x="${W-pr}" y="${H-3}" font-size="9" text-anchor="end" fill="${css('--ink-3')}">Periodo T (s, escala log.) · Sa con ζ = ${pct(S.sis.zeta,0)} · ${names.join(' · ')} · líneas rojas: periodos del modelo C</text>`;
+  return s+'</svg></div>';}
+function sisCompute(){const X=S.sis,R=X.rec;if(!R||!(X.dt>0)||(X.colY<0&&X.colZ<0))return null;
+  const key=JSON.stringify([S.dinP,X.name,X.colY,X.colZ,X.unit,X.dt,X.zeta,X.scale]);if(X.res&&X.key===key)return X.res;
+  const t0=performance.now(),fr=mcBuild(MCD,dinParams()),md=OPC.modal(fr,20),aY=X.colY>=0?sisSeries(X.colY):null,aZ=X.colZ>=0?sisSeries(X.colZ):null;
+  const r=OPC.seismic(fr,md,aY,aZ,X.dt,X.zeta),Ts=Array.from({length:50},(_,i)=>.02*Math.pow(3/.02,i/49));
+  r.spec=[aY,aZ].filter(Boolean).map(a=>OPC.spectrum(a,X.dt,X.zeta,Ts));r.fr=fr;r.md=md;r.aY=aY;r.aZ=aZ;r.ms=performance.now()-t0;
+  r.pga=[aY,aZ].map(a=>{if(!a)return null;let m=0;for(const v of a)m=Math.max(m,Math.abs(v));return m;});X.res=r;X.key=key;return r;}
+function sisRender(){const d=$('#sisDoc');if(!d)return;const X=S.sis,R=X.rec;
+  let h=`<h2>Sismo registrado · aproximación con el modelo C</h2>
+   <p>Cargue un acelerograma de una estación de la red de CISMID-UNI o del IGP (AcelDat-Perú) en formato de texto: columnas numéricas, con o sin columna de tiempo. La plataforma aplica el registro en la base del modelo C y suma la respuesta de sus 20 primeros modos. Es una aproximación: la estación no está en el puente, se supone el mismo movimiento en todos los apoyos y el modelo es elástico y plano.</p>
+   <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:end"><label class="btn">Abrir acelerograma…<input type="file" id="sisFile" accept=".txt,.csv,.dat,.asc,.acc,.v2,.tsv" hidden></label><span class="help">${R?esc(X.name)+` · ${R.n.toLocaleString('es-PE')} muestras · ${R.cols.length} columnas`:'Ningún registro cargado.'}</span></div>`;
+  if(R){const cn=R.cols.map((_,k)=>k===R.tcol?`Columna ${k+1} (tiempo)`:`Columna ${k+1}`),opt=sel=>`<option value="-1">ninguna</option>`+R.cols.map((_,k)=>k===R.tcol?'':`<option value="${k}" ${k===sel?'selected':''}>${cn[k]}</option>`).join('');
+    h+=`<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,160px),1fr));gap:8px;align-items:end">
+     <label class="f">Componente longitudinal (eje del puente)<select id="sisY">${opt(X.colY)}</select></label>
+     <label class="f">Componente vertical<select id="sisZ">${opt(X.colZ)}</select></label>
+     <label class="f">Unidades del archivo<select id="sisU">${Object.entries(SIS_UNITS).map(([k,[l]])=>`<option value="${k}" ${k===X.unit?'selected':''}>${l}</option>`).join('')}</select></label>
+     <label class="f">Intervalo Δt (s)<input type="text" id="sisDt" inputmode="decimal" value="${X.dt?String(+X.dt.toPrecision(6)).replace('.',','):''}" placeholder="ej. 0,01"></label>
+     <label class="f">Amortiguamiento ζ (%) <span class="flag warn" style="font-size:11px">supuesto</span><input type="number" id="sisZt" min="0.5" max="10" step="0.5" value="${100*X.zeta}"></label>
+     <label class="f">Factor de escala<input type="number" id="sisSc" min="0.1" max="10" step="0.1" value="${X.scale}"></label></div>
+     <p class="help">${R.how?`Δt leído de la ${R.how}.`:'No se encontró Δt en el archivo: escríbalo (por ejemplo 0,01 s para 100 muestras por segundo).'} Revise en el encabezado del archivo qué columna es este–oeste, norte–sur y vertical; la longitudinal es la más cercana al eje del puente. Encabezado: <span class="mono" style="font-size:11px">${esc(R.header.split('\n').slice(0,3).join(' | ').slice(0,220))||'—'}</span></p>`;
+    const r=sisCompute();
+    if(r){const names=[],cols=[],ser=[];if(r.aY){names.push('longitudinal');cols.push(css('--blue'));ser.push(r.aY);}if(r.aZ){names.push('vertical');cols.push(css('--warn'));ser.push(r.aZ);}
+      const sens=mcSensors(r.fr),Tb=r.md.f.map(f=>1/f),N=r.fr.nodes.length;
+      h+=`<h3>Registro y espectro de respuesta</h3>${sisPlot(ser,X.dt,names,cols)}${sisSpecPlot(r.spec,cols,names,Tb)}
+       <div class="tw"><table class="data"><tbody>
+        <tr><td>Aceleración máxima del registro</td><td class="n">${r.pga.map((v,k)=>v==null?null:`${['long.','vert.'][k]} ${fmt(v,3)} m/s² (${fmt(v/9.80665,3)} g)`).filter(Boolean).join(' · ')}</td></tr>
+        <tr><td>Desplazamiento máximo del puente respecto de la base</td><td class="n" style="font-weight:600">${fmt(r.gmax*1e3,2)} mm</td></tr>
+        <tr><td>Dónde y cuándo</td><td class="n">${esc(r.fr.grp[r.fr.el.findIndex(e=>e.includes(r.nmax))]||'')} · x = ${fmt(r.fr.nodes[r.nmax][0],1)} m · t = ${fmt(r.tmax,2)} s</td></tr>
+        <tr><td>Masa que participa en los 20 modos</td><td class="n"><span class="flag ${Math.min(r.aY?r.cumY:1,r.aZ?r.cumZ:1)>=.9?'ok':'warn'}">longitudinal ${pct(r.cumY,0)} · vertical ${pct(r.cumZ,0)}</span></td></tr></tbody></table></div>
+       <h3>Desplazamiento máximo en los puntos de medición del tablero (mm)</h3>
+       <div class="tw"><table class="data"><thead><tr><th>Punto</th>${sens.map((_,k)=>`<th class="n">S${k+1}</th>`).join('')}</tr></thead><tbody>
+        <tr><td>Vertical</td>${sens.map(s=>`<td class="n">${fmt(r.peakZ[s.node]*1e3,2)}</td>`).join('')}</tr><tr><td>Longitudinal</td>${sens.map(s=>`<td class="n">${fmt(r.peakY[s.node]*1e3,2)}</td>`).join('')}</tr></tbody></table></div>
+       <h3>Aporte de cada modo</h3>
+       <div class="tw"><table class="data"><thead><tr><th>Modo</th><th class="n">f (Hz)</th><th class="n">T (s)</th><th class="n">Masa long.</th><th class="n">Masa vert.</th><th class="n">Coordenada modal máx.</th></tr></thead><tbody>${r.modes.map((m,k)=>({m,k})).sort((a,b)=>b.m.qmax-a.m.qmax).slice(0,8).map(({m,k})=>`<tr><td class="mono">${k+1}</td><td class="n">${fmt(m.f,3)}</td><td class="n">${fmt(1/m.f,4)}</td><td class="n">${pct(m.mY,1)}</td><td class="n">${pct(m.mZ,1)}</td><td class="n">${m.qmax.toExponential(2)}</td></tr>`).join('')}</tbody></table></div>
+       <div><button class="btn b3d" id="sis3d">Vista 3D · animar el sismo</button> <span class="help">${fmt(r.ms,0)} ms de cálculo</span></div>
+       <div class="msg"><b>Alcance.</b> Respuesta elástica lineal del modelo C (2D, en el plano del puente) con excitación uniforme en la base y amortiguamiento modal supuesto. No incluye interacción suelo–estructura, efectos de sitio entre la estación y el puente, ni la componente transversal. Úsese como orden de magnitud, no como verificación sísmica.</div>`;}
+    else h+=`<p class="help">Elija al menos una componente y el intervalo Δt.</p>`;}
+  d.innerHTML=h;
+  $('#sisFile').onchange=async e=>{const f=e.target.files[0];if(!f)return;try{const R2=OPC.readAccel(await f.text());X.rec=R2;X.name=f.name;X.dt=R2.dt;X.res=null;const av=R2.cols.map((_,k)=>k).filter(k=>k!==R2.tcol);X.colY=av[0]??-1;X.colZ=av.length>=3?av[av.length-1]:-1;sisRender();}catch(err){toast(err.message);}};
+  if(!R)return;
+  $('#sisY').onchange=e=>{X.colY=+e.target.value;sisRender();};$('#sisZ').onchange=e=>{X.colZ=+e.target.value;sisRender();};$('#sisU').onchange=e=>{X.unit=e.target.value;sisRender();};
+  $('#sisDt').onchange=e=>{const v=parseFloat(e.target.value.replace(',','.'));X.dt=v>0?v:null;sisRender();};$('#sisZt').onchange=e=>{X.zeta=Math.min(.1,Math.max(.005,(+e.target.value||2)/100));sisRender();};$('#sisSc').onchange=e=>{X.scale=Math.max(.01,+e.target.value||1);sisRender();};
+  const b=$('#sis3d');if(b)b.onclick=open3dSis;}
+function open3dSis(){const r=S.sis.res;if(!r)return;const A=V3D.adaptMC(r.fr),seq=V3D.sequential(),N=r.fr.nodes.length;
+  const use=r.modes.map((m,k)=>({m,k})).sort((a,b)=>b.m.qmax-a.m.qmax).slice(0,6),pk=new Float64Array(3*N);for(let j=0;j<N;j++){pk[3*j]=r.peakY[j];pk[3*j+1]=r.peakZ[j];}
+  let pm=0;for(let j=0;j<N;j++)pm=Math.max(pm,Math.hypot(r.peakY[j],r.peakZ[j]));const pkF=V3D.dispField(A,pk);
+  V3D.open({title:`Sismo registrado · ${S.sis.name}`,sub:`Modelo C · ζ = ${pct(S.sis.zeta,0)} · desplazamiento máx. ${fmt(r.gmax*1e3,2)} mm a los ${fmt(r.tmax,1)} s · animación en tiempo real`,onClose:back3d,
+    series:{fields:use.map(o=>V3D.dispField(A,r.md.phi[o.k])),q:use.map(o=>Float32Array.from(o.m.q,v=>v/r.gmax)),dt:S.sis.dt,peak:r.gmax},ampDefault:1.5,physical:true,
+    colorAt:(m,i)=>{const D=pkF(m);return seq(Math.hypot(D[2*i],D[2*i+1])/pm);},
+    legend:V3D.legendGradient(['#d1d6db',css('--warn'),css('--red')],['0 mm',fmt(pm*500,2)+' mm',fmt(pm*1e3,2)+' mm'])+'<span class="help">Color: desplazamiento máximo durante el sismo. La deformada se amplifica con el control superior; los pilares se muestran fijos.</span>'});}
+
+/* ---------- IA con frecuencias del usuario (medidas o calculadas) ---------- */
+// Sin datos del usuario la plataforma sigue simulando la medición; con sus frecuencias, se usa una IA entrenada solo con Δf del mismo modelo.
+const FQ={};let FQ_SRC=null;
+async function fqWorker(){if(!FQ_SRC)FQ_SRC=await fetch('op_core.js?v=2.4.0').then(r=>{if(!r.ok)throw new Error('No se encontró op_core.js');return r.text();});
+  const src=FQ_SRC+`\nself.onmessage=e=>{const m=e.data;try{if(m.kind==='camp'){const c=OPC.freqCampaign(m.type,m.G,m.P,m.opts,(q,s)=>self.postMessage({kind:'prog',stage:'Simulaciones de daño',q,s}));self.postMessage({kind:'camp',camp:c});}
+   else{const I=OPC.trainFreqIA(m.camp,m.k,m.sf,(st,q)=>self.postMessage({kind:'prog',stage:st,q}));self.postMessage({kind:'ia',ia:I});}}catch(err){self.postMessage({kind:'error',msg:err.message});}};`;
+  return new Worker(URL.createObjectURL(new Blob([src],{type:'text/javascript'})));}
+function fqRun(ctx,msg,onProg){return new Promise(async(res,rej)=>{let w;try{w=await fqWorker();}catch(e){rej(e);return;}
+  w.onmessage=ev=>{const m=ev.data;if(m.kind==='prog')onProg(m);else if(m.kind==='error'){w.terminate();rej(new Error(m.msg));}else{w.terminate();res(m);}};w.postMessage(msg);});}
+const FQ_ERR=[['0.002','Bajo · 0,2 %'],['0.005','Medio · 0,5 %'],['0.01','Alto · 1 %']];
+// ctx: {id, type, G, P, title}
+function fqRender(el,ctx){if(!el)return;const key=JSON.stringify([ctx.type,ctx.G,ctx.P]);let C=FQ[ctx.id];if(!C||C.key!==key){C=FQ[ctx.id]={key,f0:OPC.modal(OPC.build(ctx.type,ctx.G,ctx.P),8).f,fm:new Array(8).fill(''),fr:new Array(8).fill(''),ref:'modelo',sf:'0.005',camp:null,ia:{},busy:false,out:''};}
+  const inRow=(arr,id,ph)=>arr.map((v,i)=>`<label class="f">f${i+1}${ph?` <span class="dim">(${fmt(C.f0[i],2)})</span>`:''}<input type="text" inputmode="decimal" data-${id}="${i}" value="${esc(v)}" placeholder="Hz"></label>`).join('');
+  el.innerHTML=`<h2>IA · Diagnóstico con frecuencias medidas o calculadas por usted</h2>
+   <p>Si midió el puente (acelerómetros o el celular con phyphox) o calculó sus frecuencias con otro modelo, ingréselas aquí y la IA las usará en lugar de la medición simulada. Esta IA se entrena solo con cambios de frecuencia del mismo modelo${ctx.title?' ('+esc(ctx.title)+')':''}; sin formas modales la localización es menos precisa que con la medición completa. Ingrese los modos en orden, desde f1; los vacíos al final se ignoran.</p>
+   <h3>Frecuencias medidas o calculadas (Hz)</h3><div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(86px,1fr));gap:6px">${inRow(C.fm,'fm',true)}</div>
+   <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,220px),1fr));gap:8px;align-items:end">
+    <label class="f">Referencia (puente sin daño)<select id="fqRef_${ctx.id}"><option value="modelo" ${C.ref==='modelo'?'selected':''}>Frecuencias del modelo (entre paréntesis)</option><option value="usuario" ${C.ref==='usuario'?'selected':''}>Mis frecuencias de referencia</option></select></label>
+    <label class="f">Error de medición<select id="fqErr_${ctx.id}">${FQ_ERR.map(([v,l])=>`<option value="${v}" ${v===C.sf?'selected':''}>${l}</option>`).join('')}</select></label>
+    <div><button class="btn pri" id="fqGo_${ctx.id}" ${C.busy?'disabled':''}>Diagnosticar</button></div></div>
+   ${C.ref==='usuario'?`<h3>Frecuencias de referencia: puente sano o medición anterior (Hz)</h3><div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(86px,1fr));gap:6px">${inRow(C.fr,'fr',false)}</div>`:`<div class="msg"><b>Referencia del modelo.</b> La diferencia entre el modelo y el puente real también se leerá como daño. Calibre antes el módulo E en Dinámica o use una medición anterior del puente como referencia.</div>`}
+   <div id="fqOut_${ctx.id}">${C.out}</div>`;
+  el.querySelectorAll('[data-fm]').forEach(i=>i.onchange=()=>{C.fm[+i.dataset.fm]=i.value.trim();});
+  el.querySelectorAll('[data-fr]').forEach(i=>i.onchange=()=>{C.fr[+i.dataset.fr]=i.value.trim();});
+  $('#fqRef_'+ctx.id).onchange=e=>{C.ref=e.target.value;fqRender(el,ctx);};$('#fqErr_'+ctx.id).onchange=e=>{C.sf=e.target.value;};
+  $('#fqGo_'+ctx.id).onclick=()=>fqDiagnose(el,ctx,C);}
+async function fqDiagnose(el,ctx,C){const out=$('#fqOut_'+ctx.id),num=v=>parseFloat(String(v).replace(',','.'));
+  el.querySelectorAll('[data-fm]').forEach(i=>C.fm[+i.dataset.fm]=i.value.trim());el.querySelectorAll('[data-fr]').forEach(i=>C.fr[+i.dataset.fr]=i.value.trim());
+  let k=0;while(k<8&&num(C.fm[k])>0)k++;
+  if(k<2){out.innerHTML='<div class="msg crit"><b>Faltan datos.</b> Ingrese al menos f1 y f2, en orden y sin dejar huecos.</div>';return;}
+  const ref=C.ref==='usuario'?C.fr.map(num):C.f0;for(let i=0;i<k;i++)if(!(ref[i]>0)){out.innerHTML=`<div class="msg crit"><b>Falta la referencia de f${i+1}.</b></div>`;return;}
+  const x=Array.from({length:k},(_,i)=>(num(C.fm[i])-ref[i])/ref[i]),sf=+C.sf,prog=m=>{out.innerHTML=`<p class="help">${m.stage}: ${Math.round(100*m.q)} %${m.s?` · ${Math.round(m.s)} s`:''}</p><div class="meter"><i style="width:${100*m.q}%"></i></div>`;};
+  C.busy=true;$('#fqGo_'+ctx.id).disabled=true;
+  try{if(!C.camp){out.innerHTML='<p class="help">Preparando la IA de frecuencias para este modelo (unas 1200 simulaciones; solo la primera vez)…</p>';C.camp=(await fqRun(ctx,{kind:'camp',type:ctx.type,G:ctx.G,P:ctx.P,opts:{nPerZone:60,nUndamaged:100,unc:.05,seed:7,NM:8}},prog)).camp;}
+    const ik=k+'|'+sf;if(!C.ia[ik])C.ia[ik]=(await fqRun(ctx,{kind:'train',camp:C.camp,k,sf},prog)).ia;
+    const I=C.ia[ik],Z=C.camp.zones.length,d=OPC.freqPredict(I,Z,x),zn=c=>c<0?'Sin daño':C.camp.zones[c];
+    const v=d.ood?['crit','Medición fuera de dominio']:!d.conclusive?['warn','No concluyente']:d.cls<0?['ok','Sin daño detectado']:['ok','Zona identificada'];
+    const allNeg=x.every(v=>v<-.03)&&Math.max(...x)-Math.min(...x)<.02;
+    C.last={pred:d.cls,zones:C.camp.zones};
+    C.out=`<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),1fr));gap:14px;margin-top:6px">
+     <div class="tw"><table class="data"><tbody><tr><td>Resultado</td><td class="n"><span class="flag ${v[0]}">${v[1]}</span></td></tr>
+      <tr><td>Zona propuesta</td><td class="n" style="font-weight:600">${esc(zn(d.cls))}</td></tr>
+      <tr><td>Severidad estimada</td><td class="n">${d.sev==null?'—':pct(Math.max(0,d.sev),0)}</td></tr>
+      <tr><td>Árboles que votan por esa zona</td><td class="n">${pct(d.p,0)} <span class="dim">/ mín. 40 %</span></td></tr>
+      <tr><td>Distancia al dominio</td><td class="n">${fmt(d.dist,2)} <span class="dim">/ umbral ${fmt(I.oodThr,2)}</span></td></tr></tbody></table>
+      <h3 style="margin-top:8px">Zonas más votadas</h3><div class="tw"><table class="data"><tbody>${d.top.map(([p,c])=>`<tr><td>${esc(zn(c))}</td><td style="width:42%"><div class="meter"><i style="width:${100*p}%"></i></div></td><td class="n">${pct(p,0)}</td></tr>`).join('')}</tbody></table></div></div>
+     <div class="tw"><table class="data"><thead><tr><th>Modo</th><th class="n">Referencia (Hz)</th><th class="n">Medida (Hz)</th><th class="n">Δf</th></tr></thead><tbody>${x.map((v,i)=>`<tr><td class="mono">${i+1}</td><td class="n">${fmt(ref[i],3)}</td><td class="n">${fmt(num(C.fm[i]),3)}</td><td class="n">${sgn(v,2)}</td></tr>`).join('')}</tbody></table>
+      <p class="help" style="margin-top:6px">Validación de esta IA con ${k} frecuencias y error ${pct(sf,1)} (casos simulados no vistos): zona exacta ${pct(I.metrics.localizacion,0)}, vano correcto ${pct(I.metrics.vano,0)}, falsas alarmas ${pct(I.metrics.falsaAlarma,0)}.</p></div></div>
+     ${allNeg?'<div class="msg"><b>Todas las frecuencias bajan casi lo mismo.</b> Eso suele indicar un módulo E o una masa distintos a los del modelo, no un daño local. Calibre el modelo antes de interpretar la zona.</div>':''}
+     ${d.ood?'<div class="msg crit"><b>Fuera de dominio.</b> Las frecuencias ingresadas no se parecen a ningún caso simulado; la IA no debe usarse con estos datos. Revise unidades, orden de los modos y la referencia.</div>':''}`;
+    out.innerHTML=C.out;}
+  catch(e){out.innerHTML=`<div class="msg crit"><b>No se pudo completar el diagnóstico.</b> ${esc(e.message)}</div>`;}
+  finally{C.busy=false;const b=$('#fqGo_'+ctx.id);if(b)b.disabled=false;}}
+// Geometría del modelo C del Balta para el núcleo (reproduce mcBuild: 156 nodos, 225 elementos, f1 = 7,4368 Hz)
+function baltaCtx(){const F=MCD.faces,fit=MCD.fit,yv=c=>-c[1]/(2*c[0]),N0=MCD.nominal;
+  const arches=[{a:2*yv(fit.izq.coef)-F.p1_L,b:F.p1_L,coef:fit.izq.coef},{a:F.p1_R,b:F.p2_L,coef:fit.centro.coef},{a:F.p2_R,b:F.abut_R,coef:fit.der.coef}];
+  return {id:'balta',type:'arco',title:'modelo C nominal del Balta',G:{supports:[{a:arches[0].a,b:arches[0].a},{a:F.p1_L,b:F.p1_R},{a:F.p2_L,b:F.p2_R},{a:F.abut_R,b:F.abut_R}],arches,deckAxis:MCD.z_deck_axis,zBase:[MCD.z_base.p1,MCD.z_base.p2]},
+    P:{E:N0.E_ci/1e6,rho:N0.rho_ci,rib_h:N0.rib_h,n_ribs:N0.n_ribs,I_factor:1,deck_A:N0.deck_A,deck_I:N0.deck_I,post_A:N0.post_A,post_I:N0.post_I,E_pier:N0.E_pier/1e6,pier_t:N0.pier_t,width:N0.width,w_deck:N0.w_deck,springing:'fixed'}};}
 
 /* ================= 5 · Plan de inspección ================= */
 const CRIT=[['sens','Sensibilidad estructural','Cambio de la respuesta si la zona pierde 20 % de rigidez'],['geo','Incertidumbre geométrica','1 − cobertura de la nube en la zona'],['det','Dificultad de detección','1 − aciertos de la IA inversa con ruido de 0,5 %'],['dem','Demanda relativa','σ máx. de la zona / σ máx. del puente'],['cond','Condición observada','(9 − calificación NBI) / 9 del último registro de campo']];
