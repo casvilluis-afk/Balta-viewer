@@ -3,7 +3,8 @@ name: Datos OpenBridgeLAB
 on:
   workflow_dispatch:
     inputs:
-      modo: { description: 'explorar | extraer', default: 'explorar' }
+      modo: { description: 'explorar | extraer | procesar', default: 'explorar' }
+      n: { description: 'Mediciones por estado (procesar)', default: '8' }
       archivos: { description: 'zip::ruta;zip::ruta (modo extraer)', default: '' }
 permissions:
   contents: write
@@ -13,9 +14,9 @@ jobs:
     steps:
       - uses: actions/setup-python@v5
         with: { python-version: '3.12' }
-      - run: pip install requests remotezip numpy scipy
+      - run: pip install requests remotezip numpy scipy h5py
       - name: Procesar
-        env: { MODO: '${{ github.event.inputs.modo }}', ARCH: '${{ github.event.inputs.archivos }}' }
+        env: { MODO: '${{ github.event.inputs.modo }}', ARCH: '${{ github.event.inputs.archivos }}', NSEL: '${{ github.event.inputs.n }}' }
         run: |
           mkdir -p out
           python - <<'PY'
@@ -39,6 +40,43 @@ jobs:
                     with RemoteZip(f['url']) as z:
                       L = z.infolist(); info.setdefault('zips', {})[f['name']] = {'n': len(L), 'primeros': [(x.filename, x.file_size) for x in L[:60]], 'tamanos': sorted({x.file_size for x in L})[:10]}
                   except Exception: info.setdefault('errores', []).append(f['name'] + ': ' + traceback.format_exc()[-800:])
+            elif os.environ['MODO'] == 'procesar':
+              import numpy as np, h5py, scipy.io
+              from scipy.signal import decimate
+              # sensores del modelo 2D (cuartos y centro de los vanos 1 y 2): promedio de las dos líneas y de dos posiciones vecinas (canal 12 excluido por la hoja de datos)
+              SENS = {'S1_v1_25': [2, 3, 10, 11], 'S2_v1_50': [4, 5, 13], 'S3_v1_75': [6, 7, 14, 15], 'S4_v2_25': [26, 27, 18, 19], 'S5_v2_50': [28, 29, 20, 21], 'S6_v2_75': [30, 31, 22, 23]}
+              NS = int(os.environ.get('NSEL') or 8); info['sensores'] = SENS; info['registros'] = []
+              for zn in ['Reference_State.zip', 'Damage_State_1.zip', 'Damage_State_2.zip']:
+                est = zn[:-4]
+                with RemoteZip(urls[zn]) as z:
+                  L = z.infolist(); h5s = sorted([x.filename for x in L if x.filename.endswith('.h5')]); mats = [x.filename for x in L if x.filename.endswith('.mat')]
+                  info.setdefault('listas', {})[est] = {'h5': len(h5s), 'mat': mats}
+                  cat = None
+                  for m in mats:
+                    try:
+                      z.extract(m, 'cat'); fp = 'cat/' + m
+                      try:
+                        M = scipy.io.loadmat(fp, simplify_cells=True); cat = {k: v for k, v in M.items() if not k.startswith('__')}
+                      except NotImplementedError:
+                        with h5py.File(fp, 'r') as H: cat = {k: str(H[k]) for k in H.keys()}
+                      info.setdefault('catalogo', {})[est] = json.loads(json.dumps(cat, default=lambda o: o.tolist() if hasattr(o, 'tolist') else str(o)))
+                    except Exception: info.setdefault('errores', []).append(m + ': ' + traceback.format_exc()[-600:])
+                  sel = [h5s[int(round(i))] for i in np.linspace(0, len(h5s) - 1, NS)]
+                  for fn in sel:
+                    try:
+                      z.extract(fn, 'tmp'); fp = 'tmp/' + fn
+                      with h5py.File(fp, 'r') as H:
+                        d = H['RecBuff']; attrs = {k: (v.decode() if isinstance(v, bytes) else str(v)) for k, v in d.attrs.items()}; A = np.asarray(d[()], dtype=float)
+                      if A.shape[0] < A.shape[1]: A = A.T
+                      ch = {k: A[:, idx].mean(axis=1) for k, idx in SENS.items()}; X = np.column_stack(list(ch.values()))
+                      Xd = decimate(X, 10, ftype='fir', axis=0, zero_phase=True); fs = 100.0
+                      base = os.path.basename(fn)[:-3]; name = f'obl_{est}_{base}.csv'
+                      with open('out/' + name, 'w') as fo:
+                        fo.write(f'# OpenBridgeLAB (TU Dresden, Moeller et al., DOI 10.25532/OPARA-1548, CC BY-NC-SA 4.0). Estado {est}. Archivo {base}. 600 s, 1 kHz diezmado a 100 Hz. m/s2. Sensores: promedio de las dos lineas en los cuartos y centro de los vanos 1 y 2.\n')
+                        fo.write('tiempo_s,' + ','.join(SENS.keys()) + '\n'); np.savetxt(fo, np.column_stack([np.arange(len(Xd)) / fs, Xd]), delimiter=',', fmt='%.6g')
+                      info['registros'].append({'archivo': name, 'estado': est, 'h5': base, 'attrs': attrs, 'n': int(len(Xd)), 'rms': [float(v) for v in Xd.std(axis=0)]})
+                      os.remove(fp)
+                    except Exception: info.setdefault('errores', []).append(fn + ': ' + traceback.format_exc()[-800:])
             else:
               for spec in [s for s in os.environ['ARCH'].split(';') if s.strip()]:
                 zn, path = spec.split('::'); 
