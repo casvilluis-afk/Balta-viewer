@@ -1,0 +1,58 @@
+# OpenBridgeLAB (TU Dresden, DOI 10.25532/OPARA-1548, CC BY-NC-SA 4.0): exploración remota de los zip y extracción de registros para probar PuenteGemelo.
+name: Datos OpenBridgeLAB
+on:
+  workflow_dispatch:
+    inputs:
+      modo: { description: 'explorar | extraer', default: 'explorar' }
+      archivos: { description: 'zip::ruta;zip::ruta (modo extraer)', default: '' }
+permissions:
+  contents: write
+jobs:
+  datos:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/setup-python@v5
+        with: { python-version: '3.12' }
+      - run: pip install requests remotezip numpy scipy
+      - name: Procesar
+        env: { MODO: '${{ github.event.inputs.modo }}', ARCH: '${{ github.event.inputs.archivos }}' }
+        run: |
+          mkdir -p out
+          python - <<'PY'
+          import os, json, traceback, requests
+          from remotezip import RemoteZip
+          info = {}; API = 'https://opara.zih.tu-dresden.de/server/api/core/items/83bdfd26-ecae-452d-86a0-44d7e4958c33'
+          try:
+            it = requests.get(API, timeout=60).json(); info['titulo'] = it.get('name'); md = it.get('metadata', {})
+            info['meta'] = {k: [x.get('value') for x in v] for k, v in md.items() if any(s in k for s in ('title', 'rights', 'description', 'identifier', 'contributor', 'date'))}
+            bs = []
+            for b in requests.get(API + '/bundles', timeout=60).json()['_embedded']['bundles']:
+              for f in requests.get(b['_links']['bitstreams']['href'], timeout=60).json()['_embedded']['bitstreams']:
+                bs.append({'bundle': b['name'], 'name': f['name'], 'size': f.get('sizeBytes'), 'url': f['_links']['content']['href']})
+            info['bitstreams'] = bs
+            urls = {f['name']: f['url'] for f in bs}
+            if os.environ['MODO'] == 'explorar':
+              for f in bs:
+                if f['name'].lower().endswith('.pdf') and f['bundle'] == 'ORIGINAL': open('out/' + f['name'].replace(' ', '_'), 'wb').write(requests.get(f['url'], timeout=300).content)
+                if f['name'].lower().endswith('.zip'):
+                  try:
+                    with RemoteZip(f['url']) as z:
+                      L = z.infolist(); info.setdefault('zips', {})[f['name']] = {'n': len(L), 'primeros': [(x.filename, x.file_size) for x in L[:60]], 'tamanos': sorted({x.file_size for x in L})[:10]}
+                  except Exception: info.setdefault('errores', []).append(f['name'] + ': ' + traceback.format_exc()[-800:])
+            else:
+              for spec in [s for s in os.environ['ARCH'].split(';') if s.strip()]:
+                zn, path = spec.split('::'); 
+                with RemoteZip(urls[zn]) as z: z.extract(path, 'out/raw')
+          except Exception: info['error'] = traceback.format_exc()
+          json.dump(info, open('out/obl_info.json', 'w'), indent=1, ensure_ascii=False, default=str)
+          PY
+          if [ -d out/raw ]; then cd out && zip -qr raw.zip raw && rm -rf raw; fi
+      - if: always()
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: datos-openbridgelab
+          name: Datos de prueba · OpenBridgeLAB (TU Dresden, CC BY-NC-SA 4.0)
+          prerelease: true
+          make_latest: false
+          body: Extractos del conjunto OpenBridgeLAB (DOI 10.25532/OPARA-1548) para probar PuenteGemelo; uso no comercial, citar a los autores.
+          files: out/*
