@@ -55,6 +55,35 @@ jobs:
                         if f['size'] < 5e6 and not f['key'].endswith('.zip'): info.setdefault('textos', {})[f['key']] = get(f['key'])[:3000].decode('latin1', 'replace')
            except Exception:
             info['error_muestra'] = traceback.format_exc()
+          if os.environ['MODO'] == 'extraer' and files:
+            import urllib.request
+            pdfs = [f for f in files if f['key'].lower().endswith('.pdf')]
+            for f in pdfs:
+              try: open('out/' + f['key'].replace(' ', '_'), 'wb').write(get(f['key']))
+              except Exception: info.setdefault('errores', []).append(traceback.format_exc())
+            info['ventanas'] = []
+            for day in [d.strip() for d in os.environ['DIAS'].split(';') if d.strip()]:
+              try:
+                f = next(f for f in files if f['key'].startswith(day)); urllib.request.urlretrieve(f['links']['self'], 'dia.csv')
+                cols = ['t', 'T', 'a1', 'a2', 'a3', 'a4']
+                df = pd.read_csv('dia.csv', sep='\t', header=0, names=cols, dtype={'t': str}, encoding='latin1')
+                t = pd.to_datetime(df['t'], format='%d.%m.%Y %H:%M:%S.%f', errors='coerce'); df['h'] = t.dt.hour
+                hr = df.groupby('h')['T'].mean(); info.setdefault('temp_horaria', {})[day] = {int(k): round(float(v), 2) for k, v in hr.items()}
+                n = len(df); fs = (n - 1) / max(1e-9, (t.iloc[-1] - t.iloc[0]).total_seconds())
+                for etq, hh in [('fria', int(hr.idxmin())), ('calida', int(hr.idxmax()))]:
+                  w = df[df['h'] == hh].iloc[:int(20 * 60 * fs)]
+                  if len(w) < 1000: continue
+                  X = w[['a1', 'a2', 'a3', 'a4']].to_numpy(float); X = X - X.mean(axis=0)
+                  # antialias simple (media móvil de 2) y diezmado a la mitad: ~100 Hz
+                  Xd = (X[0:-1:2] + X[1::2]) / 2; fsd = fs / 2
+                  tt = np.arange(len(Xd)) / fsd; name = f'openlab_{day}_{etq}_{hh:02d}h.csv'
+                  with open('out/' + name, 'w') as fo:
+                    fo.write(f'# openLAB (TU Dresden), Zenodo 10782663, CC BY 4.0. Dia {day} hora {hh:02d}:00, 20 min, temperatura media {w["T"].mean():.2f} C, muestreo {fsd:.2f} Hz\n')
+                    fo.write('tiempo_s,Acc01_Girder1Middle_mV,Acc02_Girder1Quarter_mV,Acc03_Girder2Middle_mV,Acc04_Girder2Quarter_mV\n')
+                    np.savetxt(fo, np.column_stack([tt, Xd]), delimiter=',', fmt=['%.4f'] + ['%.4f'] * 4)
+                  info['ventanas'].append({'archivo': name, 'dia': day, 'hora': hh, 'T_media': round(float(w['T'].mean()), 2), 'fs': round(fsd, 3), 'muestras': len(Xd), 'rms_mV': [round(float(v), 4) for v in X.std(axis=0)]})
+                os.remove('dia.csv')
+              except Exception: info.setdefault('errores', []).append(day + ': ' + traceback.format_exc()[-1500:])
           json.dump(info, open('out/openlab_info.json', 'w'), indent=1, ensure_ascii=False, default=str); print(json.dumps(info, indent=1, ensure_ascii=False, default=str)[:6000])
           PY
       - if: always()
