@@ -177,7 +177,7 @@ function opModesShow() {
   const r = OP.modes, fr = OP.model;
   $('#opModOut').innerHTML = `<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px" class="toggle" role="group">${r.f.map((f, i) => `<button data-m="${i}" aria-pressed="${i === OP.modeSel}">Modo ${i + 1} · ${fmt(f, 2)} Hz</button>`).join('')}</div>
    <div class="tw" style="margin-top:8px"><table class="data"><thead><tr><th>Modo</th><th class="n">f (Hz)</th><th class="n">T (s)</th><th class="n">Part. vertical</th><th class="n">Part. longitudinal</th></tr></thead><tbody>${r.f.map((f, i) => `<tr${i === OP.modeSel ? ' class="hl"' : ''}><td class="mono">${i + 1}</td><td class="n">${fmt(f, 3)}</td><td class="n">${fmt(1 / f, 4)}</td><td class="n">${pct(r.part[i].Z, 1)}</td><td class="n">${pct(r.part[i].Y, 1)}</td></tr>`).join('')}</tbody></table></div>
-   <p class="help">${fr.nodes.length} nodos · ${fr.el.length} elementos · masa ${fmt(r.totalMass, 0)} t · ${fmt(r.ms, 0)} ms · <button class="btn line" id="opDxf4" style="padding:1px 8px">Planos DXF</button></p>`;
+   <p class="help">${fr.nodes.length} nodos · ${fr.el.length} elementos · masa ${fmt(r.totalMass, 0)} t · <button class="btn line" id="opDxf4" style="padding:1px 8px">Planos DXF</button></p>`;
   $('#opModOut').querySelectorAll('[data-m]').forEach(b => b.onclick = () => { OP.modeSel = +b.dataset.m; opModesShow(); }); const dx4 = $('#opDxf4'); if (dx4) dx4.onclick = opPlans;
   $('#opSheet').innerHTML = sheet({ no: 'T-01', model: `${fr.nodes.length} n · ${fr.el.length} e`, title: `${OP_TYPES[OP.type]} · modo ${OP.modeSel + 1} · ${fmt(r.f[OP.modeSel], 2)} Hz`, scale: 'esquema', content: opFrameSVG(fr, r.phi[OP.modeSel]), notes: `<text x="40" y="470">${esc(OP.name)}</text><text x="40" y="484">Geometría desde la nube; secciones y cargas según supuestos del usuario</text>` });
 }
@@ -197,7 +197,7 @@ function opFrameSVG(fr, phi, hl) {
 /* ---------- 5 · Entrenar la IA (Web Worker) ---------- */
 let OP_CORE_SRC = null;
 async function opWorker() {
-  if (!OP_CORE_SRC) OP_CORE_SRC = await fetch('op_core.js?v=1.0.0').then(r => { if (!r.ok) throw new Error('No se encontró op_core.js'); return r.text(); });
+  if (!OP_CORE_SRC) OP_CORE_SRC = await fetch('op_core.js?v=1.0.1').then(r => { if (!r.ok) throw new Error('No se encontró op_core.js'); return r.text(); });
   const src = OP_CORE_SRC + `\nself.onmessage = e => { const m = e.data; try {
     const camp = OPC.campaign(m.type, m.G, m.P, m.opts, (q, s) => self.postMessage({ kind: 'prog', stage: 'Simulaciones de daño', q, s }));
     self.postMessage({ kind: 'prog', stage: 'Entrenando la IA', q: 0 });
