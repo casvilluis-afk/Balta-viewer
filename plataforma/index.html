@@ -220,16 +220,16 @@ import {OrbitControls} from 'three/addons/controls/OrbitControls.js';
 window.BaltaThree={THREE,GLTFLoader,OrbitControls};
 window.dispatchEvent(new Event('three-ready'));
 </script>
-<script src="v3d.js?v=1.0.1"></script>
-<script src="op_core.js?v=1.0.1"></script>
-<script src="op_ui.js?v=1.0.1"></script>
-<script src="pg_mod.js?v=1.0.1"></script>
+<script src="v3d.js?v=1.1.0"></script>
+<script src="op_core.js?v=1.1.0"></script>
+<script src="op_ui.js?v=1.1.0"></script>
+<script src="pg_mod.js?v=1.1.0"></script>
 <script>
 "use strict";
 const MODEL_URL='../models/puente-balta-v12.glb';
 /* ================= Utilidades ================= */
 const $=s=>document.querySelector(s);
-const APP_VERSION='1.0.1';
+const APP_VERSION='1.1.0';
 // formato numérico: coma decimal y punto de miles (como en el texto de la tesis)
 const fmt=(x,d=2)=>Number.isFinite(x)?x.toLocaleString('es-ES',{minimumFractionDigits:d,maximumFractionDigits:d,useGrouping:Math.abs(x)>=1e4}):'—';
 const pct=(x,d=1)=>fmt(100*x,d)+' %';
@@ -747,6 +747,7 @@ function dxRender(){const X=S.dx;if(!X.n)X.n=1;
     <td><b>3 · SVM-RBF</b><br><span class="dim">elige la zona entre 19 clases por votación</span></td>
     <td><b>4 · Random Forest</b><br><span class="dim">estima la severidad en la zona elegida</span></td>
     <td><b>5 · Confianza</b><br><span class="dim">margen de votos y distancia al dominio de entrenamiento</span></td></tr></tbody></table></div>
+   <p class="help keep" style="font-size:.82rem;color:var(--warn)">Demostración con mediciones simuladas por el mismo modelo: el acierto aquí es optimista (ver Verificación).</p>
    <p class="help" style="font-size:.86rem">Elija un escenario. La plataforma calcula el modelo C dañado y simula la medición; la IA no conoce el escenario. Cada medición tiene un número: el mismo número da siempre el mismo resultado. Para saber qué tan confiable es la IA en ese escenario, repita 100 mediciones.</p>
    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,190px),1fr));gap:10px;align-items:end">
     <label class="f">Zona dañada<select id="dxZ"><option value="-1">Sin daño</option>${IAC.zonas.map((_,i)=>`<option value="${i}" ${i===X.zone?'selected':''}>${zlab(i)}</option>`).join('')}</select></label>
@@ -1018,7 +1019,7 @@ function open3dSis(){const r=S.sis.res;if(!r)return;const A=V3D.adaptMC(r.fr),se
 /* ---------- IA con frecuencias del usuario (medidas o calculadas) ---------- */
 // Sin datos del usuario la plataforma sigue simulando la medición; con sus frecuencias, se usa una IA entrenada solo con Δf del mismo modelo.
 const FQ={};let FQ_SRC=null;
-async function fqWorker(){if(!FQ_SRC)FQ_SRC=await fetch('op_core.js?v=1.0.1').then(r=>{if(!r.ok)throw new Error('No se encontró op_core.js');return r.text();});
+async function fqWorker(){if(!FQ_SRC)FQ_SRC=await fetch('op_core.js?v=1.1.0').then(r=>{if(!r.ok)throw new Error('No se encontró op_core.js');return r.text();});
   const src=FQ_SRC+`\nself.onmessage=e=>{const m=e.data;try{if(m.kind==='camp'){const c=OPC.freqCampaign(m.type,m.G,m.P,m.opts,(q,s)=>self.postMessage({kind:'prog',stage:'Simulaciones de daño',q,s}));self.postMessage({kind:'camp',camp:c});}
    else if(m.kind==='trainM'){const I=OPC.trainModalIA(m.camp,m.sel,m.sf,m.ss,(st,q)=>self.postMessage({kind:'prog',stage:st,q}));self.postMessage({kind:'ia',ia:I});}else{const I=OPC.trainFreqIA(m.camp,m.k,m.sf,(st,q)=>self.postMessage({kind:'prog',stage:st,q}));self.postMessage({kind:'ia',ia:I});}}catch(err){self.postMessage({kind:'error',msg:err.message});}};`;
   return new Worker(URL.createObjectURL(new Blob([src],{type:'text/javascript'})));}
@@ -1048,7 +1049,7 @@ async function fqDiagnose(el,ctx,C){const out=$('#fqOut_'+ctx.id),num=v=>parseFl
   const ref=C.ref==='usuario'?C.fr.map(num):C.f0;for(const i of idx)if(!(ref[i]>0)){out.innerHTML=`<div class="msg crit"><b>Falta la referencia de f${i+1}.</b></div>`;return;}
   const x=idx.map(i=>(num(C.fm[i])-ref[i])/ref[i]),sf=+C.sf,prog=m=>{out.innerHTML=`<p class="help">${m.stage}: ${Math.round(100*m.q)} %${m.s?` · ${Math.round(m.s)} s`:''}</p><div class="meter"><i style="width:${100*m.q}%"></i></div>`;};
   C.busy=true;$('#fqGo_'+ctx.id).disabled=true;
-  try{if(!C.camp){out.innerHTML='<p class="help">Preparando la IA de frecuencias para este modelo (unas 1200 simulaciones; solo la primera vez)…</p>';C.camp=(await fqRun(ctx,{kind:'camp',type:ctx.type,G:ctx.G,P:ctx.P,opts:{nPerZone:60,nUndamaged:100,unc:.05,seed:7,NM:8}},prog)).camp;}
+  try{if(!C.camp){out.innerHTML='<p class="help">Preparando la IA de frecuencias para este modelo (unas 1200 simulaciones; solo la primera vez)…</p>';C.camp=(await fqRun(ctx,{kind:'camp',type:ctx.type,G:ctx.G,P:ctx.P,opts:{nPerZone:60,nUndamaged:100,unc:.05,seed:7,NM:8,modelErr:.05}},prog)).camp;}
     const ik=idx.join(',')+'|'+sf;if(!C.ia[ik])C.ia[ik]=(await fqRun(ctx,{kind:'train',camp:C.camp,k:idx,sf},prog)).ia;
     const I=C.ia[ik],Z=C.camp.zones.length,d=OPC.freqPredict(I,Z,x),zn=c=>c<0?'Sin daño':C.camp.zones[c];
     const v=d.ood?['crit','Medición fuera de dominio']:!d.conclusive?['warn','No concluyente']:d.cls<0?['ok','Sin daño detectado']:['ok','Zona identificada'];
@@ -1215,6 +1216,7 @@ function valTech(){const v=MET.sustituto.validaciones,nm={aleatorio_80_20:'Parti
    <p>Se recalculan en este navegador los 450 casos con carga del dataset y se comparan con los resultados archivados de OpenSees.</p>
    <div><button class="btn" id="runConc">Ejecutar 450 casos</button></div><div id="concOut" class="tw"></div>
    <h3>Diagnóstico de daño por vibración · modelo C</h3>
+   <div class="msg"><b>Validación con datos del mismo modelo.</b> Estas cifras miden cuánto reconoce la IA al modelo que la entrenó (es la cota superior). Cuando el puente difiere del modelo (rigidez de cada elemento ±8 %, E −4 %), la IA con frecuencias y formas acierta la zona exacta en 50 % y el vano en 75 %; solo con frecuencias, 21 % la zona. Con datos reales de OpenBridgeLAB (TU Dresden) el efecto ambiental fue del orden del daño. Por eso la app usa línea base medida, error de modelo en el entrenamiento y marca «cambio no explicado».</div>
    <p class="dim" style="font-size:.86rem">${esc(MIAC.datos)}. Rasgos: ${esc(MIAC.rasgos)}. ${esc(MIAC.clasificador)}; severidad con ${esc(MIAC.severidad)}. Fuera de dominio: con ruido de 3 % se detecta el ${pct(MIAC.fuera_de_dominio.deteccion_ruido_3pct,0)} de las mediciones.</p>
    <div class="tw"><table class="data"><thead><tr><th>Ruido (Δf · forma)</th><th class="n">Detección</th><th class="n">Falsa alarma</th><th class="n">Localización</th><th class="n">F1 macro</th><th class="n">Vano</th><th class="n">Daño 5–15 %</th><th class="n">15–30 %</th><th class="n">30–60 %</th><th class="n">MAE sev.</th><th class="n">RF artículo</th></tr></thead><tbody>${NLEV.map(L=>{const o=MIAC.por_ruido[L.k];return `<tr><td>${L.l.split(' · ').slice(1).join(' · ')}</td><td class="n">${pct(o.deteccion_bal)}</td><td class="n">${pct(o.falsa_alarma)}</td><td class="n">${pct(o.localizacion_acc)}</td><td class="n">${fmt(o.localizacion_f1m,3)}</td><td class="n">${pct(o.vano_acc)}</td><td class="n">${pct(o['loc_acc_d5-15'])}</td><td class="n">${pct(o['loc_acc_d15-30'])}</td><td class="n">${pct(o['loc_acc_d30-61'])}</td><td class="n">${fmt(100*o.severidad_MAE,1)} pp</td><td class="n">${pct(o.rf_articulo_localizacion_acc)}</td></tr>`;}).join('')}</tbody></table></div>
    <p class="help">Detección: exactitud balanceada daño / sin daño. Localización: zona exacta entre 19 clases. RF artículo: Random Forest de blockB_ml.py reentrenado con los datos corregidos, como referencia.</p>

@@ -15,7 +15,7 @@ Programa de escritorio de código abierto (Windows, macOS y Linux) desarrollado 
 | **Frecuencias del usuario** | Si el usuario midió o calculó las frecuencias del puente, una IA entrenada solo con cambios de frecuencia propone la zona dañada, con control de dominio. Sin esos datos, la medición se simula. |
 | **Sismo registrado** | Lee acelerogramas en texto (por ejemplo, de CISMID-UNI o del IGP — AcelDat-Perú), calcula el espectro de respuesta y la respuesta del puente por superposición modal (integración exacta de Nigam y Jennings) y la anima en 3D. Aproximación: excitación uniforme, modelo elástico y plano. |
 | **Estado del puente** | Pantalla de inicio del gemelo digital: índice de salud, calificación MTC, último diagnóstico de la IA, modelo de referencia, carga HL-93, vida proyectada, próxima inspección, alertas, seguimiento de las frecuencias medidas en el tiempo y línea de tiempo con cada medición, diagnóstico, calibración, evaluación e inspección (se guarda en el proyecto). |
-| **IA con formas modales** | Con 3 o más sensores, la IA se entrena para la configuración medida (modos y sensores) con frecuencias y cambios de forma modal. Prueba de punta a punta en el Balta (48 señales simuladas con daño oculto): zona exacta 72 % frente a 28 % solo con frecuencias; vano 97 % frente a 69 %. |
+| **IA con formas modales** | Con 3 o más sensores, la IA se entrena para la configuración medida (modos y sensores) con frecuencias y cambios de forma modal. Prueba con puentes distintos del modelo (rigidez de cada elemento ±8 %, E −4 %; 160 casos de daño en 20 zonas, incluidos pilares): zona exacta 50 % frente a 21 % solo con frecuencias; vano 75 %; sin falsas alarmas. Entrenada con error de modelo de ±5 % por elemento. |
 | **Campañas de medición** | Varios registros a la vez: modos persistentes (los que aparecen en la mayoría de los registros), espectro promedio, efecto de la temperatura por modo (df/dT) y frecuencias compensadas a una temperatura de referencia. Línea base medida del puente sano: la IA compara cada medición con ella y usa el modelo solo para aprender cómo cambian frecuencias y formas con el daño. Validado con datos reales públicos de OpenBridgeLAB (TU Dresden). |
 | **Calibración del modelo** | Ajusta E, peralte, módulo de pilares (y opcionalmente el peso) para reproducir las frecuencias y formas medidas (Nelder-Mead acotado). El modelo calibrado puede usarse como referencia de la IA y de los demás análisis. |
 | **Vibración medida (OMA)** | Lee registros de acelerómetros o del celular (CSV de phyphox, multicanal), asigna cada canal a un punto del tablero e identifica frecuencias, amortiguamientos y formas modales con FDD/EFDD (dos valores singulares, campana del modo, autocorrelación). Empareja cada modo con el modelo por MAC, estima el ajuste global de rigidez y envía las frecuencias a la IA de diagnóstico (que se entrena con exactamente los modos medidos). Incluye una señal de prueba con daño oculto para validar la cadena medición → IA. |
@@ -26,6 +26,14 @@ Programa de escritorio de código abierto (Windows, macOS y Linux) desarrollado 
 | **Ejemplo: Puente Balta** | Modelo 2D verificado contra OpenSees 3.8.0 (450 casos, error relativo < 1e-11), modelo C con la geometría medida (f1 = 7,437 Hz), IA SVM-RBF de 19 clases, nube TLS, vista 3D, plan de inspección y protocolo de validación con evaluadores (SUS). |
 
 Todo se calcula en la computadora del usuario; ningún dato sale a internet.
+
+## Limitaciones conocidas
+
+- El modelo del Puente Balta aún no se compara con mediciones del puente (E, peso del tablero, nervios y peralte son supuestos).
+- Modelo estructural 2D: sin torsión ni reparto transversal; esfuerzos de montantes sobreestimados.
+- IA entrenada con simulaciones; con datos reales de OpenBridgeLAB (TU Dresden) el efecto ambiental fue del orden del daño, por eso se usa línea base medida y se informa «cambio no explicado».
+- Fierro fundido: factor de capacidad solo con resistencias de ensayo. Sismo: registros y comportamiento elástico, sin espectro de norma.
+- Deterioro: tiempos de transición supuestos hasta calibrarlos con inspecciones.
 
 ## Instalar
 

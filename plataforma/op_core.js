@@ -261,11 +261,11 @@ function buildArch(G, p) { // G: {supports, arches:[{a,b,coef}], deckAxis, zBase
   const yd = [...yset].sort((a, b) => a - b), dN = {}; yd.forEach(y => dN[y] = add(y, G.deckAxis)); const dk = yd.map(y => dN[y]);
   for (let i = 0; i < dk.length - 1; i++) ae(dk[i], dk[i + 1], Eci, p.deck_A, p.deck_I, 'tablero');
   arches.forEach(a => { for (let i = 1; i < a.ids.length - 1; i++) ae(a.ids[i], dN[r4(a.ys[i])], Eci, p.post_A, p.post_I, 'montante_' + a.k); });
-  const pA = p.pier_t * p.width, pI = p.width * p.pier_t ** 3 / 12, Ep = p.E_pier * 1e6, fixed = [];
+  const pA = p.pier_t * p.width, pI = p.width * p.pier_t ** 3 / 12, Ep = p.E_pier * 1e6, fixed = [], stems = [];
   for (let k = 1; k < G.supports.length - 1; k++) {
     const nl = arches[k - 1].ids[NSEG], nr = arches[k].ids[0], [yl, zl] = nodes[nl], [yr, zr] = nodes[nr];
     const top = add((yl + yr) / 2, (zl + zr) / 2), base = add((yl + yr) / 2, G.zBase[k - 1]);
-    ae(nl, top, Ep * 50, pA, pI, 'pilar_' + k); ae(top, nr, Ep * 50, pA, pI, 'pilar_' + k); ae(top, base, Ep, pA, pI, 'pilar_' + k);
+    ae(nl, top, Ep * 50, pA, pI, 'pilar_' + k); ae(top, nr, Ep * 50, pA, pI, 'pilar_' + k); stems.push(el.length); ae(top, base, Ep, pA, pI, 'pilar_' + k);
     const ydn = yd.reduce((b, v) => Math.abs(v - (yl + yr) / 2) < Math.abs(b - (yl + yr) / 2) ? v : b, yd[0]); ae(top, dN[ydn], Ep, pA, pI, 'pilar_' + k); fixed.push(base);
   }
   const fx = new Uint8Array(3 * nodes.length), fixAll = i => { fx[3 * i] = fx[3 * i + 1] = fx[3 * i + 2] = 1; };
@@ -278,8 +278,10 @@ function buildArch(G, p) { // G: {supports, arches:[{a,b,coef}], deckAxis, zBase
   fr.deckNodes = yd.map(y => ({ s: y, node: dN[y] }));
   fr.spans = arches.map(a => ({ a: a.ys[0], b: a.ys[NSEG] }));
   fr.zoneDefs = []; arches.forEach(a => ['arranque izq', 'riñón izq', 'clave', 'riñón der', 'arranque der'].forEach(l => fr.zoneDefs.push(`Arco ${a.k + 1} · ${l}`))); fr.spans.forEach((_, k) => fr.zoneDefs.push(`Tablero vano ${k + 1}`));
+  // pilares: pérdida de rigidez del fuste y de su empotramiento (socavación de la cimentación, como la del Balta en 2009)
+  stems.forEach((_, k) => fr.zoneDefs.push(`Pilar ${k + 1} · base (socavación)`));
   const mid = t => (nodes[el[t][0]][0] + nodes[el[t][1]][0]) / 2, na = arches.length;
-  fr.zoneOf = el.map((_, t) => { const g = grp[t]; for (const a of arches) { const s0 = a.ys[0], s1 = a.ys[NSEG]; if (g === 'arco_' + a.k) return a.k * 5 + Math.min(Math.floor((mid(t) - s0) / (s1 - s0) * 5), 4); if (g === 'tablero' && s0 <= mid(t) && mid(t) <= s1) return 5 * na + a.k; } return -1; });
+  fr.zoneOf = el.map((_, t) => { const g = grp[t]; for (const a of arches) { const s0 = a.ys[0], s1 = a.ys[NSEG]; if (g === 'arco_' + a.k) return a.k * 5 + Math.min(Math.floor((mid(t) - s0) / (s1 - s0) * 5), 4); if (g === 'tablero' && s0 <= mid(t) && mid(t) <= s1) return 5 * na + a.k; } const ks = stems.indexOf(t); return ks >= 0 ? 5 * na + fr.spans.length + ks : -1; });
   return fr;
 }
 function buildGirder(G, p) { // vigas continuas sobre los apoyos
@@ -402,7 +404,8 @@ function campaign(type, G, p, opts, prog) {
   jobs.forEach((zz, n) => {
     const pp = Object.assign({}, p, { E: p.E * (1 + gaussR(r) * opts.unc / 2), w_deck: p.w_deck * (1 + gaussR(r) * opts.unc / 2) });
     const fr = build(type, G, pp), d = zz < 0 ? 0 : 0.05 + r() * 0.55, esc = new Float64Array(fr.el.length).fill(1);
-    if (zz >= 0) fr.zoneOf.forEach((z, t) => { if (z === zz) esc[t] = 1 - d; });
+    if (opts.modelErr) for (let t = 0; t < esc.length; t++) esc[t] = Math.exp(gaussR(r) * opts.modelErr);
+    if (zz >= 0) fr.zoneOf.forEach((z, t) => { if (z === zz) esc[t] *= 1 - d; });
     const m = modal(fr, NM, esc, 1e-9); rows.push({ zona: zz, sev: d, x: features(m.f, m.phi, f0, phi0, sdof, NM) });
     if (prog && n % 20 === 0) prog(n / jobs.length, (Date.now() - t0) / 1000);
   });
@@ -542,7 +545,10 @@ function freqCampaign(type, G, p, opts, prog) {
   const jobs = []; for (let i = 0; i < opts.nUndamaged; i++) jobs.push(-1); for (let z = 0; z < Z; z++) for (let i = 0; i < opts.nPerZone; i++) jobs.push(z);
   const rows = [], t0 = Date.now();
   jobs.forEach((zz, n) => { const pp = Object.assign({}, p, { E: p.E * (1 + gaussR(r) * opts.unc / 2), w_deck: p.w_deck * (1 + gaussR(r) * opts.unc / 2) });
-    const fr = build(type, G, pp), d = zz < 0 ? 0 : 0.05 + r() * 0.55, esc = new Float64Array(fr.el.length).fill(1); if (zz >= 0) fr.zoneOf.forEach((z, t) => { if (z === zz) esc[t] = 1 - d; });
+    const fr = build(type, G, pp), d = zz < 0 ? 0 : 0.05 + r() * 0.55, esc = new Float64Array(fr.el.length).fill(1);
+    // error de modelo: la rigidez real de cada elemento difiere de la supuesta (lognormal, σ = modelErr); evita entrenar y evaluar con el mismo modelo perfecto
+    if (opts.modelErr) for (let t = 0; t < esc.length; t++) esc[t] = Math.exp(gaussR(r) * opts.modelErr);
+    if (zz >= 0) fr.zoneOf.forEach((z, t) => { if (z === zz) esc[t] *= 1 - d; });
     const md = modal(fr, NM, esc, 1e-9), f = md.f, row = { zona: zz, sev: d, df: f.map((v, i) => (v - f0[i]) / f0[i]) };
     if (opts.shapes !== false) { const S = md.phi.map(at), used = new Set(); row.dfm = []; row.sh = [];
       for (let i = 0; i < NM; i++) { let best = -1, j = 0; for (let k = 0; k < NM; k++) { if (used.has(k)) continue; const m = mac(sh0[i], S[k]) * (1 - Math.min(1, Math.abs(f[k] / f0[i] - 1) * 2)); if (m > best) { best = m; j = k; } } used.add(j);

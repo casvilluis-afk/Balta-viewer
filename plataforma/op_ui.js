@@ -197,7 +197,7 @@ function opFrameSVG(fr, phi, hl) {
 /* ---------- 5 · Entrenar la IA (Web Worker) ---------- */
 let OP_CORE_SRC = null;
 async function opWorker() {
-  if (!OP_CORE_SRC) OP_CORE_SRC = await fetch('op_core.js?v=1.0.1').then(r => { if (!r.ok) throw new Error('No se encontró op_core.js'); return r.text(); });
+  if (!OP_CORE_SRC) OP_CORE_SRC = await fetch('op_core.js?v=1.1.0').then(r => { if (!r.ok) throw new Error('No se encontró op_core.js'); return r.text(); });
   const src = OP_CORE_SRC + `\nself.onmessage = e => { const m = e.data; try {
     const camp = OPC.campaign(m.type, m.G, m.P, m.opts, (q, s) => self.postMessage({ kind: 'prog', stage: 'Simulaciones de daño', q, s }));
     self.postMessage({ kind: 'prog', stage: 'Entrenando la IA', q: 0 });
@@ -224,7 +224,7 @@ function opIA() {
       if (m.kind === 'prog') { const el = $('#opProg'); if (el) el.innerHTML = `<p class="mono" style="font-size:.82rem">${m.stage}: ${Math.round(100 * m.q)} %${m.s ? ` · ${Math.round(m.s)} s` : ''}</p><div class="meter" style="height:8px"><i style="width:${100 * m.q}%"></i></div>`; }
       else if (m.kind === 'done') { OP.camp = m.camp; OP.ia = m.ia; OP.ia.secs = (performance.now() - t0) / 1000; OP.busy = false; OP.worker.terminate(); OP.worker = null; OP.dx = { zone: 0, sev: .3, lev: 1, n: 1 }; if (S.view === 'tupuente' && OP.step === 5) opIA(); toast('IA entrenada para este puente.'); }
       else if (m.kind === 'error') { OP.busy = false; const el = $('#opProg'); if (el) el.innerHTML = `<div class="msg crit"><b>Falló el entrenamiento.</b> ${esc(m.msg)}</div>`; } };
-    OP.worker.postMessage({ type: OP.type, G: opModelG(), P: OP.P, opts: { nPerZone: OP.nz, nUndamaged: 100, unc: +$('#opUnc').value, seed: 7, NM: Math.min(8, OP.modes.f.length + 2) } });
+    OP.worker.postMessage({ type: OP.type, G: opModelG(), P: OP.P, opts: { nPerZone: OP.nz, nUndamaged: 100, unc: +$('#opUnc').value, seed: 7, NM: Math.min(8, OP.modes.f.length + 2), modelErr: .05 } });
   };
   if (OP.ia) opIAShow();
   opRightHelp('<p>El cálculo corre en segundo plano en su navegador; puede tardar uno o dos minutos con 60 escenarios por zona.</p><p>La validación usa 30 % de los casos que la IA no vio, con tres niveles de ruido de medición: bajo (0,2 % en frecuencias), medio (0,5 %) y alto (1 %).</p>');

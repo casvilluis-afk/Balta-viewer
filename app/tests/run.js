@@ -21,7 +21,7 @@ const PB = { E: N0.E_ci / 1e6, rho: N0.rho_ci, rib_h: N0.rib_h, n_ribs: N0.n_rib
 const frB = OPC.build('arco', GB, PB), mdB = OPC.modal(frB, 20);
 ok('Modelo C: nodos y elementos', frB.nodes.length === 156 && frB.el.length === 225, `${frB.nodes.length} nodos, ${frB.el.length} elementos`);
 ok('Modelo C: f1 = 7,437 Hz', Math.abs(mdB.f[0] - 7.437) < 0.001, mdB.f[0].toFixed(4) + ' Hz');
-ok('Modelo C: 18 zonas de daño', frB.zoneDefs.length === 18);
+ok('Modelo C: 20 zonas de daño (15 de arcos, 3 de tablero y 2 de pilares por socavación)', frB.zoneDefs.length === 20 && frB.zoneOf.filter(z => z >= 18).length === 2);
 
 // 3. Integración sísmica exacta (Nigam-Jennings) contra Newmark con paso muy fino
 { const dt = .01, n = 3000, ag = Float64Array.from({ length: n }, (_, i) => Math.sin(2 * Math.PI * 1.3 * i * dt) * Math.exp(-i * dt / 10) * 2), w = 2 * Math.PI * 2, z = .05;
