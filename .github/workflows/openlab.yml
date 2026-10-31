@@ -17,7 +17,7 @@ jobs:
     steps:
       - uses: actions/setup-python@v5
         with: { python-version: '3.12' }
-      - run: pip install numpy pandas requests
+      - run: pip install numpy pandas requests scipy
       - name: Procesar
         env: { MODO: '${{ github.event.inputs.modo }}', DIAS: '${{ github.event.inputs.dias }}' }
         run: |
@@ -71,14 +71,17 @@ jobs:
                 hr = df.groupby('h')['T'].mean(); info.setdefault('temp_horaria', {})[day] = {int(k): round(float(v), 2) for k, v in hr.items()}
                 n = len(df); fs = (n - 1) / max(1e-9, (t.iloc[-1] - t.iloc[0]).total_seconds())
                 for etq, hh in [('fria', int(hr.idxmin())), ('calida', int(hr.idxmax()))]:
-                  w = df[df['h'] == hh].iloc[:int(20 * 60 * fs)]
+                  w = df[df['h'] == hh].iloc[:int(30 * 60 * fs)]
                   if len(w) < 1000: continue
+                  tw = t[w.index]; gaps = int((tw.diff().dt.total_seconds() > 0.05).sum())
+                  if gaps: info.setdefault('descartadas', []).append(f'{day} {hh}h: {gaps} huecos'); continue
+                  from scipy.signal import decimate
                   X = w[['a1', 'a2', 'a3', 'a4']].to_numpy(float); X = X - X.mean(axis=0)
-                  # antialias simple (media móvil de 2) y diezmado a la mitad: ~100 Hz
-                  Xd = (X[0:-1:2] + X[1::2]) / 2; fsd = fs / 2
+                  # filtro antialias FIR de fase cero y diezmado 200 → 100 Hz
+                  Xd = decimate(X, 2, ftype='fir', axis=0, zero_phase=True); fsd = fs / 2
                   tt = np.arange(len(Xd)) / fsd; name = f'openlab_{day}_{etq}_{hh:02d}h.csv'
                   with open('out/' + name, 'w') as fo:
-                    fo.write(f'# openLAB (TU Dresden), Zenodo 10782663, CC BY 4.0. Dia {day} hora {hh:02d}:00, 20 min, temperatura media {w["T"].mean():.2f} C, muestreo {fsd:.2f} Hz\n')
+                    fo.write(f'# openLAB (TU Dresden), Zenodo 10782663, CC BY 4.0. Dia {day} hora {hh:02d}:00, 30 min, temperatura media {w["T"].mean():.2f} C, muestreo {fsd:.2f} Hz\n')
                     fo.write('tiempo_s,Acc01_Girder1Middle_mV,Acc02_Girder1Quarter_mV,Acc03_Girder2Middle_mV,Acc04_Girder2Quarter_mV\n')
                     np.savetxt(fo, np.column_stack([tt, Xd]), delimiter=',', fmt=['%.4f'] + ['%.4f'] * 4)
                   info['ventanas'].append({'archivo': name, 'dia': day, 'hora': hh, 'T_media': round(float(w['T'].mean()), 2), 'fs': round(fsd, 3), 'muestras': len(Xd), 'rms_mV': [round(float(v), 4) for v in X.std(axis=0)]})
