@@ -96,7 +96,17 @@ ok('Modelo C: 18 zonas de daño', frB.zoneDefs.length === 18);
   const O = OPC.orient({ xyz, offset: [0, 0, 0] }, 'z', 1), S = OPC.detectSupports(O, OPC.deckLevel(O), OPC.groundLevel(O)).supports, near = (x, y) => Math.abs(x - y) < .6;
   ok('Apoyos del Balta: pilares P1 y P2 y estribo derecho', S.length === 3 && S[0].tipo === 'pilar' && S[1].tipo === 'pilar' && S[2].tipo === 'estribo' && near(S[0].a, F.p1_L) && near(S[1].b, F.p2_R), S.map(p => `${p.tipo} ${p.a.toFixed(1)}–${p.b.toFixed(1)}`).join(' · ')); }
 
-// 15. Solver 2D de la plataforma contra OpenSees: se verifica en el navegador (pestaña Validación) con los 450 casos de data/fem_525.csv
+// 15. Campaña de registros: los modos que se repiten se separan del ruido que aparece y desaparece, y se estima el efecto de la temperatura
+{ let seed = 5; const rnd = () => { seed = (seed * 16807) % 2147483647; return seed / 2147483647; };
+  const W = Array.from({ length: 10 }, (_, i) => { const T = 2 + 1.5 * i; return { T, peaks: [4.6 - .01 * T, 7.2 - .015 * T, 10.6].map(f => ({ f: f + (rnd() - .5) * .01, zeta: .02 })).concat([{ f: 3 + 25 * rnd(), zeta: .01 }, { f: 3 + 25 * rnd(), zeta: .01 }]) }; });
+  const R = OPC.peakCampaign(W, { minPres: .5 }), m = R.modes;
+  ok('Campaña: tres modos persistentes y pendiente por temperatura', m.length === 3 && Math.abs(m[0].slope + .01) < .002 && Math.abs(m[1].slope + .015) < .002 && m[0].sdComp < m[0].sdRaw, m.map(c => `${c.f.toFixed(2)} Hz ${(1000 * c.slope).toFixed(1)} mHz/°C`).join(' · ')); }
+
+// 16. Rasgos respecto a la línea base: una medición igual a la base no tiene cambio
+{ const camp = { f0: [1, 2], sh0: [[1, 2, 3], [3, 2, 1]] }, base = { fm: { 0: 4.6, 1: 7.2 }, shapes: { 0: [.2, .5, .3], 1: [.4, -.1, .3] } }, x = OPC.modalMeasFeat(camp, { f: [0, 1], s: [0, 1], sens: [0, 1, 2] }, base.fm, base.shapes, base);
+  ok('Línea base: medición idéntica → rasgos nulos', x.every(v => Math.abs(v) < 1e-12), x.length + ' rasgos'); }
+
+// 17. Solver 2D de la plataforma contra OpenSees: se verifica en el navegador (pestaña Validación) con los 450 casos de data/fem_525.csv
 ok('Dataset OpenSees presente', fs.existsSync(path.join(P, 'data', 'fem_525.csv')));
 
 console.log(fails ? `\n${fails} prueba(s) fallaron` : '\nTodas las pruebas pasaron');

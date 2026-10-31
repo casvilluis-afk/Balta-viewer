@@ -119,7 +119,9 @@ function deckLevel(O) {
   const [zl, zh] = bounds(O.z), bw = 0.05, nb = Math.ceil((zh - zl) / bw) + 1, h = new Uint32Array(nb);
   for (let i = 0; i < O.n; i++) h[Math.floor((O.z[i] - zl) / bw)]++;
   const zmid = quantile(Array.from(O.z.filter((_, i) => i % 7 === 0)), .5); let best = -1, bi = 0;
-  for (let k = 0; k < nb; k++) { const zc = zl + (k + .5) * bw; if (zc < zmid) continue; const v = h[k] + (h[k - 1] || 0) + (h[k + 1] || 0); if (v > best) { best = v; bi = k; } }
+  const V = new Float64Array(nb); for (let k = 0; k < nb; k++) { const zc = zl + (k + .5) * bw; if (zc < zmid) continue; V[k] = h[k] + (h[k - 1] || 0) + (h[k + 1] || 0); if (V[k] > best) { best = V[k]; bi = k; } }
+  // si hay dos franjas casi igual de pobladas (rodadura y cara inferior de una losa), la rodadura es la más alta
+  for (let k = nb - 1; k > bi; k--) if (V[k] >= .8 * best && (V[k] >= (V[k - 1] || 0)) && (V[k] >= (V[k + 1] || 0))) { bi = k; break; }
   return zl + (bi + .5) * bw;
 }
 function groundLevel(O) { const a = []; for (let i = 0; i < O.n; i += 3) a.push(O.z[i]); return quantile(a, .001); }
@@ -576,9 +578,15 @@ function modalFeat(row, sh0, sel, sf, ss, rr) { const out = sel.f.map(j => row.d
   return out; }
 function trainModalIA(camp, sel, sf, ss, prog) { if (!camp.rows[0].sh) throw new Error('La campaña no tiene formas modales.'); const I = trainVecIA(camp, (row, rr) => modalFeat(row, camp.sh0, sel, sf, ss, rr), prog); I.sel = sel; I.sf = sf; I.ss = ss; return I; }
 // vector medido en el mismo formato: fm (Hz por modo del modelo), shapes {modo: [valores en sel.sens]}
-function modalMeasFeat(camp, sel, fm, shapes) { const out = sel.f.map(j => fm[j] / camp.f0[j] - 1);
+// base (opcional): medición del puente sano {fm, shapes} con los mismos sensores. Entonces los rasgos son el cambio respecto a esa medición
+// (Δf medido y cambio de forma medido) y el modelo solo aporta cómo cambian frecuencias y formas con el daño.
+function modalMeasFeat(camp, sel, fm, shapes, base) { if (base) return modalMeasFeatBase(camp, sel, fm, shapes, base); const out = sel.f.map(j => fm[j] / camp.f0[j] - 1);
   sel.s.forEach(j => { const v = shapes[j], r0 = sel.sens.map(i => camp.sh0[j][i]), sg = Math.sign(v.reduce((a, x, t) => a + x * r0[t], 0)) || 1, mx = Math.max(...v.map(Math.abs)) || 1, q = Math.max(...r0.map(Math.abs)) || 1;
     v.forEach((x, t) => out.push(sg * x / mx - r0[t] / q)); });
+  return out; }
+function modalMeasFeatBase(camp, sel, fm, shapes, base) { const out = sel.f.map(j => fm[j] / base.fm[j] - 1);
+  sel.s.forEach(j => { const v = shapes[j], b = base.shapes[j], sg = Math.sign(v.reduce((a, x, t) => a + x * b[t], 0)) || 1, mv = Math.max(...v.map(Math.abs)) || 1, mb = Math.max(...b.map(Math.abs)) || 1;
+    v.forEach((x, t) => out.push(sg * x / mv - b[t] / mb)); });
   return out; }
 function freqPredict(I, Z, x) { const pr = forestPredict(I.clf, x), o = pr.map((p, i) => [p, i - 1]).sort((a, b) => b[0] - a[0]), cls = o[0][1];
   const zz = x.map((v, j) => (v - I.mean[j]) / I.sd[j]); let b = Infinity; for (const s of I.sub) { let d = 0; for (let j = 0; j < zz.length; j++) d += (zz[j] - s[j]) ** 2; if (d < b) b = d; } const dist = Math.sqrt(b);
@@ -803,6 +811,29 @@ function liveLoad(fr, c, opts) { const I = influence(fr, c), nl = Math.max(1, op
   const defl = I.DEF.map(y => { const e = hl93Extremes(I.s, y); return Math.min(0, e.min) * k; });
   return { el, s: I.s, defl, nl, mp, IL: I.IL, DEF: I.DEF, dcDef: I.nodes.map(n => I.Udc[3 * n + 1]) }; }
 
+/* ======================= Campaña de mediciones: modos persistentes y efecto de la temperatura ======================= */
+// win: [{ peaks: [{f, zeta}], T (°C o null), id }]. Un modo real aparece en la mayoría de los registros en la misma banda;
+// los picos de ruido (máquinas, perturbaciones) aparecen y desaparecen. Se agrupan picos de todos los registros por cercanía de frecuencia.
+function peakCampaign(win, { minPres = .5, tolRel = .02, tolAbs = .08, T0 = null } = {}) {
+  const all = []; win.forEach((w, wi) => (w.peaks || []).forEach(p => all.push({ ...p, wi })) ); all.sort((a, b) => a.f - b.f);
+  const tol = f => Math.max(tolAbs, tolRel * f), groups = [];
+  all.forEach(p => { const g = groups[groups.length - 1]; if (g && p.f - g.ref <= tol(g.ref)) { g.items.push(p); g.ref = median(g.items.map(q => q.f)); } else groups.push({ items: [p], ref: p.f }); });
+  const nW = win.length, Ts = win.map(w => w.T).filter(v => v != null && isFinite(v)), Tref = T0 != null ? T0 : (Ts.length ? median(Ts) : null);
+  const out = groups.map(g => { const m = median(g.items.map(q => q.f)), by = {};
+      g.items.forEach(q => { if (!by[q.wi] || Math.abs(q.f - m) < Math.abs(by[q.wi].f - m)) by[q.wi] = q; });
+      const pts = Object.values(by).sort((a, b) => a.wi - b.wi), fs = pts.map(q => q.f), z = pts.map(q => q.zeta).filter(v => v > 0 && v < .2);
+      const c = { f: median(fs), q1: quantile(fs, .25), q3: quantile(fs, .75), n: pts.length, pres: pts.length / nW, zeta: z.length ? median(z) : null, pts: pts.map(q => ({ wi: q.wi, f: q.f, T: win[q.wi].T })) };
+      const tp = c.pts.filter(q => q.T != null && isFinite(q.T));
+      if (tp.length >= 3) { const mt = tp.reduce((a, q) => a + q.T, 0) / tp.length, mf = tp.reduce((a, q) => a + q.f, 0) / tp.length; let sxy = 0, sxx = 0, syy = 0; tp.forEach(q => { sxy += (q.T - mt) * (q.f - mf); sxx += (q.T - mt) ** 2; syy += (q.f - mf) ** 2; });
+        const b = sxx > 1e-9 ? sxy / sxx : 0; c.slope = b; c.r2 = sxx > 1e-9 && syy > 0 ? sxy * sxy / (sxx * syy) : 0; c.Tref = Tref; c.fComp = c.pts.map(q => q.T != null ? q.f - b * (q.T - Tref) : null);
+        const fc = c.fComp.filter(v => v != null); c.fRef = median(fc); c.sdRaw = Math.sqrt(fs.reduce((a, v) => a + (v - c.f) ** 2, 0) / fs.length); c.sdComp = Math.sqrt(fc.reduce((a, v) => a + (v - c.fRef) ** 2, 0) / fc.length); }
+      return c; });
+  return { modes: out.filter(c => c.pres >= minPres).sort((a, b) => a.f - b.f), all: out.sort((a, b) => a.f - b.f), nW, Tref }; }
+// Promedio de matrices espectrales de varios registros (mismos canales y resolución): reduce el ruido aleatorio del espectro
+function csdAverage(list) { const C0 = list[0], Gr = new Float64Array(C0.Gr.length), Gi = new Float64Array(C0.Gi.length); let segs = 0;
+  list.forEach(C => { if (C.Gr.length !== Gr.length) throw new Error('Los registros deben tener los mismos canales y la misma resolución.'); for (let i = 0; i < Gr.length; i++) { Gr[i] += C.Gr[i] * C.segs; Gi[i] += C.Gi[i] * C.segs; } segs += C.segs; });
+  for (let i = 0; i < Gr.length; i++) { Gr[i] /= segs; Gi[i] /= segs; } return { ...C0, Gr, Gi, segs }; }
+
 /* ======================= Calibración del modelo con mediciones (actualización de modelo) ======================= */
 // Nelder-Mead acotado sobre parámetros normalizados a [0, 1]
 function nelderMead(fun, x0, { iters = 160, step = .15, tol = 1e-7 } = {}) { const n = x0.length, cl = x => x.map(v => Math.min(1, Math.max(0, v))), F = x => fun(cl(x));
@@ -846,7 +877,7 @@ function maintenancePlan(els, { years = 20, budget = 0, thr = 60 } = {}) { const
   const life = arr => { const k = arr.findIndex(v => v != null && v < thr); return k < 0 ? null : k; };
   return { plan, hi, hi0, total, vidaSin: life(hi0), vidaCon: life(hi) }; }
 
-return { fftInPlace, detrend, csdMatrix, fdd, efdd, fddModes, pickPeaks, staticPrep, fiberStress, influence, HL93, hl93Extremes, liveLoad, CS_WF, pTrans, markovStep, elemHI, bridgeHI, calibrateAlpha, maintenancePlan, Dxf, bridgePlans, sensorsOf, readAccel, sdof, spectrum, seismic, freqCampaign, calibrateModel, nelderMead, trainFreqIA, trainVecIA, trainModalIA, modalFeat, modalMeasFeat, freqPredict, build, modal, archAll, parseCloud, orient, bounds, deckLevel, groundLevel, detectSupports, spansOf, envelope, fitParabola, polyval, archGeometry, spanCoverage, MATERIALS,
+return { fftInPlace, detrend, csdMatrix, fdd, efdd, fddModes, pickPeaks, staticPrep, fiberStress, influence, HL93, hl93Extremes, liveLoad, CS_WF, pTrans, markovStep, elemHI, bridgeHI, calibrateAlpha, maintenancePlan, Dxf, bridgePlans, sensorsOf, readAccel, sdof, spectrum, seismic, freqCampaign, peakCampaign, csdAverage, calibrateModel, nelderMead, trainFreqIA, trainVecIA, trainModalIA, modalFeat, modalMeasFeat, modalMeasFeatBase, freqPredict, build, modal, archAll, parseCloud, orient, bounds, deckLevel, groundLevel, detectSupports, spansOf, envelope, fitParabola, polyval, archGeometry, spanCoverage, MATERIALS,
   build, sensorsOf, modal, signConvention, features, campaign, trainIA, forestPredict, LEVELS, noisy, mulberry, gaussR, quantile, median };
 })();
 if (typeof module !== 'undefined') module.exports = OPC;

@@ -1,7 +1,7 @@
 {
   "name": "puentegemelo",
   "productName": "PuenteGemelo",
-  "version": "0.4.2",
+  "version": "0.5.0",
   "description": "Gemelo digital e inspección de puentes con nubes de puntos e inteligencia artificial. Caso de estudio: Puente Balta (Lima).",
   "main": "src/main.js",
   "author": "Luis Ñuñuvero Castillo y Anthony Tarazona Cerna",
