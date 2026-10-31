@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Balta · Plataforma de inspección</title>
+<title>PuenteGemelo</title>
 <meta name="color-scheme" content="light">
 <meta name="claude:viewport-fit-sides" content="cover">
 <style>
@@ -29,6 +29,10 @@ button{font:inherit;color:inherit}
 .mark{display:flex;flex-wrap:wrap;align-items:baseline;gap:0 12px;padding:5px 4px 0;flex:none}
 .mark b{font:600 14px var(--f-ui)}
 .mark span{font:12px var(--f-ui);color:var(--ink-2)}
+.mark-r{margin-left:auto;display:inline-flex;gap:10px;align-items:center}.mark-r .btn{padding:1px 10px;font-size:12px}.mark-br{font:12px var(--f-ui);color:var(--ink-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:46vw}.mark-br b{font-weight:600;color:var(--ink)}
+.doc:empty{display:none}
+table.props.txt td:last-child{font-family:var(--f-ui);font-size:12.5px;text-align:left}
+#about{border:1px solid var(--rule);padding:0;max-width:min(720px,94vw);width:100%;box-shadow:0 18px 50px -12px rgba(0,0,0,.45);color:var(--ink);background:var(--sheet)}#about::backdrop{background:rgba(20,26,32,.45)}#about .ab-h{display:flex;justify-content:space-between;align-items:center;background:var(--chrome);border-bottom:1px solid var(--rule);padding:8px 14px}#about .ab-b{padding:4px 18px 16px;display:grid;gap:8px;font-size:13px;max-height:72vh;overflow:auto}#about h3{font:600 13px var(--f-ui);margin:8px 0 0;border-bottom:1px solid var(--rule-2);padding-bottom:2px}#about p,#about ul{margin:0}#about ul{padding-left:18px;display:grid;gap:3px}
 .menu{display:flex;gap:2px;overflow-x:auto;scrollbar-width:none;min-width:0;padding-top:6px}
 .menu::-webkit-scrollbar{display:none}
 .menu button{flex:none;background:#eef0f2;border:1px solid var(--rule);border-bottom:0;border-radius:3px 3px 0 0;padding:5px 7px;font:13px var(--f-ui);color:var(--ink-2);cursor:pointer;position:relative;top:1px}
@@ -55,7 +59,11 @@ button{font:inherit;color:inherit}
   html,body{height:auto}.app{height:auto}
   .bar{grid-template-columns:1fr}
   .work{grid-template-columns:minmax(0,1fr)}
-  .side.l{border-right:0;border-bottom:1px solid var(--rule);max-height:none}
+  .side.l{border-right:0;border-bottom:1px solid var(--rule);max-height:none;order:2}
+  .canvas{order:1}.side.r{order:3}
+  .mark-br{display:none}
+  .submenu .gdesc{display:none}
+  .mark-r{margin-left:0}
   .side.r{border-left:0;border-top:1px solid var(--rule)}
   .canvas{padding:10px max(10px,env(safe-area-inset-right,0px)) 10px max(10px,env(safe-area-inset-left,0px))}
 }
@@ -188,7 +196,7 @@ details summary::-webkit-details-marker{color:var(--ink-3)}
 
 <div class="app">
   <header class="bar">
-    <div class="mark"><b>Puente Balta · Sistema de evaluación e inspección</b><span>Gemelo digital · río Rímac, Lima · versión 2.9</span></div>
+    <div class="mark"><b>PuenteGemelo</b><span>Gemelo digital e inspección de puentes con inteligencia artificial</span><span class="mark-r"><span id="markBridge" class="mark-br"></span><button class="btn line" id="btnAbout" type="button">Acerca de</button></span></div>
     <nav class="menu" id="mGroups" aria-label="Secciones"></nav>
     <nav class="submenu" id="mSub" role="tablist" aria-label="Herramientas de la sección"></nav>
   </header>
@@ -208,16 +216,18 @@ import {OrbitControls} from 'three/addons/controls/OrbitControls.js';
 window.BaltaThree={THREE,GLTFLoader,OrbitControls};
 window.dispatchEvent(new Event('three-ready'));
 </script>
-<script src="v3d.js?v=2.9.0"></script>
-<script src="op_core.js?v=2.9.0"></script>
-<script src="op_ui.js?v=2.9.0"></script>
-<script src="pg_mod.js?v=2.9.0"></script>
+<script src="v3d.js?v=1.0.0"></script>
+<script src="op_core.js?v=1.0.0"></script>
+<script src="op_ui.js?v=1.0.0"></script>
+<script src="pg_mod.js?v=1.0.0"></script>
 <script>
 "use strict";
 const MODEL_URL='../models/puente-balta-v12.glb';
 /* ================= Utilidades ================= */
 const $=s=>document.querySelector(s);
-const fmt=(x,d=2)=>Number.isFinite(x)?x.toLocaleString('es-PE',{minimumFractionDigits:d,maximumFractionDigits:d}):'—';
+const APP_VERSION='1.0.0';
+// formato numérico: coma decimal y punto de miles (como en el texto de la tesis)
+const fmt=(x,d=2)=>Number.isFinite(x)?x.toLocaleString('es-ES',{minimumFractionDigits:d,maximumFractionDigits:d,useGrouping:Math.abs(x)>=1e4}):'—';
 const pct=(x,d=1)=>fmt(100*x,d)+' %';
 const sgn=(x,d=1)=>(x>=0?'+':'−')+fmt(Math.abs(100*x),d)+' %';
 const css=v=>getComputedStyle(document.documentElement).getPropertyValue(v).trim();
@@ -515,8 +525,10 @@ function navRender(v){const g=NAV.find(x=>x[3].some(t=>t[0]===v))||NAV[0];NAV_LA
   document.querySelectorAll('#mSub button').forEach(b=>b.onclick=()=>show(b.dataset.v));
   document.querySelectorAll('#mGroups [aria-selected="true"],#mSub [aria-selected="true"]').forEach(b=>{try{b.scrollIntoView({block:'nearest',inline:'nearest'});}catch(e){}});}
 function render(){({modelo:vModelo,simulacion:vSim,comparacion:vCmp,dinamica:vDin,inspeccion:vInsp,validacion:vVal,registro:vReg,tupuente:vTu,estado:vEstado,oma:vOma,inspmtc:vInspMTC,cargahl:vHL,deterioro:vDet})[S.view]();statusBar();}
-function statusBar(extra=''){const v=PROV.verificacion;
-  $('#status').innerHTML=`<span class="okdot">Solver 2D verificado · OpenSees ${v.opensees} · ${v.cases} casos</span><span>q ${fmt(S.q,0)} kN/m</span><span>E ${fmt(S.E,0)} GPa</span><span>Último cálculo ${fmt(lastSolveMs,0)} ms</span>${extra}<span class="dim">Ñuñuvero · Tarazona · UPC 2026</span>`;}
+const BALTA_VIEWS=['modelo','simulacion','comparacion','dinamica','inspeccion'];
+function statusBar(extra=''){const v=PROV.verificacion,bal=BALTA_VIEWS.includes(S.view);let br='';try{if(!bal&&typeof pgCtx==='function'&&S.view!=='tupuente'&&S.view!=='validacion'&&S.view!=='registro'){const c=pgCtx();br=`<span>Puente activo: ${esc(c.title)}</span>`;}}catch(e){}
+  $('#status').innerHTML=`<span class="okdot">Solver 2D verificado · OpenSees ${v.opensees} · ${v.cases} casos</span>${bal?`<span>q ${fmt(S.q,0)} kN/m</span><span>E ${fmt(S.E,0)} GPa</span><span>Último cálculo ${fmt(lastSolveMs,0)} ms</span>`:br}${extra}<span class="dim">PuenteGemelo ${APP_VERSION} · Ñuñuvero · Tarazona · UPC 2026</span>`;
+  const mb=$('#markBridge');if(mb){let t='';try{t=bal?'Puente Balta · modelo C':(S.view==='tupuente'?(OP.name||'Tu puente'):(typeof pgCtx==='function'?pgCtx().title:''));}catch(e){}mb.innerHTML=t?'Puente activo: <b>'+esc(t)+'</b>':'';}}
 function timedSolve(sc){const t=performance.now(),r=solve(sc);lastSolveMs=performance.now()-t;return r;}
 
 /* ---------- Árbol de componentes (panel izquierdo) ---------- */
@@ -536,7 +548,7 @@ function tree(sel,onPick,{withNone=false}={}){
   h+=row('parent tw0','Puente Balta',agg(ALL))+row('parent tw1','Superestructura',agg(SUP))
     +leaf('arco_a1_a2','Arco vano 1')+leaf('arco_a2_a3','Arco vano 2')+leaf('arco_a3_a4','Arco vano 3')+leaf('montantes','Montantes')+leaf('tablero','Tablero y vigas')
     +row('parent tw1','Subestructura',agg(SUB))+leaf('pilares','Pilares y estribos')+'</tbody></table>';
-  h+=`<div class="pb help" style="padding-top:6px">Índice de prioridad de inspección (0–1), calculado con los pesos de la pestaña 5; en puente, superestructura y subestructura se muestra el mayor de sus componentes. NBI: condición del último registro de campo (0–9); «—» sin inspección registrada.</div>`;
+  h+=`<div class="pb help" style="padding-top:6px">Índice de prioridad de inspección (0–1), calculado con los pesos de «Prioridades de inspección (IA)»; en puente, superestructura y subestructura se muestra el mayor de sus componentes. NBI: condición del último registro de campo (0–9); «—» sin inspección registrada.</div>`;
   return {html:h,bind:root=>root.querySelectorAll('.btree tr.pick').forEach(r=>{r.onclick=()=>onPick(r.dataset.z);r.onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();onPick(r.dataset.z);}};})};}
 
 /* ================= 1 · Modelo ================= */
@@ -648,7 +660,7 @@ function init3d(){
             else{const z=cloudData._z,a=-9.4,b=1.5,A=new THREE.Color(css('--blue')),B=new THREE.Color(css('--warn'));for(let i=0;i<n;i++){const t=Math.max(0,Math.min(1,(z[i]-a)/(b-a)));c[3*i]=A.r+(B.r-A.r)*t;c[3*i+1]=A.g+(B.g-A.g)*t;c[3*i+2]=A.b+(B.b-A.b)*t;}}
             cloudPts.geometry.attributes.color.needsUpdate=true;cloudPts.userData.mode=st.mode;}}
         viewer3d.pick.forEach(o=>o.visible=!(st.on&&st.only));
-        if(info)info.textContent=st.on&&cloudData?`vóxel ${fmt(cloudData.voxel_m,2)} m · ${cloudData.n.toLocaleString('es-PE')} de ${cloudData.n_original.toLocaleString('es-PE')} puntos`:'';};
+        if(info)info.textContent=st.on&&cloudData?`vóxel ${fmt(cloudData.voxel_m,2)} m · ${cloudData.n.toLocaleString('es-ES')} de ${cloudData.n_original.toLocaleString('es-ES')} puntos`:'';};
     }
     const host=$('#vp');host.prepend(viewer3d.renderer.domElement);
     window.__resize3d=()=>{const h=$('#vp');if(!h||h.hidden)return;const w=h.clientWidth,hh=h.clientHeight;viewer3d.renderer.setSize(w,hh,false);viewer3d.cam.aspect=w/hh;viewer3d.cam.updateProjectionMatrix();};
@@ -958,7 +970,7 @@ function sisCompute(){const X=S.sis,R=X.rec;if(!R||!(X.dt>0)||(X.colY<0&&X.colZ<
 function sisRender(){const d=$('#sisDoc');if(!d)return;const X=S.sis,R=X.rec;
   let h=`<h2>Sismo registrado · aproximación con el modelo C</h2>
    <p>Cargue un acelerograma de una estación de la red de CISMID-UNI o del IGP (AcelDat-Perú) en formato de texto: columnas numéricas, con o sin columna de tiempo. La plataforma aplica el registro en la base del modelo C y suma la respuesta de sus 20 primeros modos. Es una aproximación: la estación no está en el puente, se supone el mismo movimiento en todos los apoyos y el modelo es elástico y plano.</p>
-   <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:end"><label class="btn">Abrir acelerograma…<input type="file" id="sisFile" accept=".txt,.csv,.dat,.asc,.acc,.v2,.tsv" hidden></label><span class="help">${R?esc(X.name)+` · ${R.n.toLocaleString('es-PE')} muestras · ${R.cols.length} columnas`:'Ningún registro cargado.'}</span></div>`;
+   <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:end"><label class="btn">Abrir acelerograma…<input type="file" id="sisFile" accept=".txt,.csv,.dat,.asc,.acc,.v2,.tsv" hidden></label><span class="help">${R?esc(X.name)+` · ${R.n.toLocaleString('es-ES')} muestras · ${R.cols.length} columnas`:'Ningún registro cargado.'}</span></div>`;
   if(R){const cn=R.cols.map((_,k)=>k===R.tcol?`Columna ${k+1} (tiempo)`:`Columna ${k+1}`),opt=sel=>`<option value="-1">ninguna</option>`+R.cols.map((_,k)=>k===R.tcol?'':`<option value="${k}" ${k===sel?'selected':''}>${cn[k]}</option>`).join('');
     h+=`<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,160px),1fr));gap:8px;align-items:end">
      <label class="f">Componente longitudinal (eje del puente)<select id="sisY">${opt(X.colY)}</select></label>
@@ -1002,7 +1014,7 @@ function open3dSis(){const r=S.sis.res;if(!r)return;const A=V3D.adaptMC(r.fr),se
 /* ---------- IA con frecuencias del usuario (medidas o calculadas) ---------- */
 // Sin datos del usuario la plataforma sigue simulando la medición; con sus frecuencias, se usa una IA entrenada solo con Δf del mismo modelo.
 const FQ={};let FQ_SRC=null;
-async function fqWorker(){if(!FQ_SRC)FQ_SRC=await fetch('op_core.js?v=2.9.0').then(r=>{if(!r.ok)throw new Error('No se encontró op_core.js');return r.text();});
+async function fqWorker(){if(!FQ_SRC)FQ_SRC=await fetch('op_core.js?v=1.0.0').then(r=>{if(!r.ok)throw new Error('No se encontró op_core.js');return r.text();});
   const src=FQ_SRC+`\nself.onmessage=e=>{const m=e.data;try{if(m.kind==='camp'){const c=OPC.freqCampaign(m.type,m.G,m.P,m.opts,(q,s)=>self.postMessage({kind:'prog',stage:'Simulaciones de daño',q,s}));self.postMessage({kind:'camp',camp:c});}
    else if(m.kind==='trainM'){const I=OPC.trainModalIA(m.camp,m.sel,m.sf,m.ss,(st,q)=>self.postMessage({kind:'prog',stage:st,q}));self.postMessage({kind:'ia',ia:I});}else{const I=OPC.trainFreqIA(m.camp,m.k,m.sf,(st,q)=>self.postMessage({kind:'prog',stage:st,q}));self.postMessage({kind:'ia',ia:I});}}catch(err){self.postMessage({kind:'error',msg:err.message});}};`;
   return new Worker(URL.createObjectURL(new Blob([src],{type:'text/javascript'})));}
@@ -1019,7 +1031,7 @@ function fqRender(el,ctx){if(!el)return;const key=JSON.stringify([ctx.type,ctx.G
     <label class="f">Referencia (puente sin daño)<select id="fqRef_${ctx.id}"><option value="modelo" ${C.ref==='modelo'?'selected':''}>Frecuencias del modelo (entre paréntesis)</option><option value="usuario" ${C.ref==='usuario'?'selected':''}>Mis frecuencias de referencia</option></select></label>
     <label class="f">Error de medición<select id="fqErr_${ctx.id}">${FQ_ERR.map(([v,l])=>`<option value="${v}" ${v===C.sf?'selected':''}>${l}</option>`).join('')}</select></label>
     <div><button class="btn pri" id="fqGo_${ctx.id}" ${C.busy?'disabled':''}>Diagnosticar</button></div></div>
-   ${C.ref==='usuario'?`<h3>Frecuencias de referencia: puente sano o medición anterior (Hz)</h3><div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(86px,1fr));gap:6px">${inRow(C.fr,'fr',false)}</div>`:`<div class="msg"><b>Referencia del modelo.</b> La diferencia entre el modelo y el puente real también se leerá como daño. Calibre antes el módulo E en Dinámica o use una medición anterior del puente como referencia.</div>`}
+   ${C.ref==='usuario'?`<h3>Frecuencias de referencia: puente sano o medición anterior (Hz)</h3><div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(86px,1fr));gap:6px">${inRow(C.fr,'fr',false)}</div>`:`<div class="msg"><b>Referencia del modelo.</b> La diferencia entre el modelo y el puente real también se leerá como daño. Calibre antes el modelo (Monitoreo con IA → Calibración, o Dinámica y sismo) o use una medición anterior del puente como referencia.</div>`}
    <div id="fqOut_${ctx.id}">${C.out}</div>`;
   el.querySelectorAll('[data-fm]').forEach(i=>i.onchange=()=>{C.fm[+i.dataset.fm]=i.value.trim();});
   el.querySelectorAll('[data-fr]').forEach(i=>i.onchange=()=>{C.fr[+i.dataset.fr]=i.value.trim();});
@@ -1308,7 +1320,7 @@ function showConc(){const c=concResult;$('#concOut').innerHTML=`<p class="flag $
 
 /* ================= 6 · Registro ================= */
 function vReg(){const v=PROV.verificacion;
-  $('#left').innerHTML=`<div class="ph">Cronología</div><table class="props"><tbody>
+  $('#left').innerHTML=`<div class="ph">Cronología</div><table class="props txt"><tbody>
     <tr><td>1869</td><td>concurso y primera piedra</td></tr><tr><td>1871</td><td>cierre del primer arco</td></tr><tr><td>Fierro</td><td>Boigues Rambourg, Francia</td></tr>
     <tr><td>1971</td><td>retiro del arco de la margen derecha</td></tr><tr><td>2009</td><td>crecida y reparación de un pilar</td></tr><tr><td>2024</td><td>levantamiento TLS Trimble X7</td></tr></tbody></table>
     <div class="pb help">Fuente histórica: <a href="https://en.wikipedia.org/wiki/Balta_Bridge" target="_blank" rel="noopener">Balta Bridge, Wikipedia</a>.</div>`;

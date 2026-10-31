@@ -1,8 +1,8 @@
 cff-version: 1.2.0
 message: "Si usa este software o sus datos, cítelo así."
 title: "PuenteGemelo: gemelo digital e inspección de puentes con nubes de puntos e inteligencia artificial"
-version: 0.1.0
-date-released: 2026-10-30
+version: 1.0.0
+date-released: 2026-10-31
 license: MIT
 repository-code: "https://github.com/casvilluis-afk/Balta-viewer"
 url: "https://casvilluis-afk.github.io/Balta-viewer/plataforma/"

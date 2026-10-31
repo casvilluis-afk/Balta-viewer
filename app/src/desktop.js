@@ -17,9 +17,9 @@
       el.innerHTML = `<div class="in-card">
         <div class="in-head"><img src="docs/icono.png" alt=""><div><h1>PuenteGemelo</h1><p>Gemelo digital e inspección de puentes con nubes de puntos e inteligencia artificial</p></div></div>
         <div class="in-grid">
-         <button class="in-act" data-a="nuevo"><b>Nuevo puente</b><span>Cargue la nube de puntos de un puente (PLY, LAS, XYZ, CSV). La app detecta tablero y apoyos, ajusta la geometría, arma el modelo, calcula sus modos y entrena una IA para ese puente.</span></button>
+         <button class="in-act" data-a="nuevo"><b>Nuevo puente</b><span>Cargue la nube de puntos de un puente (PLY, LAS, XYZ, CSV). La app detecta tablero y apoyos, arma el modelo, calcula sus modos y entrena una IA para ese puente; luego mida su vibración, inspecciónelo y planifique su mantenimiento.</span></button>
          <button class="in-act" data-a="abrir"><b>Abrir proyecto…</b><span>Continúe un proyecto guardado (.puente): nube, geometría, supuestos, modos e IA entrenada.</span></button>
-         <button class="in-act" data-a="ejemplo"><b>Proyecto de ejemplo: Puente Balta</b><span>Puente de arcos de fierro fundido sobre el río Rímac (Lima, 1871): modelo verificado con OpenSees, dinámica, sismo, IA de diagnóstico y plan de inspección.</span></button>
+         <button class="in-act" data-a="ejemplo"><b>Proyecto de ejemplo: Puente Balta</b><span>Puente de arcos de fierro fundido sobre el río Rímac (Lima, 1871): modelo verificado con OpenSees, dinámica y sismo, IA de diagnóstico, inspección, carga HL-93 y estado del gemelo.</span></button>
         </div>
         <p class="in-foot">Código abierto (MIT) · datos del Puente Balta CC BY 4.0 · Luis Ñuñuvero Castillo y Anthony Tarazona Cerna · <span id="inVer"></span><br>Herramienta de apoyo a la inspección: no reemplaza la evaluación de un ingeniero.</p>
        </div>`;
@@ -75,6 +75,7 @@
     else if (a === 'guardar-proyecto') guardar();
     else if (a === 'ejemplo') { inicio(false); show('modelo'); }
     else if (a === 'inicio') inicio(true);
+    else if (a === 'acerca') { inicio(false); if (typeof pgAbout === 'function') pgAbout(); }
     else if (a === 'dxf') { inicio(false); if (S.view === 'tupuente') opPlans(); else baltaPlans(); }
   }
   window.PGapp = { run, guardar, abrirTexto };

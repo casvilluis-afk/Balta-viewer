@@ -48,15 +48,13 @@ function buildMenu() {
       isMac ? { role: 'close', label: 'Cerrar ventana' } : { role: 'quit', label: 'Salir' } ] },
     { label: 'Editar', submenu: [{ role: 'undo', label: 'Deshacer' }, { role: 'redo', label: 'Rehacer' }, { type: 'separator' }, { role: 'cut', label: 'Cortar' }, { role: 'copy', label: 'Copiar' }, { role: 'paste', label: 'Pegar' }, { role: 'selectAll', label: 'Seleccionar todo' }] },
     { label: 'Ver', submenu: [
-      { role: 'reload', label: 'Recargar' }, { type: 'separator' },
       { role: 'resetZoom', label: 'Tamaño real' }, { role: 'zoomIn', label: 'Acercar' }, { role: 'zoomOut', label: 'Alejar' }, { type: 'separator' },
-      { role: 'togglefullscreen', label: 'Pantalla completa' }, { type: 'separator' }, { role: 'toggleDevTools', label: 'Herramientas de desarrollo' } ] },
+      { role: 'togglefullscreen', label: 'Pantalla completa' }].concat(process.env.PG_DEV ? [{ type: 'separator' }, { role: 'reload', label: 'Recargar' }, { role: 'toggleDevTools', label: 'Herramientas de desarrollo' }] : []) },
     { label: 'Ayuda', submenu: [
       { label: 'Manual de uso (PDF)', click: () => { const f = path.join(WEB, 'docs', 'Manual_PuenteGemelo.pdf').replace('app.asar', 'app.asar.unpacked'); if (fs.existsSync(f)) shell.openPath(f); else shell.openExternal(REPO); } },
       { label: 'Código fuente y reportar un problema', click: () => shell.openExternal(REPO) },
       { type: 'separator' },
-      { label: 'Acerca de PuenteGemelo', click: () => dialog.showMessageBox(win, { type: 'info', title: 'Acerca de PuenteGemelo', message: 'PuenteGemelo ' + app.getVersion(),
-          detail: 'Gemelo digital e inspección de puentes con nubes de puntos e inteligencia artificial.\n\nLuis Ñuñuvero Castillo y Anthony Tarazona Cerna\nTesis: Implementación de una plataforma digital para la inspección de puentes históricos con inteligencia artificial — caso Puente Balta.\n\nCódigo: licencia MIT. Datos del Puente Balta: CC BY 4.0.\nHerramienta de apoyo a la inspección: no reemplaza la evaluación de un ingeniero.' }) } ] }
+      { label: 'Acerca de PuenteGemelo', click: () => send('acerca') } ] }
   ];
   Menu.setApplicationMenu(Menu.buildFromTemplate(tpl));
 }

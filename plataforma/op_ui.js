@@ -57,7 +57,7 @@ function opSetCloud(c, name, minPts) {
   $('#opLoad').textContent = ''; opInfo(); vTu();
 }
 function opInfo() { if (!OP.O || !$('#opInfo')) return; const [s0, s1] = OPC.bounds(OP.O.s), [z0, z1] = OPC.bounds(OP.O.z);
-  $('#opInfo').innerHTML = `<div class="doc"><div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;align-items:baseline"><h2>${esc(OP.name)}</h2><span class="mono dim" style="font-size:.76rem">${OP.cloud.kept.toLocaleString('es-PE')} puntos usados de ${OP.cloud.total.toLocaleString('es-PE')}</span></div>
+  $('#opInfo').innerHTML = `<div class="doc"><div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;align-items:baseline"><h2>${esc(OP.name)}</h2><span class="mono dim" style="font-size:.76rem">${OP.cloud.kept.toLocaleString('es-ES')} puntos usados de ${OP.cloud.total.toLocaleString('es-ES')}</span></div>
    <div class="tw"><table class="data"><tbody><tr><td>Longitud</td><td class="n">${fmt(s1 - s0, 2)} m</td><td>Desnivel</td><td class="n">${fmt(z1 - z0, 2)} m</td><td>Eje longitudinal</td><td class="n">${OP.O.snap == null ? 'girado ' + fmt(OP.O.angleDeg, 1) + '°' : (OP.O.snap === 0 ? 'eje x de la nube' : 'eje y de la nube')}</td></tr></tbody></table></div>
    <canvas id="opElev" style="width:100%;height:280px;display:block;background:var(--sheet);border:1px solid var(--rule)"></canvas><p class="help">Elevación de la nube (densidad de puntos). Escala vertical exagerada para ver los arcos y apoyos.</p></div>${opNext()}`;
   opDrawElev({}); opBindNext(); }
@@ -197,7 +197,7 @@ function opFrameSVG(fr, phi, hl) {
 /* ---------- 5 · Entrenar la IA (Web Worker) ---------- */
 let OP_CORE_SRC = null;
 async function opWorker() {
-  if (!OP_CORE_SRC) OP_CORE_SRC = await fetch('op_core.js?v=2.9.0').then(r => { if (!r.ok) throw new Error('No se encontró op_core.js'); return r.text(); });
+  if (!OP_CORE_SRC) OP_CORE_SRC = await fetch('op_core.js?v=1.0.0').then(r => { if (!r.ok) throw new Error('No se encontró op_core.js'); return r.text(); });
   const src = OP_CORE_SRC + `\nself.onmessage = e => { const m = e.data; try {
     const camp = OPC.campaign(m.type, m.G, m.P, m.opts, (q, s) => self.postMessage({ kind: 'prog', stage: 'Simulaciones de daño', q, s }));
     self.postMessage({ kind: 'prog', stage: 'Entrenando la IA', q: 0 });
@@ -300,7 +300,7 @@ function opPlanData() { const Z = OP.camp.zones.length, mS = Math.max(...OP.camp
   return OP.camp.zones.map((name, z) => { const g = opZoneGeoUnc(z), s = OP.camp.sens20[z] / mS, d = 1 - rec[z], score = .4 * s + .3 * g.u + .3 * d; return { z, name, s, g, d, score, level: score >= .6 ? 'Alta' : score >= .4 ? 'Media' : 'Baja' }; }).sort((a, b) => b.score - a.score); }
 function opPlan() {
   const P = opPlanData(), M = OP.ia.metrics, d = new Date().toLocaleDateString('es-PE', { day: '2-digit', month: 'long', year: 'numeric' });
-  let r = `INFORME · ${OP.name}\nGenerado con la Plataforma Balta (Tu puente) · ${d}\n\nNUBE\n${OP.cloud.kept.toLocaleString('es-PE')} puntos usados de ${OP.cloud.total.toLocaleString('es-PE')}; superficie del tablero ${fmt(OP.deckTop, 2)} m; terreno ${fmt(OP.ground, 2)} m.\n\nGEOMETRÍA (${OP_TYPES[OP.type]})\n`;
+  let r = `INFORME · ${OP.name}\nGenerado con PuenteGemelo ${APP_VERSION} (Tu puente) · ${d}\n\nNUBE\n${OP.cloud.kept.toLocaleString('es-ES')} puntos usados de ${OP.cloud.total.toLocaleString('es-ES')}; superficie del tablero ${fmt(OP.deckTop, 2)} m; terreno ${fmt(OP.ground, 2)} m.\n\nGEOMETRÍA (${OP_TYPES[OP.type]})\n`;
   if (OP.type === 'arco') OP.geo.arches.forEach((a, i) => r += `Arco ${i + 1}: ${fmt(a.a, 2)}–${fmt(a.b, 2)} m, luz ${fmt(a.L, 2)} m${a.symmetric ? ' (por simetría)' : ''}, flecha ${fmt(a.rise, 2)} m, RMS ${fmt(100 * a.rms, 2)} cm; completitud ${pct(a.completeness.total, 0)} (arranques ${pct(a.completeness.arranque, 0)}, riñones ${pct(a.completeness['riñón'], 0)}, clave ${pct(a.completeness.clave, 0)})\n`);
   else OP.geo.spans.forEach((s, i) => r += `Vano ${i + 1}: ${fmt(s.a, 2)}–${fmt(s.b, 2)} m, luz ${fmt(s.b - s.a, 2)} m, cobertura ${pct(s.coverage, 0)}\n`);
   r += `\nSUPUESTOS DEL USUARIO\nMaterial ${OPC.MATERIALS[OP.mat].label}, E = ${OP.P.E} GPa, densidad ${OP.P.rho} t/m³; ${OP_PARAMS[OP.type].map(([k, l, u]) => `${l.toLowerCase()} ${OP.P[k]}${u ? ' ' + u : ''}`).join('; ')}.\n\nMODOS\n${OP.modes.f.map((f, i) => `Modo ${i + 1}: ${fmt(f, 3)} Hz`).join('\n')}\n\nIA (Random Forest, ${OP.camp.n} simulaciones, ${OP.camp.sensors.length} sensores)\n`;
