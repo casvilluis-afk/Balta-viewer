@@ -396,6 +396,32 @@ function features(f, phi, f0, phi0, sdof, NM = 8, NS = 4) {
 }
 
 /* ---------- campaña de daño ---------- */
+// incertidumbre de la geometría oculta (supuesto explícito, válido para cualquier puente):
+// arcos: desviación típica de la flecha y de la altura de los arranques según la parte del intradós que la nube NO registró
+//   σ_flecha = m·(rms + 0,12·f·(1 − C_clave)),  σ_arranque = m·(rms + 0,08·f·(1 − C_arranque))
+// vigas y armaduras: la altura de la sección oculta se desconoce; factor lognormal de rigidez por vano σ = m·(0,03 + 0,15·(1 − cobertura))
+// sin dato de cobertura se asume 0,5. m = 0 (ninguna), 1 (según la nube), 2 (doble).
+function archRise(a) { const c = a.coef, yv = -c[1] / (2 * c[0]); return polyval(c, yv) - Math.min(polyval(c, a.a), polyval(c, a.b)); }
+function geomSigmas(type, G, mult = 1) {
+  if (type === 'arco') return { arches: (G.arches || []).map(a => { const o = a.obs || {}, R = o.rise != null ? o.rise : archRise(a), rms = o.rms != null ? o.rms : .02,
+    cc = o.clave != null ? o.clave : .5, cs = o.arranque != null ? o.arranque : .5;
+    return { rise: mult * (rms + .12 * R * (1 - cc)), spr: mult * (rms + .08 * R * (1 - cs)), known: !!a.obs }; }) };
+  const n = Math.max(1, (G.supports || []).length - 1), cov = G.cover || [];
+  return { spans: Array.from({ length: n }, (_, k) => mult * (.03 + .15 * (1 - (cov[k] != null ? cov[k] : .5)))), known: cov.length === n };
+}
+function perturbGeom(type, G, r, mult) {
+  if (!mult) return { G, fac: null };
+  const S = geomSigmas(type, G, mult), cl = v => Math.max(-2.5, Math.min(2.5, v));
+  if (type === 'arco') {
+    const arches = G.arches.map((a, i) => { const s = S.arches[i], dR = cl(gaussR(r)) * s.rise, dS = cl(gaussR(r)) * s.spr, L = a.b - a.a, ym = (a.a + a.b) / 2, k = (dS - dR) * 4 / (L * L), c = a.coef;
+      // δ(y) = Δflecha·(1 − u²) + Δarranque·u², u = 2(y − ym)/L  (los arranques no se mueven en planta)
+      let c2 = [c[0] + k, c[1] - 2 * k * ym, c[2] + k * ym * ym + dR]; if (c2[0] >= 0) c2 = c.slice();
+      const yv = -c2[1] / (2 * c2[0]), top = G.deckAxis - .3; if (yv > a.a && yv < a.b && polyval(c2, yv) > top) c2[2] -= polyval(c2, yv) - top;
+      return Object.assign({}, a, { coef: c2 }); });
+    return { G: Object.assign({}, G, { arches }), fac: null };
+  }
+  return { G, fac: S.spans.map(sg => Math.exp(cl(gaussR(r)) * sg)) };
+}
 function campaign(type, G, p, opts, prog) {
   const r = mulberry(opts.seed || 7), NM = opts.NM || 8, fr0 = build(type, G, p), sens = sensorsOf(fr0), sdof = sens.map(s => s.dof);
   const b = modal(fr0, NM); const phi0 = signConvention(b.phi, sdof), f0 = b.f, Z = fr0.zoneDefs.length;
@@ -403,8 +429,9 @@ function campaign(type, G, p, opts, prog) {
   const rows = []; let t0 = Date.now();
   jobs.forEach((zz, n) => {
     const pp = Object.assign({}, p, { E: p.E * (1 + gaussR(r) * opts.unc / 2), w_deck: p.w_deck * (1 + gaussR(r) * opts.unc / 2) });
-    const fr = build(type, G, pp), d = zz < 0 ? 0 : 0.05 + r() * 0.55, esc = new Float64Array(fr.el.length).fill(1);
+    const pg = perturbGeom(type, G, r, opts.geom || 0), fr = build(type, pg.G, pp), d = zz < 0 ? 0 : 0.05 + r() * 0.55, esc = new Float64Array(fr.el.length).fill(1);
     if (opts.modelErr) for (let t = 0; t < esc.length; t++) esc[t] = Math.exp(gaussR(r) * opts.modelErr);
+    if (pg.fac) fr.zoneOf.forEach((z, t) => { if (z >= 0) esc[t] *= pg.fac[Math.min(pg.fac.length - 1, Math.floor(z / 3))]; });
     if (zz >= 0) fr.zoneOf.forEach((z, t) => { if (z === zz) esc[t] *= 1 - d; });
     const m = modal(fr, NM, esc, 1e-9); rows.push({ zona: zz, sev: d, x: features(m.f, m.phi, f0, phi0, sdof, NM) });
     if (prog && n % 20 === 0) prog(n / jobs.length, (Date.now() - t0) / 1000);
@@ -545,9 +572,11 @@ function freqCampaign(type, G, p, opts, prog) {
   const jobs = []; for (let i = 0; i < opts.nUndamaged; i++) jobs.push(-1); for (let z = 0; z < Z; z++) for (let i = 0; i < opts.nPerZone; i++) jobs.push(z);
   const rows = [], t0 = Date.now();
   jobs.forEach((zz, n) => { const pp = Object.assign({}, p, { E: p.E * (1 + gaussR(r) * opts.unc / 2), w_deck: p.w_deck * (1 + gaussR(r) * opts.unc / 2) });
-    const fr = build(type, G, pp), d = zz < 0 ? 0 : 0.05 + r() * 0.55, esc = new Float64Array(fr.el.length).fill(1);
+    const pg = perturbGeom(type, G, r, opts.geom || 0), fr = build(type, pg.G, pp), d = zz < 0 ? 0 : 0.05 + r() * 0.55, esc = new Float64Array(fr.el.length).fill(1);
     // error de modelo: la rigidez real de cada elemento difiere de la supuesta (lognormal, σ = modelErr); evita entrenar y evaluar con el mismo modelo perfecto
     if (opts.modelErr) for (let t = 0; t < esc.length; t++) esc[t] = Math.exp(gaussR(r) * opts.modelErr);
+    // geometría oculta: cada simulación usa una geometría plausible distinta según lo que la nube no registró
+    if (pg.fac) fr.zoneOf.forEach((z, t) => { if (z >= 0) esc[t] *= pg.fac[Math.min(pg.fac.length - 1, Math.floor(z / 3))]; });
     if (zz >= 0) fr.zoneOf.forEach((z, t) => { if (z === zz) esc[t] *= 1 - d; });
     const md = modal(fr, NM, esc, 1e-9), f = md.f, row = { zona: zz, sev: d, df: f.map((v, i) => (v - f0[i]) / f0[i]) };
     if (opts.shapes !== false) { const S = md.phi.map(at), used = new Set(); row.dfm = []; row.sh = [];
@@ -883,7 +912,7 @@ function maintenancePlan(els, { years = 20, budget = 0, thr = 60 } = {}) { const
   const life = arr => { const k = arr.findIndex(v => v != null && v < thr); return k < 0 ? null : k; };
   return { plan, hi, hi0, total, vidaSin: life(hi0), vidaCon: life(hi) }; }
 
-return { fftInPlace, detrend, csdMatrix, fdd, efdd, fddModes, pickPeaks, staticPrep, fiberStress, influence, HL93, hl93Extremes, liveLoad, CS_WF, pTrans, markovStep, elemHI, bridgeHI, calibrateAlpha, maintenancePlan, Dxf, bridgePlans, sensorsOf, readAccel, sdof, spectrum, seismic, freqCampaign, peakCampaign, csdAverage, calibrateModel, nelderMead, trainFreqIA, trainVecIA, trainModalIA, modalFeat, modalMeasFeat, modalMeasFeatBase, freqPredict, build, modal, archAll, parseCloud, orient, bounds, deckLevel, groundLevel, detectSupports, spansOf, envelope, fitParabola, polyval, archGeometry, spanCoverage, MATERIALS,
+return { fftInPlace, detrend, csdMatrix, fdd, efdd, fddModes, pickPeaks, staticPrep, fiberStress, influence, HL93, hl93Extremes, liveLoad, CS_WF, pTrans, markovStep, elemHI, bridgeHI, calibrateAlpha, maintenancePlan, Dxf, bridgePlans, sensorsOf, readAccel, sdof, spectrum, seismic, freqCampaign, geomSigmas, perturbGeom, archRise, peakCampaign, csdAverage, calibrateModel, nelderMead, trainFreqIA, trainVecIA, trainModalIA, modalFeat, modalMeasFeat, modalMeasFeatBase, freqPredict, build, modal, archAll, parseCloud, orient, bounds, deckLevel, groundLevel, detectSupports, spansOf, envelope, fitParabola, polyval, archGeometry, spanCoverage, MATERIALS,
   build, sensorsOf, modal, signConvention, features, campaign, trainIA, forestPredict, LEVELS, noisy, mulberry, gaussR, quantile, median };
 })();
 if (typeof module !== 'undefined') module.exports = OPC;

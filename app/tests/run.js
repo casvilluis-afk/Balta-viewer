@@ -106,6 +106,29 @@ ok('Modelo C: 20 zonas de daño (15 de arcos, 3 de tablero y 2 de pilares por so
 { const camp = { f0: [1, 2], sh0: [[1, 2, 3], [3, 2, 1]] }, base = { fm: { 0: 4.6, 1: 7.2 }, shapes: { 0: [.2, .5, .3], 1: [.4, -.1, .3] } }, x = OPC.modalMeasFeat(camp, { f: [0, 1], s: [0, 1], sens: [0, 1, 2] }, base.fm, base.shapes, base);
   ok('Línea base: medición idéntica → rasgos nulos', x.every(v => Math.abs(v) < 1e-12), x.length + ' rasgos'); }
 
+// 18. Geometría no vista en la nube: misma regla para cualquier puente; más incertidumbre donde la nube no registró
+{ const A = arches.map((a, i) => Object.assign({}, a, { obs: (k => { const c = MCD.completitud.find(r => r.arch === k), g = MCD.geometria[k]; return { rise: g.flecha, rms: g.rms_cm / 100, clave: c.C_crown, arranque: c.C_springing }; })(['izq', 'centro', 'der'][i]) }));
+  const G = Object.assign({}, GB, { arches: A }), S = OPC.geomSigmas('arco', G, 1), r = OPC.mulberry(3); let okPos = true, below = true;
+  for (let n = 0; n < 50; n++) { const pg = OPC.perturbGeom('arco', G, r, 2); pg.G.arches.forEach((a, i) => { if (a.a !== A[i].a || a.b !== A[i].b) okPos = false; const yv = -a.coef[1] / (2 * a.coef[0]); if (a.coef[0] >= 0) below = false; const zc = a.coef[0] * yv * yv + a.coef[1] * yv + a.coef[2]; if (zc > G.deckAxis - .3 + 1e-9) below = false; }); }
+  const SV = OPC.geomSigmas('viga', { supports: [{ a: 0, b: 0 }, { a: 20, b: 20 }, { a: 45, b: 45 }], cover: [.9, .3] }, 1);
+  ok('Geometría no vista: σ mayor donde la nube no registró (arco central del Balta, vano poco cubierto)', S.arches[1].rise > 5 * S.arches[0].rise && SV.spans[1] > SV.spans[0] && OPC.perturbGeom('arco', G, r, 0).G === G && okPos && below,
+    `σ flecha ${S.arches.map(s => (100 * s.rise).toFixed(0) + ' cm').join(' / ')} · σ rigidez viga ${SV.spans.map(v => (100 * v).toFixed(1) + ' %').join(' / ')}`); }
+
+// 19. IA con la geometría no vista frente a la IA con geometría nominal, en vigas cuya geometría real difiere del modelo
+{ const G = { supports: [{ a: 0, b: 0 }, { a: 19.5, b: 20.5 }, { a: 44.5, b: 45.5 }, { a: 65, b: 65 }], deckAxis: 6, cover: [.9, .3, .8] }, P = { E: 200, rho: 7.85, deck_A: .6, deck_I: .35, w_deck: 80 };
+  const fr0 = OPC.build('viga', G, P), m0 = OPC.modal(fr0, 8), sens = OPC.sensorsOf(fr0), Z = fr0.zoneDefs.length, r = OPC.mulberry(4242), gs = () => OPC.gaussR(r);
+  const mac = (u, v) => { let a = 0, b = 0, c = 0; for (let i = 0; i < u.length; i++) { a += u[i] * v[i]; b += u[i] * u[i]; c += v[i] * v[i]; } return a * a / (b * c || 1); };
+  const sel = { f: [0, 1, 2, 3, 4, 5], s: [0, 1, 2, 3, 4, 5], sens: sens.map((_, i) => i) }, cases = [];
+  for (let rep = 0; rep < 10; rep++) { const pg = OPC.perturbGeom('viga', G, r, 1), fr = OPC.build('viga', pg.G, Object.assign({}, P, { E: P.E * .96 })), e0 = new Float64Array(fr.el.length).map(() => Math.exp(gs() * .08));
+    fr.zoneOf.forEach((q, t) => { if (q >= 0) e0[t] *= pg.fac[Math.floor(q / 3)]; });
+    for (let z = -1; z < Z; z++) { const esc = e0.slice(), sev = z < 0 ? 0 : .2 + .3 * r(); if (z >= 0) fr.zoneOf.forEach((q, t) => { if (q === z) esc[t] *= 1 - sev; }); const md = OPC.modal(fr, 8, esc, 1e-9), fm = {}, sh = {};
+      sel.f.forEach(j => { const v0 = sens.map(s => m0.phi[j][s.dof]); let b = -1, k = j; md.phi.forEach((ph, i) => { const M = mac(sens.map(s => ph[s.dof]), v0) * (1 - Math.min(1, Math.abs(md.f[i] / m0.f[j] - 1) * 2)); if (M > b) { b = M; k = i; } }); fm[j] = md.f[k] * (1 + gs() * .005); sh[j] = sens.map(s => md.phi[k][s.dof] * (1 + gs() * .05)); });
+      cases.push({ z, fm, sh }); } }
+  const res = [0, 1].map(geom => { const camp = OPC.freqCampaign('viga', G, P, { nPerZone: 40, nUndamaged: 80, unc: .05, seed: 7, NM: 8, modelErr: .05, geom }), I = OPC.trainModalIA(camp, sel, .005, .05); let ok = 0, nd = 0, fa = 0, nh = 0;
+    cases.forEach(c => { const d = OPC.freqPredict(I, Z, OPC.modalMeasFeat(camp, sel, c.fm, c.sh, null)); if (c.z < 0) { nh++; if (d.cls >= 0 && d.conclusive && !d.ood) fa++; } else { nd++; if (d.cls === c.z && !d.ood) ok++; } }); return { zona: ok / nd, fa, nh }; });
+  ok('IA con geometría no vista: menos falsas alarmas y no peor localización que con geometría nominal', res[1].fa < res[0].fa && res[1].zona >= res[0].zona - .02,
+    `nominal: zona ${(100 * res[0].zona).toFixed(0)} %, falsas alarmas ${res[0].fa}/${res[0].nh} · con geometría no vista: zona ${(100 * res[1].zona).toFixed(0)} %, falsas alarmas ${res[1].fa}/${res[1].nh}`); }
+
 // 17. Solver 2D de la plataforma contra OpenSees: se verifica en el navegador (pestaña Validación) con los 450 casos de data/fem_525.csv
 ok('Dataset OpenSees presente', fs.existsSync(path.join(P, 'data', 'fem_525.csv')));
 

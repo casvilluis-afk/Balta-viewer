@@ -220,16 +220,16 @@ import {OrbitControls} from 'three/addons/controls/OrbitControls.js';
 window.BaltaThree={THREE,GLTFLoader,OrbitControls};
 window.dispatchEvent(new Event('three-ready'));
 </script>
-<script src="v3d.js?v=1.1.0"></script>
-<script src="op_core.js?v=1.1.0"></script>
-<script src="op_ui.js?v=1.1.0"></script>
-<script src="pg_mod.js?v=1.1.0"></script>
+<script src="v3d.js?v=1.2.0"></script>
+<script src="op_core.js?v=1.2.0"></script>
+<script src="op_ui.js?v=1.2.0"></script>
+<script src="pg_mod.js?v=1.2.0"></script>
 <script>
 "use strict";
 const MODEL_URL='../models/puente-balta-v12.glb';
 /* ================= Utilidades ================= */
 const $=s=>document.querySelector(s);
-const APP_VERSION='1.1.0';
+const APP_VERSION='1.2.0';
 // formato numérico: coma decimal y punto de miles (como en el texto de la tesis)
 const fmt=(x,d=2)=>Number.isFinite(x)?x.toLocaleString('es-ES',{minimumFractionDigits:d,maximumFractionDigits:d,useGrouping:Math.abs(x)>=1e4}):'—';
 const pct=(x,d=1)=>fmt(100*x,d)+' %';
@@ -1019,15 +1019,25 @@ function open3dSis(){const r=S.sis.res;if(!r)return;const A=V3D.adaptMC(r.fr),se
 /* ---------- IA con frecuencias del usuario (medidas o calculadas) ---------- */
 // Sin datos del usuario la plataforma sigue simulando la medición; con sus frecuencias, se usa una IA entrenada solo con Δf del mismo modelo.
 const FQ={};let FQ_SRC=null;
-async function fqWorker(){if(!FQ_SRC)FQ_SRC=await fetch('op_core.js?v=1.1.0').then(r=>{if(!r.ok)throw new Error('No se encontró op_core.js');return r.text();});
+async function fqWorker(){if(!FQ_SRC)FQ_SRC=await fetch('op_core.js?v=1.2.0').then(r=>{if(!r.ok)throw new Error('No se encontró op_core.js');return r.text();});
   const src=FQ_SRC+`\nself.onmessage=e=>{const m=e.data;try{if(m.kind==='camp'){const c=OPC.freqCampaign(m.type,m.G,m.P,m.opts,(q,s)=>self.postMessage({kind:'prog',stage:'Simulaciones de daño',q,s}));self.postMessage({kind:'camp',camp:c});}
    else if(m.kind==='trainM'){const I=OPC.trainModalIA(m.camp,m.sel,m.sf,m.ss,(st,q)=>self.postMessage({kind:'prog',stage:st,q}));self.postMessage({kind:'ia',ia:I});}else{const I=OPC.trainFreqIA(m.camp,m.k,m.sf,(st,q)=>self.postMessage({kind:'prog',stage:st,q}));self.postMessage({kind:'ia',ia:I});}}catch(err){self.postMessage({kind:'error',msg:err.message});}};`;
   return new Worker(URL.createObjectURL(new Blob([src],{type:'text/javascript'})));}
 function fqRun(ctx,msg,onProg){return new Promise(async(res,rej)=>{let w;try{w=await fqWorker();}catch(e){rej(e);return;}
   w.onmessage=ev=>{const m=ev.data;if(m.kind==='prog')onProg(m);else if(m.kind==='error'){w.terminate();rej(new Error(m.msg));}else{w.terminate();res(m);}};w.postMessage(msg);});}
 const FQ_ERR=[['0.002','Bajo · 0,2 %'],['0.005','Medio · 0,5 %'],['0.01','Alto · 1 %']];
+/* incertidumbre de la geometría oculta: la misma regla para cualquier puente, a partir de lo que su nube registró */
+const GEO_OPTS=[['auto','Automática (recomendado)'],['0','Ninguna: geometría nominal'],['1','Según la nube'],['2','Doble (conservador)']];
+// automática: contra el modelo, la geometría no vista es la mayor fuente de error → según la nube; contra una referencia medida del mismo puente ese error se cancela → nominal
+const geoResolve=(v,usesBase)=>v==='auto'?(usesBase?0:1):+v, geoLabel=g=>['geometría nominal','geometría según la nube','geometría con el doble de incertidumbre'][g];
+function geoSel(id,v){return `<label class="f">Geometría no vista en la nube<select id="${id}">${GEO_OPTS.map(([a,l])=>`<option value="${a}" ${a===v?'selected':''}>${l}</option>`).join('')}</select></label>`;}
+function geoUncTable(type,G){const S=OPC.geomSigmas(type,G,1),cm=v=>fmt(100*v,0)+' cm';
+  if(S.arches)return `<table class="data"><thead><tr><th>Arco</th><th class="n">Clave vista</th><th class="n">Arranques vistos</th><th class="n">± flecha</th><th class="n">± arranques</th></tr></thead><tbody>${G.arches.map((a,i)=>{const o=a.obs||{};return `<tr><td>Arco ${i+1}</td><td class="n">${o.clave!=null?pct(o.clave,0):'sin dato'}</td><td class="n">${o.arranque!=null?pct(o.arranque,0):'sin dato'}</td><td class="n">${cm(S.arches[i].rise)}</td><td class="n">${cm(S.arches[i].spr)}</td></tr>`;}).join('')}</tbody></table>`;
+  return `<table class="data"><thead><tr><th>Vano</th><th class="n">Cobertura bajo el tablero</th><th class="n">± rigidez del vano</th></tr></thead><tbody>${S.spans.map((v,k)=>`<tr><td>Vano ${k+1}</td><td class="n">${G.cover&&G.cover[k]!=null?pct(G.cover[k],0):'sin dato'}</td><td class="n">${pct(v,0)}</td></tr>`).join('')}</tbody></table>`;}
+function geoDetails(ctx){return `<details class="geod" style="margin:6px 0"><summary class="help keep" style="cursor:pointer">¿Qué geometría no registró la nube de este puente?</summary><div class="tw" style="margin-top:4px">${geoUncTable(ctx.type,ctx.G)}</div><p class="help keep">${GEO_HELP} «Automática» usa esa incertidumbre cuando se compara contra el modelo y la geometría nominal cuando se compara contra una referencia medida del mismo puente, porque ahí el error de geometría se cancela.</p></details>`;}
+const GEO_HELP='Desviaciones típicas (1σ) que la IA usa con la opción «Según la nube». Supuesto de la plataforma, igual para cualquier puente: arcos, ± flecha = rms del ajuste + 12 % de la flecha × fracción de clave no vista, y ± arranques = rms + 8 % de la flecha × fracción de arranques no vista; vigas y armaduras, ± rigidez = 3 % + 15 % × fracción no vista bajo el tablero (altura de sección desconocida). Cada simulación de entrenamiento usa una geometría distinta dentro de ese rango.';
 // ctx: {id, type, G, P, title}
-function fqRender(el,ctx){if(!el)return;const key=JSON.stringify([ctx.type,ctx.G,ctx.P]);let C=FQ[ctx.id];if(!C||C.key!==key){C=FQ[ctx.id]={key,f0:OPC.modal(OPC.build(ctx.type,ctx.G,ctx.P),8).f,fm:new Array(8).fill(''),fr:new Array(8).fill(''),ref:'modelo',sf:'0.005',camp:null,ia:{},busy:false,out:''};}
+function fqRender(el,ctx){if(!el)return;const key=JSON.stringify([ctx.type,ctx.G,ctx.P]);let C=FQ[ctx.id];if(!C||C.key!==key){C=FQ[ctx.id]={key,f0:OPC.modal(OPC.build(ctx.type,ctx.G,ctx.P),8).f,fm:new Array(8).fill(''),fr:new Array(8).fill(''),ref:'modelo',sf:'0.005',geom:'auto',camps:{},ia:{},busy:false,out:''};}
   const inRow=(arr,id,ph)=>arr.map((v,i)=>`<label class="f">f${i+1}${ph?` <span class="dim">(${fmt(C.f0[i],2)})</span>`:''}<input type="text" inputmode="decimal" data-${id}="${i}" value="${esc(v)}" placeholder="Hz"></label>`).join('');
   el.innerHTML=`<h2>IA · Diagnóstico con frecuencias medidas o calculadas por usted</h2>
    <p class="intro">Si midió el puente (acelerómetros o el celular con phyphox) o calculó sus frecuencias con otro modelo, ingréselas aquí y la IA las usará en lugar de la medición simulada. Esta IA se entrena solo con cambios de frecuencia del mismo modelo${ctx.title?' ('+esc(ctx.title)+')':''}; sin formas modales la localización es menos precisa que con la medición completa. Deje vacíos los modos que no midió: la IA se entrena solo con los modos que usted ingrese.</p>
@@ -1035,12 +1045,13 @@ function fqRender(el,ctx){if(!el)return;const key=JSON.stringify([ctx.type,ctx.G
    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,220px),1fr));gap:8px;align-items:end">
     <label class="f">Referencia (puente sin daño)<select id="fqRef_${ctx.id}"><option value="modelo" ${C.ref==='modelo'?'selected':''}>Frecuencias del modelo (entre paréntesis)</option><option value="usuario" ${C.ref==='usuario'?'selected':''}>Mis frecuencias de referencia</option></select></label>
     <label class="f">Error de medición<select id="fqErr_${ctx.id}">${FQ_ERR.map(([v,l])=>`<option value="${v}" ${v===C.sf?'selected':''}>${l}</option>`).join('')}</select></label>
-    <div><button class="btn pri" id="fqGo_${ctx.id}" ${C.busy?'disabled':''}>Diagnosticar</button></div></div>
+    ${geoSel('fqGeo_'+ctx.id,C.geom)}
+    <div><button class="btn pri" id="fqGo_${ctx.id}" ${C.busy?'disabled':''}>Diagnosticar</button></div></div>${geoDetails(ctx)}
    ${C.ref==='usuario'?`<h3>Frecuencias de referencia: puente sano o medición anterior (Hz)</h3><div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(86px,1fr));gap:6px">${inRow(C.fr,'fr',false)}</div>`:`<div class="msg"><b>Referencia del modelo.</b> La diferencia entre el modelo y el puente real también se leerá como daño. Calibre antes el modelo (Monitoreo con IA → Calibración, o Dinámica y sismo) o use una medición anterior del puente como referencia.</div>`}
    <div id="fqOut_${ctx.id}">${C.out}</div>`;
   el.querySelectorAll('[data-fm]').forEach(i=>i.onchange=()=>{C.fm[+i.dataset.fm]=i.value.trim();});
   el.querySelectorAll('[data-fr]').forEach(i=>i.onchange=()=>{C.fr[+i.dataset.fr]=i.value.trim();});
-  $('#fqRef_'+ctx.id).onchange=e=>{C.ref=e.target.value;fqRender(el,ctx);};$('#fqErr_'+ctx.id).onchange=e=>{C.sf=e.target.value;};
+  $('#fqRef_'+ctx.id).onchange=e=>{C.ref=e.target.value;fqRender(el,ctx);};$('#fqErr_'+ctx.id).onchange=e=>{C.sf=e.target.value;};$('#fqGeo_'+ctx.id).onchange=e=>{C.geom=e.target.value;};
   $('#fqGo_'+ctx.id).onclick=()=>fqDiagnose(el,ctx,C);}
 async function fqDiagnose(el,ctx,C){const out=$('#fqOut_'+ctx.id),num=v=>parseFloat(String(v).replace(',','.'));
   el.querySelectorAll('[data-fm]').forEach(i=>C.fm[+i.dataset.fm]=i.value.trim());el.querySelectorAll('[data-fr]').forEach(i=>C.fr[+i.dataset.fr]=i.value.trim());
@@ -1049,8 +1060,8 @@ async function fqDiagnose(el,ctx,C){const out=$('#fqOut_'+ctx.id),num=v=>parseFl
   const ref=C.ref==='usuario'?C.fr.map(num):C.f0;for(const i of idx)if(!(ref[i]>0)){out.innerHTML=`<div class="msg crit"><b>Falta la referencia de f${i+1}.</b></div>`;return;}
   const x=idx.map(i=>(num(C.fm[i])-ref[i])/ref[i]),sf=+C.sf,prog=m=>{out.innerHTML=`<p class="help">${m.stage}: ${Math.round(100*m.q)} %${m.s?` · ${Math.round(m.s)} s`:''}</p><div class="meter"><i style="width:${100*m.q}%"></i></div>`;};
   C.busy=true;$('#fqGo_'+ctx.id).disabled=true;
-  try{if(!C.camp){out.innerHTML='<p class="help">Preparando la IA de frecuencias para este modelo (unas 1200 simulaciones; solo la primera vez)…</p>';C.camp=(await fqRun(ctx,{kind:'camp',type:ctx.type,G:ctx.G,P:ctx.P,opts:{nPerZone:60,nUndamaged:100,unc:.05,seed:7,NM:8,modelErr:.05}},prog)).camp;}
-    const ik=idx.join(',')+'|'+sf;if(!C.ia[ik])C.ia[ik]=(await fqRun(ctx,{kind:'train',camp:C.camp,k:idx,sf},prog)).ia;
+  const gm=geoResolve(C.geom,C.ref==='usuario');try{if(!C.camps[gm]){out.innerHTML='<p class="help">Preparando la IA de frecuencias para este modelo (unas 1200 simulaciones; solo la primera vez)…</p>';C.camps[gm]=(await fqRun(ctx,{kind:'camp',type:ctx.type,G:ctx.G,P:ctx.P,opts:{nPerZone:60,nUndamaged:100,unc:.05,seed:7,NM:8,modelErr:.05,geom:gm}},prog)).camp;}C.camp=C.camps[gm];
+    const ik=idx.join(',')+'|'+sf+'|'+gm;if(!C.ia[ik])C.ia[ik]=(await fqRun(ctx,{kind:'train',camp:C.camp,k:idx,sf},prog)).ia;
     const I=C.ia[ik],Z=C.camp.zones.length,d=OPC.freqPredict(I,Z,x),zn=c=>c<0?'Sin daño':C.camp.zones[c];
     const v=d.ood?['crit','Medición fuera de dominio']:!d.conclusive?['warn','No concluyente']:d.cls<0?['ok','Sin daño detectado']:['ok','Zona identificada'];
     const allNeg=x.every(v=>v<-.03)&&Math.max(...x)-Math.min(...x)<.02;
@@ -1063,7 +1074,7 @@ async function fqDiagnose(el,ctx,C){const out=$('#fqOut_'+ctx.id),num=v=>parseFl
       <tr><td>Distancia al dominio</td><td class="n">${fmt(d.dist,2)} <span class="dim">/ umbral ${fmt(I.oodThr,2)}</span></td></tr></tbody></table>
       <h3 style="margin-top:8px">Zonas más votadas</h3><div class="tw"><table class="data"><tbody>${d.top.map(([p,c])=>`<tr><td>${esc(zn(c))}</td><td style="width:42%"><div class="meter"><i style="width:${100*p}%"></i></div></td><td class="n">${pct(p,0)}</td></tr>`).join('')}</tbody></table></div></div>
      <div class="tw"><table class="data"><thead><tr><th>Modo</th><th class="n">Referencia (Hz)</th><th class="n">Medida (Hz)</th><th class="n">Δf</th></tr></thead><tbody>${x.map((v,j)=>{const i=idx[j];return `<tr><td class="mono">${i+1}</td><td class="n">${fmt(ref[i],3)}</td><td class="n">${fmt(num(C.fm[i]),3)}</td><td class="n">${sgn(v,2)}</td></tr>`;}).join('')}</tbody></table>
-      <p class="help" style="margin-top:6px">Validación de esta IA con ${k} frecuencias (modos ${idx.map(i=>i+1).join(', ')}) y error ${pct(sf,1)} (casos simulados no vistos): zona exacta ${pct(I.metrics.localizacion,0)}, vano correcto ${pct(I.metrics.vano,0)}, falsas alarmas ${pct(I.metrics.falsaAlarma,0)}.</p></div></div>
+      <p class="help" style="margin-top:6px">Validación de esta IA con ${k} frecuencias (modos ${idx.map(i=>i+1).join(', ')}) y error ${pct(sf,1)} (casos simulados no vistos): zona exacta ${pct(I.metrics.localizacion,0)}, vano correcto ${pct(I.metrics.vano,0)}, falsas alarmas ${pct(I.metrics.falsaAlarma,0)}. Entrenada con ${geoLabel(gm)}.</p></div></div>
      ${allNeg?'<div class="msg"><b>Todas las frecuencias bajan casi lo mismo.</b> Eso suele indicar un módulo E o una masa distintos a los del modelo, no un daño local. Calibre el modelo antes de interpretar la zona.</div>':''}
      ${d.ood?'<div class="msg crit"><b>Fuera de dominio.</b> Las frecuencias ingresadas no se parecen a ningún caso simulado; la IA no debe usarse con estos datos. Revise unidades, orden de los modos y la referencia.</div>':''}`;
     out.innerHTML=C.out;}
@@ -1072,6 +1083,8 @@ async function fqDiagnose(el,ctx,C){const out=$('#fqOut_'+ctx.id),num=v=>parseFl
 // Geometría del modelo C del Balta para el núcleo (reproduce mcBuild: 156 nodos, 225 elementos, f1 = 7,4368 Hz)
 function baltaCtx(){const F=MCD.faces,fit=MCD.fit,yv=c=>-c[1]/(2*c[0]),N0=MCD.nominal;
   const arches=[{a:2*yv(fit.izq.coef)-F.p1_L,b:F.p1_L,coef:fit.izq.coef},{a:F.p1_R,b:F.p2_L,coef:fit.centro.coef},{a:F.p2_R,b:F.abut_R,coef:fit.der.coef}];
+  // lo que la nube del Balta registró de cada intradós (misma regla que para cualquier puente)
+  ['izq','centro','der'].forEach((k,i)=>{const c=MCD.completitud.find(r=>r.arch===k),g=MCD.geometria[k];arches[i].obs={rise:g.flecha,rms:g.rms_cm/100,clave:c.C_crown,arranque:c.C_springing};});
   return {id:'balta',type:'arco',title:'modelo C nominal del Balta',G:{supports:[{a:arches[0].a,b:arches[0].a},{a:F.p1_L,b:F.p1_R},{a:F.p2_L,b:F.p2_R},{a:F.abut_R,b:F.abut_R}],arches,deckAxis:MCD.z_deck_axis,zBase:[MCD.z_base.p1,MCD.z_base.p2]},
     P:{E:N0.E_ci/1e6,rho:N0.rho_ci,rib_h:N0.rib_h,n_ribs:N0.n_ribs,I_factor:1,deck_A:N0.deck_A,deck_I:N0.deck_I,post_A:N0.post_A,post_I:N0.post_I,E_pier:N0.E_pier/1e6,pier_t:N0.pier_t,width:N0.width,w_deck:N0.w_deck,springing:'fixed'}};}
 
@@ -1216,7 +1229,11 @@ function valTech(){const v=MET.sustituto.validaciones,nm={aleatorio_80_20:'Parti
    <p>Se recalculan en este navegador los 450 casos con carga del dataset y se comparan con los resultados archivados de OpenSees.</p>
    <div><button class="btn" id="runConc">Ejecutar 450 casos</button></div><div id="concOut" class="tw"></div>
    <h3>Diagnóstico de daño por vibración · modelo C</h3>
-   <div class="msg"><b>Validación con datos del mismo modelo.</b> Estas cifras miden cuánto reconoce la IA al modelo que la entrenó (es la cota superior). Cuando el puente difiere del modelo (rigidez de cada elemento ±8 %, E −4 %), la IA con frecuencias y formas acierta la zona exacta en 50 % y el vano en 75 %; solo con frecuencias, 21 % la zona. Con datos reales de OpenBridgeLAB (TU Dresden) el efecto ambiental fue del orden del daño. Por eso la app usa línea base medida, error de modelo en el entrenamiento y marca «cambio no explicado».</div>
+   <div class="msg"><b>Validación con datos del mismo modelo.</b> Estas cifras miden cuánto reconoce la IA al modelo que la entrenó (es la cota superior). Cuando el puente difiere del modelo en rigidez (±8 % por elemento, E −4 %) pero su geometría es la medida, la IA con formas acierta la zona en 43 % y el vano en 69 %. Si además difiere la geometría que la nube no registró, la IA entrenada con la geometría nominal cae a 11 % y 22 %; entrenada con la geometría no vista, 32 % y 59 % (tabla siguiente). Con datos reales de OpenBridgeLAB (TU Dresden) el efecto ambiental fue del orden del daño. Por eso la app usa línea base medida, error de modelo y geometría no vista en el entrenamiento, y marca «cambio no explicado».</div>
+   <h3>Geometría no vista en la nube: prueba en cuatro tipos de puente</h3>
+   <p class="help keep">20 puentes por tipo cuya geometría oculta (flecha y arranques de los arcos; altura de sección en vigas y armaduras) difiere del modelo según lo que su nube no registró, con rigidez ±8 % por elemento y E −4 %; un daño de 20–50 % por caso en cada zona. Medición: 6 frecuencias (±0,5 %) y formas en 9 puntos (±5 %) de los modos sin vecino a menos de 3 %. Referencia: el modelo. Mismo procedimiento para los cuatro puentes; los tres hipotéticos no son puentes reales.</p>
+   <div class="tw"><table class="data"><thead><tr><th>Puente</th><th>Rasgos medidos</th><th>IA con geometría nominal</th><th>IA con geometría no vista</th></tr></thead><tbody><tr><td>Balta (nube real)</td><td>f + formas M4, M5</td><td style="white-space:normal;min-width:150px">zona 11 % · vano 22 %<br><span class="dim" style="font-size:.8rem">falsas alarmas 1/20 · sanos fuera de dominio 5/20</span></td><td style="white-space:normal;min-width:150px"><b>zona 32 % · vano 59 %</b><br><span class="dim" style="font-size:.8rem">falsas alarmas 0/20 · sanos fuera de dominio 0/20</span></td></tr><tr><td>Arco hipotético 2 × 30 m</td><td>f + formas M1, M4</td><td style="white-space:normal;min-width:150px">zona 7 % · vano 12 %<br><span class="dim" style="font-size:.8rem">falsas alarmas 3/20 · sanos fuera de dominio 15/20</span></td><td style="white-space:normal;min-width:150px"><b>zona 34 % · vano 65 %</b><br><span class="dim" style="font-size:.8rem">falsas alarmas 1/20 · sanos fuera de dominio 0/20</span></td></tr><tr><td>Viga hipotética 20 + 25 + 20 m</td><td>f + formas M1–M6</td><td style="white-space:normal;min-width:150px">zona 60 % · vano 65 %<br><span class="dim" style="font-size:.8rem">falsas alarmas 6/20 · sanos fuera de dominio 3/20</span></td><td style="white-space:normal;min-width:150px"><b>zona 76 % · vano 79 %</b><br><span class="dim" style="font-size:.8rem">falsas alarmas 0/20 · sanos fuera de dominio 0/20</span></td></tr><tr><td>Armadura hipotética 2 × 40 m</td><td>solo f (modos en pares)</td><td style="white-space:normal;min-width:150px">zona 31 % · vano 49 %<br><span class="dim" style="font-size:.8rem">falsas alarmas 8/20 · sanos fuera de dominio 3/20</span></td><td style="white-space:normal;min-width:150px"><b>zona 57 % · vano 73 %</b><br><span class="dim" style="font-size:.8rem">falsas alarmas 7/20 · sanos fuera de dominio 0/20</span></td></tr></tbody></table></div>
+   <p class="help keep">Con una línea base medida del mismo puente el error de geometría se cancela y la diferencia es pequeña y de signo variable (Balta 34 % · 48 % → 32 % · 59 %; armadura 74 % · 92 % → 58 % · 83 %); por eso la opción «Automática» usa la geometría nominal cuando hay línea base. La validación interna de la IA nominal (43 % en el Balta) sobrestima su acierto en estos puentes (11 %); la de la IA con geometría no vista (32 %) coincide con lo obtenido. Script: app/tests/geometria_oculta.js del repositorio.</p>
    <p class="dim" style="font-size:.86rem">${esc(MIAC.datos)}. Rasgos: ${esc(MIAC.rasgos)}. ${esc(MIAC.clasificador)}; severidad con ${esc(MIAC.severidad)}. Fuera de dominio: con ruido de 3 % se detecta el ${pct(MIAC.fuera_de_dominio.deteccion_ruido_3pct,0)} de las mediciones.</p>
    <div class="tw"><table class="data"><thead><tr><th>Ruido (Δf · forma)</th><th class="n">Detección</th><th class="n">Falsa alarma</th><th class="n">Localización</th><th class="n">F1 macro</th><th class="n">Vano</th><th class="n">Daño 5–15 %</th><th class="n">15–30 %</th><th class="n">30–60 %</th><th class="n">MAE sev.</th><th class="n">RF artículo</th></tr></thead><tbody>${NLEV.map(L=>{const o=MIAC.por_ruido[L.k];return `<tr><td>${L.l.split(' · ').slice(1).join(' · ')}</td><td class="n">${pct(o.deteccion_bal)}</td><td class="n">${pct(o.falsa_alarma)}</td><td class="n">${pct(o.localizacion_acc)}</td><td class="n">${fmt(o.localizacion_f1m,3)}</td><td class="n">${pct(o.vano_acc)}</td><td class="n">${pct(o['loc_acc_d5-15'])}</td><td class="n">${pct(o['loc_acc_d15-30'])}</td><td class="n">${pct(o['loc_acc_d30-61'])}</td><td class="n">${fmt(100*o.severidad_MAE,1)} pp</td><td class="n">${pct(o.rf_articulo_localizacion_acc)}</td></tr>`;}).join('')}</tbody></table></div>
    <p class="help">Detección: exactitud balanceada daño / sin daño. Localización: zona exacta entre 19 clases. RF artículo: Random Forest de blockB_ml.py reentrenado con los datos corregidos, como referencia.</p>

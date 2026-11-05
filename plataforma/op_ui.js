@@ -139,10 +139,10 @@ function opGeoShow() {
     ov = (g, M, dpr) => { G.arches.forEach(a => { if (!a.E) return; g.fillStyle = css('--blue'); a.E.yc.forEach((y, i) => { g.fillRect(M.X(y) - dpr, M.Z(a.E.zc[i]) - dpr, 2 * dpr, 2 * dpr); });
       if (a.ok) { g.strokeStyle = css('--red'); g.lineWidth = 2 * dpr; g.beginPath(); for (let k = 0; k <= 60; k++) { const y = a.a + (a.b - a.a) * k / 60, x = M.X(y), z = M.Z(OPC.polyval(a.coef, y)); k ? g.lineTo(x, z) : g.moveTo(x, z); } g.stroke(); } }); };
     $('#opGeoOut').innerHTML = `<h3>Arcos ajustados</h3><div class="tw"><table class="data"><thead><tr><th>Arco</th><th class="n">Desde (m)</th><th class="n">Hasta (m)</th><th class="n">Luz (m)</th><th class="n">Flecha (m)</th><th class="n">f/L</th><th class="n">RMS (cm)</th><th class="n">Compl. total</th><th class="n">Arranques</th><th class="n">Riñones</th><th class="n">Clave</th></tr></thead><tbody>${G.arches.map((a, i) => a.ok ? `<tr${a.completeness.total < .5 ? ' class="hl"' : ''}><td>Arco ${i + 1}${a.symmetric ? ' <span class="dim">(luz por simetría)</span>' : ''}</td><td class="n">${fmt(a.a, 2)}</td><td class="n">${fmt(a.b, 2)}</td><td class="n">${fmt(a.L, 2)}</td><td class="n">${fmt(a.rise, 2)}</td><td class="n">1/${fmt(a.L / a.rise, 1)}</td><td class="n">${fmt(100 * a.rms, 2)}</td><td class="n">${pct(a.completeness.total, 0)}</td><td class="n">${pct(a.completeness.arranque, 0)}</td><td class="n">${pct(a.completeness['riñón'], 0)}</td><td class="n">${pct(a.completeness.clave, 0)}</td></tr>` : `<tr class="hl"><td>Arco ${i + 1}</td><td colspan="10">${esc(a.msg || 'No se pudo ajustar')}. Revise los apoyos o la franja de búsqueda.</td></tr>`).join('')}</tbody></table></div>
-      <p class="help">Puntos azules: envolvente del intradós. Línea roja: parábola robusta.</p>${G.ok ? '' : '<div class="msg crit"><b>Hay arcos sin ajustar.</b> Corrija apoyos o franja antes de continuar.</div>'}`;
+      <p class="help">Puntos azules: envolvente del intradós. Línea roja: parábola robusta.</p>${G.ok ? opGeoUncBlock() : ''}${G.ok ? '' : '<div class="msg crit"><b>Hay arcos sin ajustar.</b> Corrija apoyos o franja antes de continuar.</div>'}`;
   } else {
     ov = (g, M, dpr) => { g.strokeStyle = css('--blue'); g.setLineDash([4 * dpr, 3 * dpr]); [OP.band.zmin, OP.band.zmax].forEach(z => { g.beginPath(); g.moveTo(M.X(M.s0), M.Z(z)); g.lineTo(M.X(M.s1), M.Z(z)); g.stroke(); }); g.setLineDash([]); };
-    $('#opGeoOut').innerHTML = `<h3>Vanos</h3><div class="tw"><table class="data"><thead><tr><th>Vano</th><th class="n">Desde (m)</th><th class="n">Hasta (m)</th><th class="n">Luz (m)</th><th class="n">Cobertura bajo el tablero</th></tr></thead><tbody>${G.spans.map((s, i) => `<tr><td>Vano ${i + 1}</td><td class="n">${fmt(s.a, 2)}</td><td class="n">${fmt(s.b, 2)}</td><td class="n">${fmt(s.b - s.a, 2)}</td><td class="n">${pct(s.coverage, 0)}</td></tr>`).join('')}</tbody></table></div><p class="help">Para vigas y armaduras la luz se mide entre centros de apoyo en el modelo.</p>`;
+    $('#opGeoOut').innerHTML = `<h3>Vanos</h3><div class="tw"><table class="data"><thead><tr><th>Vano</th><th class="n">Desde (m)</th><th class="n">Hasta (m)</th><th class="n">Luz (m)</th><th class="n">Cobertura bajo el tablero</th></tr></thead><tbody>${G.spans.map((s, i) => `<tr><td>Vano ${i + 1}</td><td class="n">${fmt(s.a, 2)}</td><td class="n">${fmt(s.b, 2)}</td><td class="n">${fmt(s.b - s.a, 2)}</td><td class="n">${pct(s.coverage, 0)}</td></tr>`).join('')}</tbody></table></div><p class="help">Para vigas y armaduras la luz se mide entre centros de apoyo en el modelo.</p>${opGeoUncBlock()}`;
   }
   opDrawElev({ overlay: ov });
 }
@@ -153,8 +153,8 @@ function opModelG() {
   const dAxis = OP.deckTop - OP.deckThick;
   if (OP.type === 'arco') { const A = OP.geo.arches; const sup = [{ a: A[0].a, b: A[0].a }]; for (let k = 0; k < A.length - 1; k++) sup.push({ a: A[k].b, b: A[k + 1].a }); sup.push({ a: A[A.length - 1].b, b: A[A.length - 1].b });
     if (!OP.P.zBase || OP.P.zBase.length !== A.length - 1) OP.P.zBase = new Array(A.length - 1).fill(+OP.ground.toFixed(2));
-    return { supports: sup, arches: A.map(a => ({ a: a.a, b: a.b, coef: a.coef })), deckAxis: dAxis, zBase: OP.P.zBase }; }
-  return { supports: OP.geo.supports, deckAxis: dAxis };
+    return { supports: sup, arches: A.map(a => ({ a: a.a, b: a.b, coef: a.coef, obs: a.completeness ? { rise: a.rise, rms: a.rms, clave: a.completeness.clave, arranque: a.completeness.arranque } : undefined })), deckAxis: dAxis, zBase: OP.P.zBase }; }
+  return { supports: OP.geo.supports, deckAxis: dAxis, cover: (OP.geo.spans || []).map(s => s.coverage) };
 }
 function opModelo() {
   const P = opParams();
@@ -197,7 +197,7 @@ function opFrameSVG(fr, phi, hl) {
 /* ---------- 5 · Entrenar la IA (Web Worker) ---------- */
 let OP_CORE_SRC = null;
 async function opWorker() {
-  if (!OP_CORE_SRC) OP_CORE_SRC = await fetch('op_core.js?v=1.1.0').then(r => { if (!r.ok) throw new Error('No se encontró op_core.js'); return r.text(); });
+  if (!OP_CORE_SRC) OP_CORE_SRC = await fetch('op_core.js?v=1.2.0').then(r => { if (!r.ok) throw new Error('No se encontró op_core.js'); return r.text(); });
   const src = OP_CORE_SRC + `\nself.onmessage = e => { const m = e.data; try {
     const camp = OPC.campaign(m.type, m.G, m.P, m.opts, (q, s) => self.postMessage({ kind: 'prog', stage: 'Simulaciones de daño', q, s }));
     self.postMessage({ kind: 'prog', stage: 'Entrenando la IA', q: 0 });
@@ -209,29 +209,33 @@ async function opWorker() {
 function opIA() {
   const Z = OP.model ? OP.model.zoneDefs.length : 0;
   $('#canvas').innerHTML = `<div class="doc"><h2>5 · Entrenar la IA para este puente</h2>
-   <p>La IA del Balta no sirve para otro puente: sus ejemplos dependen de la geometría y de los sensores. Aquí se repite la campaña del bloque B sobre su modelo: daños de 5 a 60 % en ${Z} zonas, incertidumbre de modelo en E y en el peso del tablero, y 9 o más puntos de medición en el tablero. Con esos casos se entrenan dos Random Forest: uno elige la zona dañada y otro estima la severidad.</p>
+   <p>La IA del Balta no sirve para otro puente: sus ejemplos dependen de la geometría y de los sensores. Aquí se repite la campaña del bloque B sobre su modelo: daños de 5 a 60 % en ${Z} zonas, incertidumbre de modelo en E y en el peso del tablero, la geometría que la nube no registró (paso 3), y 9 o más puntos de medición en el tablero. Con esos casos se entrenan dos Random Forest: uno elige la zona dañada y otro estima la severidad.</p>
    <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:end">
     <label class="f" style="width:190px">Escenarios por zona<select id="opNz"><option value="40">40 (rápido)</option><option value="60" selected>60</option><option value="120">120</option><option value="260">260 (como el artículo)</option></select></label>
     <label class="f" style="width:190px">Incertidumbre de modelo<select id="opUnc"><option value="0.05" selected>±5 % (2σ)</option><option value="0.10">±10 % (2σ)</option></select></label>
+    <span style="width:230px;display:inline-block">${geoSel('opGeoU', OP.geomOpt || 'auto')}</span>
     <button class="btn" id="opTrain" ${OP.busy ? 'disabled' : ''}>Entrenar la IA</button><span class="help" id="opEta"></span></div>
    <div id="opProg"></div><div id="opIAOut"></div></div>${OP.ia ? opNext('Probar el diagnóstico') : ''}`;
   $('#opNz').value = OP.nz || 60; $('#opEta').textContent = `≈ ${Z * (+$('#opNz').value) + 100} simulaciones`;
   $('#opNz').onchange = e => { $('#opEta').textContent = `≈ ${Z * (+e.target.value) + 100} simulaciones`; };
   $('#opTrain').onclick = async () => {
-    OP.nz = +$('#opNz').value; OP.busy = true; $('#opTrain').disabled = true; OP.ia = null; const t0 = performance.now();
+    OP.nz = +$('#opNz').value; OP.geomOpt = $('#opGeoU').value; OP.geomUsed = geoResolve(OP.geomOpt, false); OP.busy = true; $('#opTrain').disabled = true; OP.ia = null; const t0 = performance.now();
     try { if (OP.worker) OP.worker.terminate(); OP.worker = await opWorker(); } catch (e) { $('#opProg').innerHTML = `<div class="msg crit"><b>No se pudo iniciar el cálculo.</b> ${esc(e.message)}</div>`; OP.busy = false; return; }
     OP.worker.onmessage = ev => { const m = ev.data;
       if (m.kind === 'prog') { const el = $('#opProg'); if (el) el.innerHTML = `<p class="mono" style="font-size:.82rem">${m.stage}: ${Math.round(100 * m.q)} %${m.s ? ` · ${Math.round(m.s)} s` : ''}</p><div class="meter" style="height:8px"><i style="width:${100 * m.q}%"></i></div>`; }
       else if (m.kind === 'done') { OP.camp = m.camp; OP.ia = m.ia; OP.ia.secs = (performance.now() - t0) / 1000; OP.busy = false; OP.worker.terminate(); OP.worker = null; OP.dx = { zone: 0, sev: .3, lev: 1, n: 1 }; if (S.view === 'tupuente' && OP.step === 5) opIA(); toast('IA entrenada para este puente.'); }
       else if (m.kind === 'error') { OP.busy = false; const el = $('#opProg'); if (el) el.innerHTML = `<div class="msg crit"><b>Falló el entrenamiento.</b> ${esc(m.msg)}</div>`; } };
-    OP.worker.postMessage({ type: OP.type, G: opModelG(), P: OP.P, opts: { nPerZone: OP.nz, nUndamaged: 100, unc: +$('#opUnc').value, seed: 7, NM: Math.min(8, OP.modes.f.length + 2), modelErr: .05 } });
+    OP.worker.postMessage({ type: OP.type, G: opModelG(), P: OP.P, opts: { nPerZone: OP.nz, nUndamaged: 100, unc: +$('#opUnc').value, seed: 7, NM: Math.min(8, OP.modes.f.length + 2), modelErr: .05, geom: OP.geomUsed } });
   };
   if (OP.ia) opIAShow();
   opRightHelp('<p>El cálculo corre en segundo plano en su navegador; puede tardar uno o dos minutos con 60 escenarios por zona.</p><p>La validación usa 30 % de los casos que la IA no vio, con tres niveles de ruido de medición: bajo (0,2 % en frecuencias), medio (0,5 %) y alto (1 %).</p>');
 }
+function opGeoUncBlock() { // lo que la nube no vio pasa a la IA como incertidumbre de geometría (misma regla para cualquier puente)
+  const g = OP.geo, G = OP.type === 'arco' ? { arches: g.arches.filter(a => a.ok).map(a => ({ a: a.a, b: a.b, coef: a.coef, obs: { rise: a.rise, rms: a.rms, clave: a.completeness.clave, arranque: a.completeness.arranque } })) } : { supports: g.supports, cover: g.spans.map(s => s.coverage) };
+  return `<h3>Geometría no vista que se pasa a la IA</h3><div class="tw">${geoUncTable(OP.type, G)}</div><p class="help keep">${GEO_HELP}</p>`; }
 function opIAShow() {
   const M = OP.ia.metrics, L = { bajo: 'Bajo · Δf 0,2 %', medio: 'Medio · Δf 0,5 %', alto: 'Alto · Δf 1 %' };
-  $('#opIAOut').innerHTML = `<div class="msg" style="border-left-color:var(--ok)"><b>IA lista.</b> ${OP.camp.n} simulaciones, ${OP.ia.nTrain} para entrenar y ${OP.ia.nTest} para validar · ${fmt(OP.ia.secs, 0)} s</div>
+  $('#opIAOut').innerHTML = `<div class="msg" style="border-left-color:var(--ok)"><b>IA lista.</b> ${OP.camp.n} simulaciones, ${OP.ia.nTrain} para entrenar y ${OP.ia.nTest} para validar · ${fmt(OP.ia.secs, 0)} s · entrenada con ${geoLabel(OP.geomUsed != null ? OP.geomUsed : 0)}</div>
    <h3>Desempeño en casos no vistos</h3><div class="tw"><table class="data"><thead><tr><th>Ruido</th><th class="n">Detección</th><th class="n">Falsa alarma</th><th class="n">Zona exacta</th><th class="n">Vano correcto</th><th class="n">Daño 5–15 %</th><th class="n">15–30 %</th><th class="n">30–60 %</th><th class="n">MAE severidad</th></tr></thead><tbody>${Object.entries(M).map(([k, m]) => `<tr><td>${L[k]}</td><td class="n">${pct(m.deteccion)}</td><td class="n">${pct(m.falsaAlarma)}</td><td class="n">${pct(m.localizacion)}</td><td class="n">${pct(m.vano)}</td><td class="n">${pct(m.d5_15)}</td><td class="n">${pct(m.d15_30)}</td><td class="n">${pct(m.d30_60)}</td><td class="n">${fmt(100 * m.mae, 1)} pp</td></tr>`).join('')}</tbody></table></div>
    <h3>Aciertos por zona (ruido medio)</h3><div class="tw"><table class="data"><tbody>${OP.camp.zones.map((z, i) => `<tr><td>${esc(z)}</td><td style="width:50%"><div class="meter"><i style="width:${100 * M.medio.recall[i]}%"></i></div></td><td class="n">${pct(M.medio.recall[i], 0)}</td></tr>`).join('')}</tbody></table></div>`;
 }
