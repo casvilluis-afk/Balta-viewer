@@ -10,12 +10,12 @@
     if (!el) {
       el = document.createElement('div'); el.id = 'inicio'; el.setAttribute('role', 'dialog'); el.setAttribute('aria-label', 'Inicio');
       el.innerHTML = `<div class="in-card">
-        <div class="in-head"><img src="docs/icono.png" alt=""><div><h1>PuenteGemelo</h1><p>Gemelo digital e inspección de puentes con nubes de puntos e inteligencia artificial</p></div></div>
+        <div class="in-head"><img src="docs/icono.png" alt=""><div><h1>PuenteGemelo</h1><p>Inspección de puentes históricos con su gemelo digital e inteligencia artificial</p></div></div>
         <div class="in-grid">
-         <button class="in-act" data-a="nuevo"><b>Nuevo puente</b><span>Cargue la nube de puntos de un puente (PLY, LAS, XYZ, CSV). La app detecta tablero y apoyos, arma el modelo, calcula sus modos y entrena una IA para ese puente; luego mida su vibración, inspecciónelo y planifique su mantenimiento.</span></button>
-         <button class="in-act" data-a="puentes"><b>Mis puentes</b><span>Continúe con un puente ya cargado en esta computadora: cada uno guarda su nube, modelo, IA, inspecciones, mediciones y plan de mantenimiento.</span></button>
-         <button class="in-act" data-a="abrir"><b>Importar proyecto…</b><span>Abra un archivo .puente exportado desde la web o desde otra computadora.</span></button>
-         <button class="in-act" data-a="ejemplo"><b>Proyecto de ejemplo: Puente Balta</b><span>Puente de arcos de fierro fundido sobre el río Rímac (Lima, 1871), con el material verificado de la primera parte de la tesis (modelo C, OpenSees, IA SVM). Muestra el resultado completo; el flujo y los módulos son los mismos para cualquier puente.</span></button>
+         <button class="in-act" data-a="puentes"><b>Mis puentes</b><span>Continúe con un puente que ya agregó: inspecciones, mediciones, estado y mantenimiento.</span></button>
+         <button class="in-act" data-a="nuevo"><b>Agregar un puente</b><span>Cargue su nube de puntos (PLY, LAS, XYZ o CSV). La app arma el modelo y entrena una IA para ese puente. Se hace una sola vez.</span></button>
+         <button class="in-act" data-a="abrir"><b>Abrir un archivo .puente</b><span>Un puente exportado desde la web o desde otra computadora.</span></button>
+         <button class="in-act" data-a="ejemplo"><b>Ver el ejemplo: Puente Balta</b><span>Un puente ya estudiado (Lima, 1871), para conocer la app antes de cargar el suyo.</span></button>
         </div>
         <p class="in-foot">Código abierto (MIT) · datos del Puente Balta CC BY 4.0 · Luis Ñuñuvero Castillo y Anthony Tarazona Cerna · <span id="inVer"></span><br>Herramienta de apoyo a la inspección: no reemplaza la evaluación de un ingeniero.</p>
        </div>`;
@@ -49,5 +49,7 @@
   // la marca de la barra superior abre el inicio
   const mk = document.querySelector('.mark'); if (mk) { mk.style.cursor = 'pointer'; mk.title = 'Inicio'; mk.onclick = () => inicio(true); const b = mk.querySelector('b'); if (b) b.textContent = 'PuenteGemelo'; const s = mk.querySelector('span'); if (s) s.textContent = 'Gemelo digital e inspección de puentes'; }
   document.title = 'PuenteGemelo';
+  // en escritorio la guía se abre desde el menú Ayuda
+  const gb = document.getElementById('btnGuia'); if (gb) gb.onclick = e => { e.preventDefault(); if (window.desk && window.desk.manual) window.desk.manual(); else toast('La guía está en Ayuda → Manual de uso.'); };
   inicio(true);
 })();

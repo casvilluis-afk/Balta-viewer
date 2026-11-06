@@ -95,7 +95,7 @@ function pbImportDialog() { let i = document.getElementById('pbImp');
 /* ---------- selector del puente activo (cabecera y paneles) ---------- */
 function pbOptions() { const L = PB.list.slice().sort((a, b) => (b.actualizado || '').localeCompare(a.actualizado || ''));
   const cur = PB.active !== 'balta' && !pbMeta(PB.active) ? `<option value="${PB.active}" selected>${esc(OP.name || 'Puente nuevo')} (sin guardar)</option>` : '';
-  return `<option value="balta" ${PB.active === 'balta' ? 'selected' : ''}>Puente Balta (ejemplo)</option>${L.map(b => `<option value="${b.id}" ${b.id === PB.active ? 'selected' : ''}>${esc(b.nombre)}${b.resumen && !b.resumen.modelo ? ' · sin modelo' : ''}</option>`).join('')}${cur}<option value="__nuevo">+ Nuevo puente desde nube…</option><option value="__lista">Mis puentes…</option>`; }
+  return `<option value="balta" ${PB.active === 'balta' ? 'selected' : ''}>Puente Balta (ejemplo)</option>${L.map(b => `<option value="${b.id}" ${b.id === PB.active ? 'selected' : ''}>${esc(b.nombre)}${b.resumen && !b.resumen.modelo ? ' · sin modelo' : ''}</option>`).join('')}${cur}<option value="__nuevo">+ Agregar un puente…</option><option value="__lista">Ver todos mis puentes…</option>`; }
 function pbSelect(id) { return `<select id="${id}" aria-label="Puente activo">${pbOptions()}</select>`; }
 function pbBindSelect(id) { const s = document.getElementById(id); if (!s) return; s.onchange = e => { const v = e.target.value;
   if (v === '__nuevo') return pbNew(); if (v === '__lista') return show('puentes');
@@ -106,8 +106,7 @@ function pbTitle() { return PB.active === 'balta' ? 'Puente Balta (ejemplo)' : (
 
 /* ---------- aviso cuando el puente activo aún no tiene modelo ---------- */
 function pbNoModel(lab) {
-  $('#left').innerHTML = `<div class="ph">Puente activo</div><div class="pb">${pbSelect('pgBr')}</div>`; pbBindSelect('pgBr');
-  $('#canvas').innerHTML = `<div class="doc"><h2>${esc(pbTitle())}</h2><div class="msg warn"><b>Este puente aún no tiene modelo.</b> Para usar ${lab}, complete en <a href="#tupuente" id="pbGoTu">Gemelo digital → Nube, modelo e IA</a> los pasos 1 a 4 (nube, tablero y apoyos, geometría, modelo y modos). Todo se guarda en «Mis puentes».</div></div>`;
+  $('#left').innerHTML = ''; $('#canvas').innerHTML = `<div class="doc"><h2>${esc(pbTitle())}</h2><div class="msg warn"><b>Este puente aún no tiene modelo.</b> Para usar ${lab}, complete en <a href="#tupuente" id="pbGoTu">Gemelo digital → Nube, modelo e IA</a> los pasos 1 a 4 (nube, tablero y apoyos, geometría, modelo y modos). Todo se guarda en «Mis puentes».</div></div>`;
   const a = document.getElementById('pbGoTu'); if (a) a.onclick = e => { e.preventDefault(); show('tupuente'); };
   $('#right').innerHTML = ''; }
 
@@ -125,21 +124,19 @@ function pbCard(b) { const r = b.resumen || {}, act = b.id === PB.active, K = pb
     <div class="pba"><button class="btn ${act ? '' : 'pri'}" data-open="${b.id}">${act ? 'Continuar' : 'Abrir'}</button><button class="btn line" data-exp="${b.id}">Exportar .puente</button>
     ${PB.confirmDel === b.id ? `<button class="btn" style="background:var(--red);color:#fff" data-delok="${b.id}">Confirmar: eliminar</button><button class="btn line" data-delno="1">Cancelar</button>` : `<button class="btn line" data-del="${b.id}">Eliminar</button>`}</div></div>`; }
 function vPuentes() {
-  $('#left').innerHTML = `<div class="ph">Puente activo</div><div class="pb">${pbSelect('pgBr')}</div>
-    <div class="ph">Agregar</div><div class="pb" style="display:grid;gap:8px"><button class="btn pri" id="pbNew">Nuevo puente desde nube de puntos</button><button class="btn line" id="pbImp2">Importar proyecto (.puente)</button>
-    <p class="help keep">Los proyectos se guardan en este navegador. Exporte el archivo .puente como respaldo o para abrirlo en otra computadora o en la app de escritorio.</p></div>`;
-  pbBindSelect('pgBr');
+  $('#left').innerHTML = `<div class="ph">Agregar</div><div class="pb" style="display:grid;gap:8px"><button class="btn pri" id="pbNew">Agregar un puente</button><button class="btn line" id="pbImp2">Abrir un archivo .puente</button>
+    <p class="help keep">Los puentes se guardan en este ${window.desk ? 'equipo' : 'navegador'}. Para llevar un puente a otra computadora, use «Exportar .puente».</p></div>`;
   const L = PB.list.slice().sort((a, b) => (b.actualizado || '').localeCompare(a.actualizado || ''));
   const bal = PB.active === 'balta';
   $('#canvas').innerHTML = `<div class="doc"><h2>Mis puentes</h2>
-    <p>Cargue la nube de puntos de cualquier puente histórico: la plataforma detecta tablero y apoyos, ajusta la geometría, arma el modelo, calcula sus modos y entrena una IA para ese puente. Después puede medir su vibración, inspeccionarlo con la Directiva del MTC, evaluar la carga HL-93 y planificar su mantenimiento. Cada puente guarda sus propios datos.</p>
-    <div class="pbg">${L.map(pbCard).join('') || `<div class="pbc"><b>Aún no hay puentes propios</b><p class="dim" style="font-size:.85rem">Pulse «Nuevo puente desde nube de puntos». Si no tiene una nube a mano, en el paso 1 puede usar la muestra de la nube del Balta: se procesa con el mismo flujo que cualquier otra.</p><div class="pba"><button class="btn pri" data-new="1">Nuevo puente desde nube</button></div></div>`}</div>
+    <p>Agregue un puente con su nube de puntos. La app arma su modelo y entrena una IA para él. Después puede inspeccionarlo, medir su vibración y planificar su mantenimiento.</p>
+    <div class="pbg">${L.map(pbCard).join('') || `<div class="pbc"><b>Aún no hay puentes propios</b><p class="dim" style="font-size:.85rem">Pulse «Agregar un puente». Si aún no tiene una nube, puede probar con la muestra del Balta.</p><div class="pba"><button class="btn pri" data-new="1">Agregar un puente</button></div></div>`}</div>
     <h3>Proyecto de ejemplo</h3>
     <div class="pbg"><div class="pbc ${bal ? 'act' : ''}"><div class="pbh"><b>Puente Balta (ejemplo)</b><span class="flag" style="font-size:.7rem">ejemplo</span>${bal ? '<span class="flag ok" style="font-size:.7rem">activo</span>' : ''}</div>
       <div class="dim" style="font-size:.82rem">Arcos de fierro fundido sobre el río Rímac (Lima, 1871) · 3 arcos de unos 24,6 m</div>
-      <p style="font-size:.85rem;margin:6px 0">Trae el material de la primera parte de la tesis: nube TLS, modelo C verificado con OpenSees, IA SVM de 5080 simulaciones, Monte Carlo y modelo 3D. Sirve para ver el resultado completo; los módulos de monitoreo, inspección, carga y mantenimiento son los mismos para cualquier puente.</p>
+      <p style="font-size:.85rem;margin:6px 0">Un puente ya estudiado a fondo, para ver cómo se usa la app antes de cargar el suyo. Incluye además el estudio de la primera parte de la tesis.</p>
       <div class="pba"><button class="btn ${bal ? '' : 'pri'}" data-open="balta">${bal ? 'Continuar' : 'Abrir el ejemplo'}</button></div></div></div></div>`;
-  $('#right').innerHTML = `<div class="ph">Qué guarda cada puente</div><div class="pb help keep">Nube (hasta 1,5 millones de puntos), tablero y apoyos, geometría y completitud, supuestos del modelo con su origen, modos, IA entrenada, línea base de vibración, calibración, expediente de inspección MTC con fotos, plan de mantenimiento y línea de tiempo.</div>`;
+  $('#right').innerHTML = `<div class="ph">Cómo se usa</div><div class="pb"><ol class="plain" style="padding-left:18px;margin:0;font-size:.86rem;display:grid;gap:6px"><li><b>Agregue el puente</b> con su nube de puntos. Se hace una sola vez.</li><li><b>Inspecciónelo</b> con la ficha del MTC y sus fotos.</li><li><b>Mida su vibración</b> con acelerómetros o el celular. La IA indica dónde mirar.</li><li><b>Revise el estado</b> y el plan de mantenimiento.</li></ol></div>`;
   const C = $('#canvas'), Lf = $('#left');
   [C, Lf].forEach(el => el.querySelectorAll('[data-open]').forEach(b => b.onclick = () => { const id = b.dataset.open, m = id === 'balta' ? null : pbMeta(id); pbActivate(id, { go: id === 'balta' ? 'estado' : (m && m.resumen && m.resumen.modelo ? 'estado' : 'tupuente') }); }));
   C.querySelectorAll('[data-exp]').forEach(b => b.onclick = () => pbExport(b.dataset.exp));

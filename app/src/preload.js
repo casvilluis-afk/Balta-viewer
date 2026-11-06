@@ -3,5 +3,6 @@ const { contextBridge, ipcRenderer } = require('electron');
 contextBridge.exposeInMainWorld('desk', {
   onMenu: cb => ipcRenderer.on('menu', (e, cmd, arg) => cb(cmd, arg)),
   version: () => ipcRenderer.invoke('version'),
+  manual: () => ipcRenderer.invoke('manual'),
   platform: process.platform
 });

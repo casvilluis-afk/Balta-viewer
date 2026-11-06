@@ -196,11 +196,15 @@ details summary::-webkit-details-marker{color:var(--ink-3)}
 .likert .opts input:focus-visible+label{outline:2px solid var(--accent)}
 @media (max-width:700px){.likert .q{grid-template-columns:24px 1fr}.likert .opts{grid-column:2}}
 @media (prefers-reduced-motion: reduce){*{transition:none!important;animation:none!important}}
+/* opciones avanzadas plegadas y listas simples */
+details.adv{margin:6px 0}details.adv>summary{cursor:pointer;font-weight:600;font-size:12.5px;color:var(--ink-2);padding:6px 0;list-style-position:inside}details.adv>summary:hover{color:var(--accent)}
+#left details.adv{margin:0;border-top:1px solid var(--rule)}#left details.adv>summary{padding:8px 10px}details.doc.adv>summary{font-size:14px;color:var(--ink);padding:2px 0}
+ul.plain{margin:4px 0 8px;padding-left:18px}ul.plain li{margin:3px 0}
 </style>
 
 <div class="app">
   <header class="bar">
-    <div class="mark"><b>PuenteGemelo</b><span>Gemelo digital e inspección de puentes con inteligencia artificial</span><span class="mark-r"><span id="markBridge" class="mark-br"></span><button class="btn line" id="btnHelp" type="button" aria-pressed="false" title="Mostrar u ocultar los textos explicativos">Explicaciones</button><button class="btn line" id="btnAbout" type="button">Acerca de</button></span></div>
+    <div class="mark"><b>PuenteGemelo</b><span>Gemelo digital e inspección de puentes con inteligencia artificial</span><span class="mark-r"><span id="markBridge" class="mark-br"></span><button class="btn line" id="btnHelp" type="button" aria-pressed="false" title="Mostrar u ocultar los textos de ayuda de cada pantalla">Mostrar ayuda</button><a class="btn line" id="btnGuia" href="docs/Manual_PuenteGemelo.pdf" target="_blank" rel="noopener" title="Guía para inspectores (PDF)" style="text-decoration:none">Guía</a><button class="btn line" id="btnAbout" type="button">Acerca de</button></span></div>
     <nav class="menu" id="mGroups" aria-label="Secciones"></nav>
     <nav class="submenu" id="mSub" role="tablist" aria-label="Herramientas de la sección"></nav>
   </header>
@@ -220,17 +224,17 @@ import {OrbitControls} from 'three/addons/controls/OrbitControls.js';
 window.BaltaThree={THREE,GLTFLoader,OrbitControls};
 window.dispatchEvent(new Event('three-ready'));
 </script>
-<script src="v3d.js?v=2.0.0"></script>
-<script src="op_core.js?v=2.0.0"></script>
-<script src="op_ui.js?v=2.0.0"></script>
-<script src="pg_mod.js?v=2.0.0"></script>
-<script src="pg_puentes.js?v=2.0.0"></script>
+<script src="v3d.js?v=2.1.0"></script>
+<script src="op_core.js?v=2.1.0"></script>
+<script src="op_ui.js?v=2.1.0"></script>
+<script src="pg_mod.js?v=2.1.0"></script>
+<script src="pg_puentes.js?v=2.1.0"></script>
 <script>
 "use strict";
 const MODEL_URL='../models/puente-balta-v12.glb';
 /* ================= Utilidades ================= */
 const $=s=>document.querySelector(s);
-const APP_VERSION='2.0.0';
+const APP_VERSION='2.1.0';
 // formato numérico: coma decimal y punto de miles (como en el texto de la tesis)
 const fmt=(x,d=2)=>Number.isFinite(x)?x.toLocaleString('es-ES',{minimumFractionDigits:d,maximumFractionDigits:d,useGrouping:Math.abs(x)>=1e4}):'—';
 const pct=(x,d=1)=>fmt(100*x,d)+' %';
@@ -463,7 +467,7 @@ function sheet({no,title,content,notes='',scale='H 1:400 · V ×1,5',model='2D �
   s+=`<g font-size="8"><rect x="${bx}" y="${by}" width="430" height="74" fill="${css('--sheet')}" stroke="${ink}" stroke-width="1.2"/>
    <line x1="${bx}" x2="${bx+430}" y1="${by+26}" y2="${by+26}" stroke="${ink}" stroke-width=".6"/><line x1="${bx}" x2="${bx+430}" y1="${by+50}" y2="${by+50}" stroke="${ink}" stroke-width=".6"/>
    <line x1="${bx+300}" x2="${bx+300}" y1="${by}" y2="${by+74}" stroke="${ink}" stroke-width=".6"/><line x1="${bx+150}" x2="${bx+150}" y1="${by+50}" y2="${by+74}" stroke="${ink}" stroke-width=".6"/>
-   <text x="${bx+6}" y="${by+9}" fill="${i3}">PROYECTO</text><text x="${bx+6}" y="${by+21}" class="cond" font-size="12" font-weight="600">PUENTE BALTA · RÍO RÍMAC · LIMA</text>
+   <text x="${bx+6}" y="${by+9}" fill="${i3}">PROYECTO</text><text x="${bx+6}" y="${by+21}" class="cond" font-size="12" font-weight="600">${esc(sheetProject())}</text>
    <text x="${bx+6}" y="${by+34}" fill="${i3}">CONTENIDO</text><text x="${bx+6}" y="${by+46}" class="cond" font-size="11.5" font-weight="600">${esc(title.toUpperCase())}</text>
    <text x="${bx+6}" y="${by+58}" fill="${i3}">ESCALA</text><text x="${bx+6}" y="${by+70}" font-size="9">${scale}</text>
    <text x="${bx+156}" y="${by+58}" fill="${i3}">FECHA</text><text x="${bx+156}" y="${by+70}" font-size="9">${new Date().toLocaleDateString('es-PE')}</text>
@@ -536,8 +540,10 @@ function render(){({modelo:vModelo,simulacion:vSim,comparacion:vCmp,dinamica:vDi
 const BALTA_VIEWS=['modelo','simulacion','comparacion','dinamica','inspeccion'];
 function vSismo(){if(!pgCtxNom())return pbNoModel('el sismo registrado');$('#left').innerHTML=pgBridgeBox();pgBindBridge();$('#canvas').innerHTML='<div class="doc" id="sisDoc"></div>';$('#right').innerHTML='<div class="ph">Modos del modelo</div><div class="pb help keep">Se usa el modelo del puente activo (paso 4 del gemelo, o el calibrado si lo eligió en Monitoreo). Los registros de CISMID-UNI y del IGP se leen en texto.</div>';sisRender();}
 function statusBar(extra=''){const v=PROV.verificacion;let br='';try{if(typeof PB!=='undefined')br=`<span>Puente activo: ${esc(pbTitle())}</span>`;}catch(e){}
-  $('#status').innerHTML=`<span class="okdot">Solver verificado con OpenSees</span>${br}${extra}<span class="dim">PuenteGemelo ${APP_VERSION} · UPC 2026</span>`;
+  $('#status').innerHTML=`${br}${extra}<span class="dim">PuenteGemelo ${APP_VERSION}</span>`;
   try{if(typeof pbHeader==='function')pbHeader();}catch(e){}}
+// nombre del proyecto en el cajetín: el puente activo
+function sheetProject(){if(typeof PB==='undefined'||PB.active==='balta')return 'PUENTE BALTA · RÍO RÍMAC · LIMA';return String(OP.name||'PUENTE').toUpperCase();}
 function timedSolve(sc){const t=performance.now(),r=solve(sc);lastSolveMs=performance.now()-t;return r;}
 
 /* ---------- Árbol de componentes (panel izquierdo) ---------- */
@@ -743,7 +749,7 @@ function dxClean(){const X=S.dx,key=X.zone+'|'+X.sev;if(S.dxC&&S.dxC.key===key)r
   const r=mcModal(B.fr,8,esc);S.dxC={key,clean:mcFeatures(r.f,r.phi,B.f0,B.phi0,B.sens.map(s=>s.dof)),ms:performance.now()-t0};return S.dxC;}
 function dxMeasure(clean,L,n){const r=mulberry(1000003*n+7919);return clean.map((v,i)=>v+gaussR(r)*(i<8?L.sf:L.ss));}
 const dxSpan=z=>z<0?-1:z>=15?z-15:Math.floor(z/5);
-function dxVerdict(d,truth){return d.ood?['crit','Medición fuera de dominio']:d.margin<1?['warn','No concluyente']:d.cls===truth?['ok','Zona correcta']:dxSpan(d.cls)===dxSpan(truth)?['warn','Vano correcto, zona distinta']:['crit','No coincide'];}
+function dxVerdict(d,truth){return d.ood?['crit','Medición distinta a lo esperado']:d.margin<1?['warn','No concluyente']:d.cls===truth?['ok','Zona correcta']:dxSpan(d.cls)===dxSpan(truth)?['warn','Vano correcto, zona distinta']:['crit','No coincide'];}
 function dxRender(){const X=S.dx;if(!X.n)X.n=1;
   $('#dxDoc').innerHTML=`<div style="display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;align-items:baseline"><h2>IA · Diagnóstico de daño por vibración</h2><span class="mono dim" style="font-size:.74rem">modelo C · 9 sensores · 8 modos</span></div>
    <div class="tw help"><table class="data" style="font-size:.8rem"><tbody><tr>
@@ -982,7 +988,7 @@ function sisCompute(){const X=S.sis,R=X.rec;if(!R||!(X.dt>0)||(X.colY<0&&X.colZ<
   r.pga=[aY,aZ].map(a=>{if(!a)return null;let m=0;for(const v of a)m=Math.max(m,Math.abs(v));return m;});X.res=r;X.key=key;return r;}
 function sisRender(){const d=$('#sisDoc');if(!d)return;const X=S.sis,R=X.rec;
   let h=`<h2>Sismo registrado · aproximación con ${sisModelName()}</h2>
-   <p>Cargue un acelerograma de una estación de la red de CISMID-UNI o del IGP (AcelDat-Perú) en formato de texto: columnas numéricas, con o sin columna de tiempo. La plataforma aplica el registro en la base de ${sisModelName()} y suma la respuesta de sus primeros modos (hasta 20). Es una aproximación: la estación no está en el puente, se supone el mismo movimiento en todos los apoyos y el modelo es elástico y plano.</p>
+   <p>Cargue un acelerograma de una estación de la red de CISMID-UNI o del IGP (AcelDat-Perú) en formato de texto: columnas numéricas, con o sin columna de tiempo. La plataforma aplica el registro en la base ${sisModelName().replace(/^el /,'del ')} y suma la respuesta de sus primeros modos (hasta 20). Es una aproximación: la estación no está en el puente, se supone el mismo movimiento en todos los apoyos y el modelo es elástico y plano.</p>
    <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:end"><label class="btn">Abrir acelerograma…<input type="file" id="sisFile" accept=".txt,.csv,.dat,.asc,.acc,.v2,.tsv" hidden></label><span class="help">${R?esc(X.name)+` · ${R.n.toLocaleString('es-ES')} muestras · ${R.cols.length} columnas`:'Ningún registro cargado.'}</span></div>`;
   if(R){const cn=R.cols.map((_,k)=>k===R.tcol?`Columna ${k+1} (tiempo)`:`Columna ${k+1}`),opt=sel=>`<option value="-1">ninguna</option>`+R.cols.map((_,k)=>k===R.tcol?'':`<option value="${k}" ${k===sel?'selected':''}>${cn[k]}</option>`).join('');
     h+=`<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,160px),1fr));gap:8px;align-items:end">
@@ -1008,7 +1014,7 @@ function sisRender(){const d=$('#sisDoc');if(!d)return;const X=S.sis,R=X.rec;
        <h3>Aporte de cada modo</h3>
        <div class="tw"><table class="data"><thead><tr><th>Modo</th><th class="n">f (Hz)</th><th class="n">T (s)</th><th class="n">Masa long.</th><th class="n">Masa vert.</th><th class="n">Coordenada modal máx.</th></tr></thead><tbody>${r.modes.map((m,k)=>({m,k})).sort((a,b)=>b.m.qmax-a.m.qmax).slice(0,8).map(({m,k})=>`<tr><td class="mono">${k+1}</td><td class="n">${fmt(m.f,3)}</td><td class="n">${fmt(1/m.f,4)}</td><td class="n">${pct(m.mY,1)}</td><td class="n">${pct(m.mZ,1)}</td><td class="n">${m.qmax.toExponential(2)}</td></tr>`).join('')}</tbody></table></div>
        <div><button class="btn b3d" id="sis3d">Vista 3D · animar el sismo</button></div>
-       <div class="msg"><b>Alcance.</b> Respuesta elástica lineal de ${sisModelName()} (2D, en el plano del puente) con excitación uniforme en la base y amortiguamiento modal supuesto. No incluye interacción suelo–estructura, efectos de sitio entre la estación y el puente, ni la componente transversal. Úsese como orden de magnitud, no como verificación sísmica.</div>`;}
+       <div class="msg"><b>Alcance.</b> Respuesta elástica lineal ${sisModelName().replace(/^el /,'del ')} (2D, en el plano del puente) con excitación uniforme en la base y amortiguamiento modal supuesto. No incluye interacción suelo–estructura, efectos de sitio entre la estación y el puente, ni la componente transversal. Úsese como orden de magnitud, no como verificación sísmica.</div>`;}
     else h+=`<p class="help">Elija al menos una componente y el intervalo Δt.</p>`;}
   d.innerHTML=h;
   $('#sisFile').onchange=async e=>{const f=e.target.files[0];if(!f)return;try{const R2=OPC.readAccel(await f.text());X.rec=R2;X.name=f.name;X.dt=R2.dt;X.res=null;const av=R2.cols.map((_,k)=>k).filter(k=>k!==R2.tcol);X.colY=av[0]??-1;X.colZ=av.length>=3?av[av.length-1]:-1;sisRender();}catch(err){toast(err.message);}};
@@ -1030,7 +1036,7 @@ function open3dSis(){const r=S.sis.res;if(!r)return;
 /* ---------- IA con frecuencias del usuario (medidas o calculadas) ---------- */
 // Sin datos del usuario la plataforma sigue simulando la medición; con sus frecuencias, se usa una IA entrenada solo con Δf del mismo modelo.
 const FQ={};let FQ_SRC=null;
-async function fqWorker(){if(!FQ_SRC)FQ_SRC=await fetch('op_core.js?v=2.0.0').then(r=>{if(!r.ok)throw new Error('No se encontró op_core.js');return r.text();});
+async function fqWorker(){if(!FQ_SRC)FQ_SRC=await fetch('op_core.js?v=2.1.0').then(r=>{if(!r.ok)throw new Error('No se encontró op_core.js');return r.text();});
   const src=FQ_SRC+`\nself.onmessage=e=>{const m=e.data;try{if(m.kind==='camp'){const c=OPC.freqCampaign(m.type,m.G,m.P,m.opts,(q,s)=>self.postMessage({kind:'prog',stage:'Simulaciones de daño',q,s}));self.postMessage({kind:'camp',camp:c});}
    else if(m.kind==='trainM'){const I=OPC.trainModalIA(m.camp,m.sel,m.sf,m.ss,(st,q)=>self.postMessage({kind:'prog',stage:st,q}));self.postMessage({kind:'ia',ia:I});}else{const I=OPC.trainFreqIA(m.camp,m.k,m.sf,(st,q)=>self.postMessage({kind:'prog',stage:st,q}));self.postMessage({kind:'ia',ia:I});}}catch(err){self.postMessage({kind:'error',msg:err.message});}};`;
   return new Worker(URL.createObjectURL(new Blob([src],{type:'text/javascript'})));}
@@ -1050,15 +1056,16 @@ const GEO_HELP='Desviaciones típicas (1σ) que la IA usa con la opción «Segú
 // ctx: {id, type, G, P, title}
 function fqRender(el,ctx){if(!el)return;const key=JSON.stringify([ctx.type,ctx.G,ctx.P]);let C=FQ[ctx.id];if(!C||C.key!==key){C=FQ[ctx.id]={key,f0:OPC.modal(OPC.build(ctx.type,ctx.G,ctx.P),8).f,fm:new Array(8).fill(''),fr:new Array(8).fill(''),ref:'modelo',sf:'0.005',geom:'auto',camps:{},ia:{},busy:false,out:''};}
   const inRow=(arr,id,ph)=>arr.map((v,i)=>`<label class="f">f${i+1}${ph?` <span class="dim">(${fmt(C.f0[i],2)})</span>`:''}<input type="text" inputmode="decimal" data-${id}="${i}" value="${esc(v)}" placeholder="Hz"></label>`).join('');
-  el.innerHTML=`<h2>IA · Diagnóstico con frecuencias medidas o calculadas por usted</h2>
-   <p class="intro">Si midió el puente (acelerómetros o el celular con phyphox) o calculó sus frecuencias con otro modelo, ingréselas aquí y la IA las usará en lugar de la medición simulada. Esta IA se entrena solo con cambios de frecuencia del mismo modelo${ctx.title?' ('+esc(ctx.title)+')':''}; sin formas modales la localización es menos precisa que con la medición completa. Deje vacíos los modos que no midió: la IA se entrena solo con los modos que usted ingrese.</p>
-   <h3>Frecuencias medidas o calculadas (Hz)</h3><div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(86px,1fr));gap:6px">${inRow(C.fm,'fm',true)}</div>
+  el.innerHTML=`<h2>Diagnóstico con IA a partir de frecuencias</h2>
+   <p class="intro">Escriba las frecuencias que midió o calculó. Deje vacías las que no tenga. Con solo frecuencias, la IA ubica el daño con menos precisión que con una medición de varios sensores.</p>
+   <h3>Frecuencias del puente (Hz) <span class="dim" style="font-weight:400">· entre paréntesis, las del modelo</span></h3><div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(86px,1fr));gap:6px">${inRow(C.fm,'fm',true)}</div>
    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,220px),1fr));gap:8px;align-items:end">
-    <label class="f">Referencia (puente sin daño)<select id="fqRef_${ctx.id}"><option value="modelo" ${C.ref==='modelo'?'selected':''}>Frecuencias del modelo (entre paréntesis)</option><option value="usuario" ${C.ref==='usuario'?'selected':''}>Mis frecuencias de referencia</option></select></label>
+    <label class="f">Comparar con<select id="fqRef_${ctx.id}"><option value="modelo" ${C.ref==='modelo'?'selected':''}>El modelo del puente</option><option value="usuario" ${C.ref==='usuario'?'selected':''}>Una medición anterior del puente sano</option></select></label>
+    <div><button class="btn pri" id="fqGo_${ctx.id}" ${C.busy?'disabled':''}>Diagnosticar</button></div></div>
+   <details class="adv"><summary>Más opciones</summary><div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,220px),1fr));gap:8px;align-items:end;padding-top:6px">
     <label class="f">Error de medición<select id="fqErr_${ctx.id}">${FQ_ERR.map(([v,l])=>`<option value="${v}" ${v===C.sf?'selected':''}>${l}</option>`).join('')}</select></label>
-    ${geoSel('fqGeo_'+ctx.id,C.geom)}
-    <div><button class="btn pri" id="fqGo_${ctx.id}" ${C.busy?'disabled':''}>Diagnosticar</button></div></div>${geoDetails(ctx)}
-   ${C.ref==='usuario'?`<h3>Frecuencias de referencia: puente sano o medición anterior (Hz)</h3><div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(86px,1fr));gap:6px">${inRow(C.fr,'fr',false)}</div>`:`<div class="msg"><b>Referencia del modelo.</b> La diferencia entre el modelo y el puente real también se leerá como daño. Calibre antes el modelo (Monitoreo con IA → Calibración, o Dinámica y sismo) o use una medición anterior del puente como referencia.</div>`}
+    ${geoSel('fqGeo_'+ctx.id,C.geom)}</div>${geoDetails(ctx)}</details>
+   ${C.ref==='usuario'?`<h3>Frecuencias del puente sano (Hz)</h3><div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(86px,1fr));gap:6px">${inRow(C.fr,'fr',false)}</div>`:`<p class="help keep">Si el modelo no se ajustó con una medición, sus diferencias con el puente real pueden leerse como daño. Mejor compare con una medición anterior del puente sano.</p>`}
    <div id="fqOut_${ctx.id}">${C.out}</div>`;
   el.querySelectorAll('[data-fm]').forEach(i=>i.onchange=()=>{C.fm[+i.dataset.fm]=i.value.trim();});
   el.querySelectorAll('[data-fr]').forEach(i=>i.onchange=()=>{C.fr[+i.dataset.fr]=i.value.trim();});
@@ -1074,7 +1081,7 @@ async function fqDiagnose(el,ctx,C){const out=$('#fqOut_'+ctx.id),num=v=>parseFl
   const gm=geoResolve(C.geom,C.ref==='usuario');try{if(!C.camps[gm]){out.innerHTML='<p class="help">Preparando la IA de frecuencias para este modelo (unas 1200 simulaciones; solo la primera vez)…</p>';C.camps[gm]=(await fqRun(ctx,{kind:'camp',type:ctx.type,G:ctx.G,P:ctx.P,opts:{nPerZone:60,nUndamaged:100,unc:.05,seed:7,NM:8,modelErr:.05,geom:gm}},prog)).camp;}C.camp=C.camps[gm];
     const ik=idx.join(',')+'|'+sf+'|'+gm;if(!C.ia[ik])C.ia[ik]=(await fqRun(ctx,{kind:'train',camp:C.camp,k:idx,sf},prog)).ia;
     const I=C.ia[ik],Z=C.camp.zones.length,d=OPC.freqPredict(I,Z,x),zn=c=>c<0?'Sin daño':C.camp.zones[c];
-    const v=d.ood?['crit','Medición fuera de dominio']:!d.conclusive?['warn','No concluyente']:d.cls<0?['ok','Sin daño detectado']:['ok','Zona identificada'];
+    const v=d.ood?['crit','Medición distinta a lo esperado']:!d.conclusive?['warn','No concluyente']:d.cls<0?['ok','Sin daño detectado']:['ok','Zona identificada'];
     const allNeg=x.every(v=>v<-.03)&&Math.max(...x)-Math.min(...x)<.02;
     C.last={pred:d.cls,zones:C.camp.zones};
     C.out=`<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),1fr));gap:14px;margin-top:6px">
@@ -1087,7 +1094,7 @@ async function fqDiagnose(el,ctx,C){const out=$('#fqOut_'+ctx.id),num=v=>parseFl
      <div class="tw"><table class="data"><thead><tr><th>Modo</th><th class="n">Referencia (Hz)</th><th class="n">Medida (Hz)</th><th class="n">Δf</th></tr></thead><tbody>${x.map((v,j)=>{const i=idx[j];return `<tr><td class="mono">${i+1}</td><td class="n">${fmt(ref[i],3)}</td><td class="n">${fmt(num(C.fm[i]),3)}</td><td class="n">${sgn(v,2)}</td></tr>`;}).join('')}</tbody></table>
       <p class="help" style="margin-top:6px">Validación de esta IA con ${k} frecuencias (modos ${idx.map(i=>i+1).join(', ')}) y error ${pct(sf,1)} (casos simulados no vistos): zona exacta ${pct(I.metrics.localizacion,0)}, vano correcto ${pct(I.metrics.vano,0)}, falsas alarmas ${pct(I.metrics.falsaAlarma,0)}. Entrenada con ${geoLabel(gm)}.</p></div></div>
      ${allNeg?'<div class="msg"><b>Todas las frecuencias bajan casi lo mismo.</b> Eso suele indicar un módulo E o una masa distintos a los del modelo, no un daño local. Calibre el modelo antes de interpretar la zona.</div>':''}
-     ${d.ood?'<div class="msg crit"><b>Fuera de dominio.</b> Las frecuencias ingresadas no se parecen a ningún caso simulado; la IA no debe usarse con estos datos. Revise unidades, orden de los modos y la referencia.</div>':''}`;
+     ${d.ood?'<div class="msg crit"><b>Medición distinta a lo esperado.</b> Las frecuencias ingresadas no se parecen a ningún caso simulado; la IA no debe usarse con estos datos. Revise unidades, orden de los modos y la referencia.</div>':''}`;
     out.innerHTML=C.out;}
   catch(e){out.innerHTML=`<div class="msg crit"><b>No se pudo completar el diagnóstico.</b> ${esc(e.message)}</div>`;}
   finally{C.busy=false;const b=$('#fqGo_'+ctx.id);if(b)b.disabled=false;}}
@@ -1457,7 +1464,7 @@ function parseCSV(t){const [h,...ls]=t.trim().split(/\r?\n/);const k=h.split(','
   try{const get=p=>fetch(p).then(r=>{if(!r.ok)throw new Error(p);return r;});
     const [m,rf,svm,met,prov,fem,mcd,miac]=await Promise.all([get('data/modelo_2d.json').then(r=>r.json()),get('data/rf_surrogate.json').then(r=>r.json()),get('data/svm_inverse.json').then(r=>r.json()),get('data/metrics_ia.json').then(r=>r.json()),get('data/procedencia.json').then(r=>r.json()),get('data/fem_525.csv').then(r=>r.text()),get('data/modelo_c.json').then(r=>r.json()),get('data/metrics_ia_c.json').then(r=>r.json())]);
     M2=prepModel(m);RF=rf;SVM=svm;MET=met;PROV=prov;FEM=parseCSV(fem);MCD=mcd;MIAC=miac;computeSensitivity();await pbInit();DATA_READY=true;
-    const h=(location.hash||'').slice(1);show(VIEWS.includes(h)?h:'puentes');if(S.proto)protoBar();
+    const h=(location.hash||'').slice(1);show(VIEWS.includes(h)?h:(PB.list.length&&PB.active!=='balta'?'estado':'puentes'));if(S.proto)protoBar();
   }catch(e){$('#canvas').innerHTML=`<div class="msg crit"><b>No se pudieron cargar los datos.</b> Falta el archivo ${esc(e.message)}; publique la carpeta data/ junto a la página.</div>`;}
 })();
 </script>

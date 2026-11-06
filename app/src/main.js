@@ -8,6 +8,7 @@ const REPO = 'https://github.com/casvilluis-afk/Balta-viewer';
 protocol.registerSchemesAsPrivileged([{ scheme: 'app', privileges: { standard: true, secure: true, supportFetchAPI: true, corsEnabled: true, stream: true } }]);
 
 let win = null, pendingFile = null;
+const openManual = () => { const f = path.join(WEB, 'docs', 'Manual_PuenteGemelo.pdf').replace('app.asar', 'app.asar.unpacked'); if (fs.existsSync(f)) shell.openPath(f); else shell.openExternal(REPO); };
 const send = (cmd, arg) => { if (win) win.webContents.send('menu', cmd, arg); };
 
 function openProjectFile(file) {
@@ -36,7 +37,7 @@ function buildMenu() {
     ...(isMac ? [{ role: 'appMenu' }] : []),
     { label: 'Archivo', submenu: [
       { label: 'Inicio', accelerator: 'CmdOrCtrl+H', click: () => send('inicio') },
-      { label: 'Nuevo puente desde una nube de puntos', accelerator: 'CmdOrCtrl+N', click: () => send('nuevo') },
+      { label: 'Agregar un puente…', accelerator: 'CmdOrCtrl+N', click: () => send('nuevo') },
       { label: 'Mis puentes', accelerator: 'CmdOrCtrl+M', click: () => send('puentes') },
       { label: 'Importar proyecto (.puente)…', accelerator: 'CmdOrCtrl+O', click: async () => {
           const r = await dialog.showOpenDialog(win, { title: 'Abrir proyecto', filters: [{ name: 'Proyecto de PuenteGemelo', extensions: ['puente', 'json'] }], properties: ['openFile'] });
@@ -52,7 +53,7 @@ function buildMenu() {
       { role: 'resetZoom', label: 'Tamaño real' }, { role: 'zoomIn', label: 'Acercar' }, { role: 'zoomOut', label: 'Alejar' }, { type: 'separator' },
       { role: 'togglefullscreen', label: 'Pantalla completa' }].concat(process.env.PG_DEV ? [{ type: 'separator' }, { role: 'reload', label: 'Recargar' }, { role: 'toggleDevTools', label: 'Herramientas de desarrollo' }] : []) },
     { label: 'Ayuda', submenu: [
-      { label: 'Manual de uso (PDF)', click: () => { const f = path.join(WEB, 'docs', 'Manual_PuenteGemelo.pdf').replace('app.asar', 'app.asar.unpacked'); if (fs.existsSync(f)) shell.openPath(f); else shell.openExternal(REPO); } },
+      { label: 'Guía para inspectores (PDF)', click: openManual },
       { label: 'Código fuente y reportar un problema', click: () => shell.openExternal(REPO) },
       { type: 'separator' },
       { label: 'Acerca de PuenteGemelo', click: () => send('acerca') } ] }
@@ -72,6 +73,7 @@ else {
       return net.fetch(pathToFileURL(file).toString());
     });
     ipcMain.handle('version', () => app.getVersion());
+    ipcMain.handle('manual', () => openManual());
     buildMenu(); createWindow();
     app.on('activate', () => { if (BrowserWindow.getAllWindows().length === 0) createWindow(); });
   });
