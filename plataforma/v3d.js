@@ -120,13 +120,13 @@ const V3D = (() => {
     const pc = document.getElementById('v3dCtl'), pb = document.getElementById('v3dCtlB');
     if (!sp.controls) { pc.hidden = true; pc.innerHTML = ''; pb.hidden = true; }
     else if (!wasOpen || sp.controls.key !== prevKey) { pc.innerHTML = '<div class="v3d-ph">Parámetros · el puente se actualiza al cambiarlos</div>' + sp.controls.html; pc.hidden = false; pb.hidden = false; pb.setAttribute('aria-expanded', 'true'); sp.controls.bind(pc); }
-    document.getElementById('v3dTitle').textContent = sp.title; document.getElementById('v3dSub').textContent = sp.sub || ''; document.getElementById('v3dLeg').innerHTML = sp.legend || '';
+    document.getElementById('v3dTitle').textContent = sp.title; document.getElementById('v3dSub').textContent = sp.sub || ''; document.getElementById('v3dLeg').innerHTML = sp.legend || ''; document.getElementById('v3dHome').onclick = fitHome;
     const hasDisp = !!sp.disp || !!sp.series; document.getElementById('v3dAnim').hidden = !hasDisp; playing = sp.animate !== false; document.getElementById('v3dPlay').textContent = playing ? 'Pausar' : 'Animar';
     if (!wasOpen) { amp = sp.ampDefault || 1.5; document.getElementById('v3dAmp').value = amp; } realMax = 0;
     let eng; try { eng = await engine(q => { const s = document.getElementById('v3dSt'); if (s) s.textContent = `Cargando modelo 3D… ${Math.round(100 * q)} %`; }); }
     catch (e) { document.getElementById('v3dSt').textContent = e.message; return; }
     if (spec !== sp) return;
-    const stg = document.getElementById('v3dStage'), st = document.getElementById('v3dSt'); if (st) st.remove(); if (eng.renderer.domElement.parentNode !== stg) stg.prepend(eng.renderer.domElement); resize(); if (!wasOpen) fitHome();
+    const stg = document.getElementById('v3dStage'), st = document.getElementById('v3dSt'); if (st) st.remove(); if (eng.renderer.domElement.parentNode !== stg) stg.prepend(eng.renderer.domElement); [...stg.querySelectorAll('canvas')].forEach(c => { if (c !== eng.renderer.domElement) c.remove(); }); resize(); if (!wasOpen) fitHome();
     const base = famBase();
     eng.meshes.forEach(m => { m.ser = sp.series ? sp.series.fields.map(fn => fn(m)) : null; m.disp = sp.disp ? sp.disp(m) : null; if (!hasDisp) { m.o.geometry.attributes.position.array.set(m.base); m.o.geometry.attributes.position.needsUpdate = true; m.o.geometry.computeVertexNormals(); } });
     if (sp.series) realMax = sp.series.peak; if (sp.disp) { let mx = 0; eng.meshes.forEach(m => { const D = m.disp; for (let i = 0; i < D.length; i += 2) mx = Math.max(mx, Math.hypot(D[i], D[i + 1])); });
@@ -156,7 +156,46 @@ const V3D = (() => {
       eng.renderer.render(eng.scene, eng.cam); };
     loop();
   }
+  /* ---------- vista 3D genérica para cualquier puente: nube de puntos + modelo de barras extruido ----------
+     spec: { title, sub, legend, fr (pórtico 2D: nodes [s,z], el, grp), fam(t)→familia, colorOf(t)→[r,g,b]|null, cloud {s,t,z}, width (m), onClose } */
+  let G3 = null, G3load = null;
+  async function engineG() { if (G3) return G3; if (G3load) return G3load;
+    G3load = (async () => { const { THREE, OrbitControls } = await ready3();
+      const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true }); renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+      const scene = new THREE.Scene(), cam = new THREE.PerspectiveCamera(30, 1, .1, 5000);
+      scene.add(new THREE.HemisphereLight(0xffffff, 0x8a9399, 1.1)); const dl = new THREE.DirectionalLight(0xffffff, 1.4); dl.position.set(60, 90, -30); scene.add(dl);
+      const ctl = new OrbitControls(cam, renderer.domElement); ctl.enableDamping = true; const group = new THREE.Group(); scene.add(group);
+      G3 = { THREE, renderer, scene, cam, ctl, group }; return G3; })();
+    try { return await G3load; } catch (e) { G3load = null; throw e; } }
+  async function openFrame(sp) {
+    const ov = overlay(); if (E && raf) { cancelAnimationFrame(raf); raf = 0; } spec = sp; ov.hidden = false; document.body.style.overflow = 'hidden';
+    document.getElementById('v3dCtl').hidden = true; document.getElementById('v3dCtlB').hidden = true; document.getElementById('v3dAnim').hidden = true;
+    document.getElementById('v3dTitle').textContent = sp.title; document.getElementById('v3dSub').textContent = sp.sub || ''; document.getElementById('v3dLeg').innerHTML = sp.legend || '';
+    let g; try { g = await engineG(); } catch (e) { const s = document.getElementById('v3dSt'); if (s) s.textContent = e.message; return; }
+    if (spec !== sp) return; const { THREE, renderer, cam, ctl, group } = g, stg = document.getElementById('v3dStage'), st = document.getElementById('v3dSt'); if (st) st.remove();
+    [...stg.querySelectorAll('canvas')].forEach(c => { if (c !== renderer.domElement) c.remove(); }); if (renderer.domElement.parentNode !== stg) stg.prepend(renderer.domElement);
+    while (group.children.length) { const o = group.children.pop(); if (o.geometry) o.geometry.dispose(); if (o.material) o.material.dispose(); }
+    const fr = sp.fr, W = Math.max(2, sp.width || 6), base = famBase(), extra = { viga: base.tablero, 'cordón': base.arco, diagonal: base.montante };
+    // eje transversal del tablero en la nube (mediana de t cerca del tablero)
+    let t0 = 0; const C = sp.cloud;
+    if (C) { const zs = fr.nodes.map(n => n[1]), zt = Math.max(...zs), tt = []; for (let i = 0; i < C.z.length; i += 7) if (Math.abs(C.z[i] - zt) < 1) tt.push(C.t[i]); if (tt.length) { tt.sort((a, b) => a - b); t0 = tt[tt.length >> 1]; } }
+    if (C && sp.showCloud !== false) { const n = C.s.length, step = Math.max(1, Math.ceil(n / 200000)), m = Math.ceil(n / step), pos = new Float32Array(3 * m); let k = 0;
+      for (let i = 0; i < n; i += step) { pos[3 * k] = C.t[i] - t0; pos[3 * k + 1] = C.z[i]; pos[3 * k + 2] = C.s[i]; k++; }
+      const geo = new THREE.BufferGeometry(); geo.setAttribute('position', new THREE.BufferAttribute(pos.subarray(0, 3 * k), 3));
+      group.add(new THREE.Points(geo, new THREE.PointsMaterial({ color: 0x8b949c, size: .05, sizeAttenuation: true, transparent: true, opacity: .45 }))); }
+    const lay = f => f === 'tablero' || f === 'viga' ? [[0, W, .35]] : f === 'pilar' ? [[0, W * .8, 1]] : f === 'cordón' || f === 'diagonal' ? [[-W / 2, .3, .3], [W / 2, .3, .3]] : [[-W * .32, .35, .45], [W * .32, .35, .45]];
+    const ax = new THREE.Vector3(1, 0, 0); let s0 = Infinity, s1 = -Infinity, z0 = Infinity, z1 = -Infinity;
+    fr.el.forEach(([i, j], t) => { const f = sp.fam(t), A = fr.nodes[i], B = fr.nodes[j], ds = B[0] - A[0], dz = B[1] - A[1], L = Math.hypot(ds, dz); if (L < 1e-6) return;
+      s0 = Math.min(s0, A[0], B[0]); s1 = Math.max(s1, A[0], B[0]); z0 = Math.min(z0, A[1], B[1]); z1 = Math.max(z1, A[1], B[1]);
+      const c = (sp.colorOf && sp.colorOf(t)) || base[f] || extra[f] || [.6, .62, .64], mat = new THREE.MeshStandardMaterial({ color: new THREE.Color(c[0], c[1], c[2]), roughness: .8, metalness: .02 });
+      const dir = new THREE.Vector3(0, dz / L, ds / L), q = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 0, 1), dir);
+      lay(f).forEach(([off, w, h]) => { const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, L + .02), mat); m.position.set(off, (A[1] + B[1]) / 2, (A[0] + B[0]) / 2); m.quaternion.copy(q); group.add(m); }); });
+    void ax; const cx = 0, cy = (z0 + z1) / 2, cz = (s0 + s1) / 2, Ls = s1 - s0;
+    const fit = () => { ctl.target.set(cx, cy, cz); cam.position.set(cx + Ls * .55, cy + Ls * .18, cz - Ls * .55); cam.far = Ls * 20; cam.updateProjectionMatrix(); ctl.update(); };
+    const rs = () => { if (!stg.clientWidth) return; renderer.setSize(stg.clientWidth, stg.clientHeight, false); cam.aspect = stg.clientWidth / stg.clientHeight; cam.updateProjectionMatrix(); };
+    rs(); fit(); document.getElementById('v3dHome').onclick = fit;
+    cancelAnimationFrame(raf); const loop = () => { if (spec !== sp) return; raf = requestAnimationFrame(loop); rs(); ctl.update(); renderer.render(g.scene, cam); }; loop(); }
   function legendGradient(stops, labels) { return `<div class="v3d-grad"><i style="background:linear-gradient(90deg,${stops.join(',')})"></i><div>${labels.map(l => `<span>${l}</span>`).join('')}</div></div>`; }
   function legendCats(items) { return `<div class="legend">${items.map(([c, l]) => `<span><i style="background:${c}"></i>${l}</span>`).join('')}</div>`; }
-  return { info: () => E ? { meshes: E.meshes.length, verts: E.meshes.reduce((a, m) => a + m.s.length, 0) } : null, open, close, adaptM2, adaptMC, dispField, elemLookup, diverging, sequential, rgb, legendGradient, legendCats };
+  return { openFrame, info: () => E ? { meshes: E.meshes.length, verts: E.meshes.reduce((a, m) => a + m.s.length, 0) } : null, open, close, adaptM2, adaptMC, dispField, elemLookup, diverging, sequential, rgb, legendGradient, legendCats };
 })();

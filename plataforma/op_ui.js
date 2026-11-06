@@ -1,5 +1,5 @@
 /* ============================================================
-   Tu puente · interfaz (pestaña 8)
+   Gemelo de cualquier puente desde su nube de puntos (flujo de 7 pasos)
    Usa OPC (op_core.js) y las utilidades de la página: $, fmt, pct, sgn, css, esc, sheet, legendRow, toast, download.
    ============================================================ */
 "use strict";
@@ -18,8 +18,8 @@ const OP_TYPES = { arco: 'Arcos con tablero superior', viga: 'Vigas (simple o co
 
 function vTu() {
   const done = k => ({ nube: !!OP.O, apoyos: OP.supports.length > 0 && OP.deckTop != null, geometria: !!OP.geo, modelo: !!OP.modes, ia: !!OP.ia, diagnostico: !!OP.ia, plan: !!OP.ia }[k]);
-  $('#left').innerHTML = `<div class="ph">Tu puente · pasos</div><ul class="tree">${OP_STEPS.map(([k, l], i) => `<li><button data-s="${i + 1}" aria-pressed="${OP.step === i + 1}" ${i > 0 && !done(OP_STEPS[i - 1][0]) ? 'disabled style="opacity:.45;cursor:default"' : ''}><span class="sq" ${done(k) ? 'style="background:var(--ok);border-color:var(--ok)"' : ''}></span>${i + 1}. ${l}<span class="ct">${done(k) ? 'listo' : ''}</span></button></li>`).join('')}</ul>
-    <div class="pb help">Reproduce el método del Balta con otra nube: geometría desde los puntos, modelo con los supuestos que usted ingrese y una IA entrenada para ese puente. Todo se calcula en este navegador; la nube no se sube a ningún servidor.</div>`;
+  $('#left').innerHTML = `<div class="ph">${esc(OP.name || 'Puente nuevo')} · pasos</div><ul class="tree">${OP_STEPS.map(([k, l], i) => `<li><button data-s="${i + 1}" aria-pressed="${OP.step === i + 1}" ${i > 0 && !done(OP_STEPS[i - 1][0]) ? 'disabled style="opacity:.45;cursor:default"' : ''}><span class="sq" ${done(k) ? 'style="background:var(--ok);border-color:var(--ok)"' : ''}></span>${i + 1}. ${l}<span class="ct">${done(k) ? 'listo' : ''}</span></button></li>`).join('')}</ul>
+    <div class="pb help">El mismo método para cualquier puente: geometría desde los puntos, modelo con los supuestos que usted ingrese y una IA entrenada para ese puente. Todo se calcula en este navegador y se guarda en «Mis puentes»; la nube no se sube a ningún servidor.</div>`;
   $('#left').querySelectorAll('.tree button').forEach(b => b.onclick = () => { if (b.disabled) return; OP.step = +b.dataset.s; vTu(); });
   [opNube, opApoyos, opGeometria, opModelo, opIA, opDiag, opPlan][OP.step - 1]();
 }
@@ -32,7 +32,7 @@ function opNube() {
    <p>Formatos: PLY (ASCII o binario), LAS, XYZ, TXT o CSV con x, y, z en las tres primeras columnas. Se leen hasta 1,5 millones de puntos; si el archivo tiene más, se toma una muestra aleatoria. Los archivos E57 y LAZ deben convertirse antes en CloudCompare (Archivo → Guardar como → PLY binario).</p>
    <div id="opDrop" style="border:1.5px dashed var(--rule);padding:22px;text-align:center;display:grid;gap:8px;justify-items:center">
     <span>Arrastre aquí su archivo o</span><label class="btn" style="display:inline-block">Elegir archivo<input type="file" id="opFile" accept=".ply,.las,.xyz,.txt,.csv,.pts,.asc,.e57,.laz" hidden></label>
-    <span class="help">También puede probar el flujo con la nube del Balta (186 442 puntos).</span><button class="btn line" id="opDemo">Usar la nube del Balta</button></div>
+    <span class="help">¿Sin nube a mano? Pruebe el flujo con la muestra de la nube del Balta (186 442 puntos): se procesa igual que cualquier otra.</span><button class="btn line" id="opDemo">Usar la nube de muestra del Balta</button></div>
    <div style="display:flex;gap:12px;flex-wrap:wrap"><label class="f" style="width:200px">Eje vertical de la nube<select id="opUp"><option value="z">Z hacia arriba</option><option value="y">Y hacia arriba</option></select></label>
     <label class="f" style="width:200px">Unidades del archivo<select id="opUnit"><option value="1">metros</option><option value="0.01">centímetros</option><option value="0.001">milímetros</option></select></label></div>
    <div id="opLoad" class="help"></div></div><div id="opInfo"></div>`;
@@ -148,7 +148,14 @@ function opGeoShow() {
 }
 
 /* ---------- 4 · Modelo y modos ---------- */
-function opParams() { if (!OP.P || OP.P.__type !== OP.type) { const m = OPC.MATERIALS[OP.mat]; OP.P = Object.assign({ __type: OP.type, E: m.E, rho: m.rho }, OP_DEFAULTS[OP.type]); } return OP.P; }
+// valores iniciales: E y densidad de la tabla de materiales; ancho medido en la nube; el resto son valores de referencia que el usuario debe revisar
+// (arco: los del modelo C del Balta; viga y armadura: valores genéricos). Los no revisados se listan en el informe.
+function opDeckWidth() { const O = OP.O; if (!O || OP.deckTop == null) return null; const t = []; for (let i = 0; i < O.z.length; i++) if (Math.abs(O.z[i] - OP.deckTop) < .4) t.push(O.t[i]); if (t.length < 50) return null; t.sort((a, b) => a - b); return +(t[Math.floor(.98 * (t.length - 1))] - t[Math.floor(.02 * (t.length - 1))]).toFixed(2); }
+function opParams() { if (!OP.P || OP.P.__type !== OP.type) { const m = OPC.MATERIALS[OP.mat]; OP.P = Object.assign({ __type: OP.type, E: m.E, rho: m.rho }, OP_DEFAULTS[OP.type]); OP.Pedit = {}; OP.Psrc = {};
+    if (OP.type === 'arco') { const th = (OP.supports || []).filter(q => q.tipo === 'pilar').map(q => q.b - q.a).filter(v => v > .3).sort((a, b) => a - b); if (th.length) { OP.P.pier_t = +th[th.length >> 1].toFixed(2); OP.Psrc.pier_t = 'medido en la nube (caras del pilar)'; } } } OP.Pedit = OP.Pedit || {}; OP.Psrc = OP.Psrc || {}; return OP.P; }
+const OP_REF = { arco: 'referencia: modelo C del Balta', viga: 'valor genérico', armadura: 'valor genérico' };
+function opParSrc(k) { if (OP.Pedit && OP.Pedit[k]) return 'ingresado'; if (k === 'E' || k === 'rho') return 'tabla de materiales'; return (OP.Psrc && OP.Psrc[k]) || OP_REF[OP.type]; }
+function opParFlag(k) { const s = opParSrc(k); return s === 'ingresado' ? '' : ` <span class="flag ${/^medido/.test(s) ? 'ok' : 'warn'}" style="font-size:.68rem">${s}</span>`; }
 function opModelG() {
   const dAxis = OP.deckTop - OP.deckThick;
   if (OP.type === 'arco') { const A = OP.geo.arches; const sup = [{ a: A[0].a, b: A[0].a }]; for (let k = 0; k < A.length - 1; k++) sup.push({ a: A[k].b, b: A[k + 1].a }); sup.push({ a: A[A.length - 1].b, b: A[A.length - 1].b });
@@ -159,15 +166,16 @@ function opModelG() {
 function opModelo() {
   const P = opParams();
   $('#canvas').innerHTML = `<div class="doc"><h2>4 · Supuestos, modelo y modos</h2>
-   <p>La nube da la geometría; las secciones, el material y las cargas no se ven en ella. Ingrese sus valores. Los valores iniciales son los del modelo C del Balta y quedan marcados como supuestos en el informe.</p>
+   <p>La nube da la geometría; las secciones, el material y las cargas no se ven en ella. Ingrese los de su puente. Cada valor indica su origen: medido en la nube, tabla de materiales o valor de referencia${OP.type === 'arco' ? ' (arcos: modelo C del Balta, un puente de fierro fundido)' : ' genérico'}; los que no revise saldrán como «sin revisar» en el informe.</p>
    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,180px),1fr));gap:10px" id="opPar">
     <label class="f">Material<select id="opMat">${Object.entries(OPC.MATERIALS).map(([k, m]) => `<option value="${k}" ${k === OP.mat ? 'selected' : ''}>${m.label}</option>`).join('')}</select></label>
-    <label class="f">Módulo E (GPa)<input type="number" step="1" data-p="E" value="${P.E}"></label><label class="f">Densidad (t/m³)<input type="number" step="0.05" data-p="rho" value="${P.rho}"></label>
-    ${OP_PARAMS[OP.type].map(([k, l, u, st]) => `<label class="f">${l}${u ? ' (' + u + ')' : ''}<input type="number" step="${st}" data-p="${k}" value="${P[k]}"></label>`).join('')}
+    <label class="f">Módulo E (GPa)${opParFlag('E')}<input type="number" step="1" data-p="E" value="${P.E}"></label><label class="f">Densidad (t/m³)${opParFlag('rho')}<input type="number" step="0.05" data-p="rho" value="${P.rho}"></label>
+    ${OP_PARAMS[OP.type].map(([k, l, u, st]) => `<label class="f">${l}${u ? ' (' + u + ')' : ''}${opParFlag(k)}<input type="number" step="${st}" data-p="${k}" value="${P[k]}"></label>`).join('')}
     ${OP.type === 'arco' ? `<label class="f">Arranques<select data-p="springing"><option value="fixed" ${P.springing === 'fixed' ? 'selected' : ''}>Empotrados</option><option value="pinned" ${P.springing === 'pinned' ? 'selected' : ''}>Articulados</option></select></label>${(OP.P.zBase || opModelG().zBase).map((z, i) => `<label class="f">Base del pilar ${i + 1} (m)<input type="number" step="0.1" data-zb="${i}" value="${z}"></label>`).join('')}` : ''}
-   </div><div><button class="btn" id="opRun">Calcular modos</button></div><div id="opModOut"></div></div><div class="sheet" id="opSheet"></div>${OP.modes ? opNext('Entrenar la IA') : ''}`;
+   </div>${(() => { const w = opDeckWidth(); return w ? `<p class="help keep">Ancho del tablero medido en la nube: ${fmt(w, 2)} m (percentiles 2–98 % de los puntos a la altura del tablero). Úselo como referencia para el ancho de pilares y para la carga del tablero.</p>` : ''; })()}<div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn" id="opRun">Calcular modos</button>${OP.modes ? '<button class="btn b3d" id="opV3d">Ver nube y modelo en 3D</button>' : ''}</div><div id="opModOut"></div></div><div class="sheet" id="opSheet"></div>${OP.modes ? opNext('Entrenar la IA') : ''}`;
+  const v3 = $('#opV3d'); if (v3) v3.onclick = () => V3D.openFrame({ title: (OP.name || 'Puente') + ' · nube y modelo', sub: 'Modelo de barras extruido con el ancho supuesto, sobre la nube de puntos', fr: OP.model, fam: t => pgFam(OP.model.grp[t]), cloud: OP.O, width: opDeckWidth() || OP.P.width || 6, onClose: () => vTu() });
   $('#opMat').onchange = e => { OP.mat = e.target.value; const m = OPC.MATERIALS[OP.mat]; OP.P.E = m.E; OP.P.rho = m.rho; OP.modes = null; opModelo(); };
-  $('#opPar').querySelectorAll('[data-p]').forEach(el => el.onchange = () => { OP.P[el.dataset.p] = el.tagName === 'SELECT' ? el.value : +el.value; OP.modes = OP.camp = OP.ia = null; });
+  $('#opPar').querySelectorAll('[data-p]').forEach(el => el.onchange = () => { OP.P[el.dataset.p] = el.tagName === 'SELECT' ? el.value : +el.value; OP.Pedit = OP.Pedit || {}; OP.Pedit[el.dataset.p] = 1; OP.modes = OP.camp = OP.ia = null; });
   $('#opPar').querySelectorAll('[data-zb]').forEach(el => el.onchange = () => { OP.P.zBase[+el.dataset.zb] = +el.value; OP.modes = OP.camp = OP.ia = null; });
   $('#opRun').onclick = () => { try { const t = performance.now(); OP.model = OPC.build(OP.type, opModelG(), OP.P); OP.modes = OPC.modal(OP.model, 6); OP.modes.ms = performance.now() - t; OP.modeSel = 0; opModelo(); } catch (e) { $('#opModOut').innerHTML = `<div class="msg crit"><b>No se pudo calcular el modelo.</b> ${esc(e.message)}</div>`; } };
   if (OP.modes) opModesShow(); opBindNext();
@@ -197,7 +205,7 @@ function opFrameSVG(fr, phi, hl) {
 /* ---------- 5 · Entrenar la IA (Web Worker) ---------- */
 let OP_CORE_SRC = null;
 async function opWorker() {
-  if (!OP_CORE_SRC) OP_CORE_SRC = await fetch('op_core.js?v=1.2.0').then(r => { if (!r.ok) throw new Error('No se encontró op_core.js'); return r.text(); });
+  if (!OP_CORE_SRC) OP_CORE_SRC = await fetch('op_core.js?v=2.0.0').then(r => { if (!r.ok) throw new Error('No se encontró op_core.js'); return r.text(); });
   const src = OP_CORE_SRC + `\nself.onmessage = e => { const m = e.data; try {
     const camp = OPC.campaign(m.type, m.G, m.P, m.opts, (q, s) => self.postMessage({ kind: 'prog', stage: 'Simulaciones de daño', q, s }));
     self.postMessage({ kind: 'prog', stage: 'Entrenando la IA', q: 0 });
@@ -209,7 +217,7 @@ async function opWorker() {
 function opIA() {
   const Z = OP.model ? OP.model.zoneDefs.length : 0;
   $('#canvas').innerHTML = `<div class="doc"><h2>5 · Entrenar la IA para este puente</h2>
-   <p>La IA del Balta no sirve para otro puente: sus ejemplos dependen de la geometría y de los sensores. Aquí se repite la campaña del bloque B sobre su modelo: daños de 5 a 60 % en ${Z} zonas, incertidumbre de modelo en E y en el peso del tablero, la geometría que la nube no registró (paso 3), y 9 o más puntos de medición en el tablero. Con esos casos se entrenan dos Random Forest: uno elige la zona dañada y otro estima la severidad.</p>
+   <p>Cada puente necesita su propia IA, porque los ejemplos de entrenamiento dependen de su geometría y de sus sensores. Aquí se simula una campaña sobre el modelo de este puente: daños de 5 a 60 % en ${Z} zonas, incertidumbre de modelo en E y en el peso del tablero, la geometría que la nube no registró (paso 3), y 9 o más puntos de medición en el tablero. Con esos casos se entrenan dos Random Forest: uno elige la zona dañada y otro estima la severidad.</p>
    <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:end">
     <label class="f" style="width:190px">Escenarios por zona<select id="opNz"><option value="40">40 (rápido)</option><option value="60" selected>60</option><option value="120">120</option><option value="260">260 (como el artículo)</option></select></label>
     <label class="f" style="width:190px">Incertidumbre de modelo<select id="opUnc"><option value="0.05" selected>±5 % (2σ)</option><option value="0.10">±10 % (2σ)</option></select></label>
@@ -265,7 +273,7 @@ function opDiag() {
   const reset = () => { X.n = 1; $('#odN').value = 1; $('#odStats').innerHTML = ''; opDxRun(); };
   $('#odZ').onchange = e => { X.zone = +e.target.value; $('#odS').disabled = X.zone < 0; reset(); }; $('#odS').oninput = e => $('#odSo').textContent = e.target.value + ' %'; $('#odS').onchange = e => { X.sev = e.target.value / 100; reset(); };
   $('#odL').onchange = e => { X.lev = +e.target.value; reset(); }; $('#odN').onchange = e => { X.n = Math.max(1, Math.round(+e.target.value || 1)); e.target.value = X.n; opDxRun(); };
-  $('#odGo').onclick = () => { X.n++; $('#odN').value = X.n; opDxRun(); }; $('#odRep').onclick = opDxRepeat; opDxRun(); fqRender($('#fqDocTu'), { id: 'tu', type: OP.type, G: opModelG(), P: OP.P, title: OP.name });
+  $('#odGo').onclick = () => { X.n++; $('#odN').value = X.n; opDxRun(); }; $('#odRep').onclick = opDxRepeat; opDxRun(); fqRender($('#fqDocTu'), { id: 'u_' + OP.id, kind: 'usuario', type: OP.type, G: opModelG(), P: OP.P, title: OP.name });
   opRightHelp('<p>La confianza combina dos controles: la fracción de árboles que vota por la zona elegida (se exige al menos 40 % y 10 puntos de ventaja sobre la segunda) y la distancia de la medición a los casos de entrenamiento.</p>');
 }
 function opVerdict(d, truth) { return d.ood ? ['crit', 'Medición fuera de dominio'] : !d.conclusive ? ['warn', 'No concluyente'] : d.cls === truth ? ['ok', 'Zona correcta'] : opSpan(d.cls) === opSpan(truth) ? ['warn', 'Vano correcto, zona distinta'] : ['crit', 'No coincide']; }
@@ -304,10 +312,11 @@ function opPlanData() { const Z = OP.camp.zones.length, mS = Math.max(...OP.camp
   return OP.camp.zones.map((name, z) => { const g = opZoneGeoUnc(z), s = OP.camp.sens20[z] / mS, d = 1 - rec[z], score = .4 * s + .3 * g.u + .3 * d; return { z, name, s, g, d, score, level: score >= .6 ? 'Alta' : score >= .4 ? 'Media' : 'Baja' }; }).sort((a, b) => b.score - a.score); }
 function opPlan() {
   const P = opPlanData(), M = OP.ia.metrics, d = new Date().toLocaleDateString('es-PE', { day: '2-digit', month: 'long', year: 'numeric' });
-  let r = `INFORME · ${OP.name}\nGenerado con PuenteGemelo ${APP_VERSION} (Tu puente) · ${d}\n\nNUBE\n${OP.cloud.kept.toLocaleString('es-ES')} puntos usados de ${OP.cloud.total.toLocaleString('es-ES')}; superficie del tablero ${fmt(OP.deckTop, 2)} m; terreno ${fmt(OP.ground, 2)} m.\n\nGEOMETRÍA (${OP_TYPES[OP.type]})\n`;
+  let r = `INFORME · ${OP.name}\nGenerado con PuenteGemelo ${APP_VERSION} · ${d}\n\nNUBE\n${OP.cloud.kept.toLocaleString('es-ES')} puntos usados de ${OP.cloud.total.toLocaleString('es-ES')}; superficie del tablero ${fmt(OP.deckTop, 2)} m; terreno ${fmt(OP.ground, 2)} m.\n\nGEOMETRÍA (${OP_TYPES[OP.type]})\n`;
   if (OP.type === 'arco') OP.geo.arches.forEach((a, i) => r += `Arco ${i + 1}: ${fmt(a.a, 2)}–${fmt(a.b, 2)} m, luz ${fmt(a.L, 2)} m${a.symmetric ? ' (por simetría)' : ''}, flecha ${fmt(a.rise, 2)} m, RMS ${fmt(100 * a.rms, 2)} cm; completitud ${pct(a.completeness.total, 0)} (arranques ${pct(a.completeness.arranque, 0)}, riñones ${pct(a.completeness['riñón'], 0)}, clave ${pct(a.completeness.clave, 0)})\n`);
   else OP.geo.spans.forEach((s, i) => r += `Vano ${i + 1}: ${fmt(s.a, 2)}–${fmt(s.b, 2)} m, luz ${fmt(s.b - s.a, 2)} m, cobertura ${pct(s.coverage, 0)}\n`);
-  r += `\nSUPUESTOS DEL USUARIO\nMaterial ${OPC.MATERIALS[OP.mat].label}, E = ${OP.P.E} GPa, densidad ${OP.P.rho} t/m³; ${OP_PARAMS[OP.type].map(([k, l, u]) => `${l.toLowerCase()} ${OP.P[k]}${u ? ' ' + u : ''}`).join('; ')}.\n\nMODOS\n${OP.modes.f.map((f, i) => `Modo ${i + 1}: ${fmt(f, 3)} Hz`).join('\n')}\n\nIA (Random Forest, ${OP.camp.n} simulaciones, ${OP.camp.sensors.length} sensores)\n`;
+  const nrev = OP_PARAMS[OP.type].filter(([k]) => !/ingresado|medido/.test(opParSrc(k))).map(([, l]) => l.toLowerCase());
+  r += `\nSUPUESTOS (origen entre paréntesis)\nMaterial ${OPC.MATERIALS[OP.mat].label}, E = ${OP.P.E} GPa (${opParSrc('E')}), densidad ${OP.P.rho} t/m³ (${opParSrc('rho')}); ${OP_PARAMS[OP.type].map(([k, l, u]) => `${l.toLowerCase()} ${OP.P[k]}${u ? ' ' + u : ''} (${opParSrc(k)})`).join('; ')}.${nrev.length ? `\nSIN REVISAR por el usuario: ${nrev.join(', ')}. Los resultados dependen de estos valores.` : ''}\n\nMODOS\n${OP.modes.f.map((f, i) => `Modo ${i + 1}: ${fmt(f, 3)} Hz`).join('\n')}\n\nIA (Random Forest, ${OP.camp.n} simulaciones, ${OP.camp.sensors.length} sensores)\n`;
   Object.entries(M).forEach(([k, m]) => r += `Ruido ${k}: zona exacta ${pct(m.localizacion, 0)}, vano ${pct(m.vano, 0)}, falsas alarmas ${pct(m.falsaAlarma, 0)}, MAE severidad ${fmt(100 * m.mae, 1)} pp\n`);
   r += `\nORDEN DE VERIFICACIÓN EN CAMPO (sensibilidad 0,4 · incertidumbre geométrica 0,3 · dificultad de detección 0,3)\n`; P.forEach((o, i) => r += `${i + 1}. ${o.name} · prioridad ${o.level.toLowerCase()} (${o.score.toFixed(2)}) · ${o.g.txt} · aciertos IA ${pct(1 - o.d, 0)}\n`);
   r += `\nEl índice ordena dónde verificar primero. No es una evaluación de seguridad ni de capacidad resistente. Las secciones, materiales y cargas son supuestos del usuario.`;

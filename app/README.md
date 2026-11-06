@@ -11,9 +11,10 @@ Programa de escritorio de código abierto (Windows, macOS y Linux) desarrollado 
 
 | Módulo | Descripción |
 |---|---|
-| **Tu puente** | Lee la nube de puntos de cualquier puente (PLY, LAS, XYZ/TXT/CSV, hasta 1,5 M puntos), detecta tablero y apoyos, ajusta la geometría (arcos con tablero superior, vigas, armadura Pratt), mide la completitud del levantamiento, arma un modelo 2D con los supuestos del usuario, calcula sus modos y entrena una IA propia (Random Forest) para localizar daño por vibración. Plan de inspección e informe. |
+| **Mis puentes** | Cada puente es un proyecto propio guardado en la computadora o el navegador: nube, geometría, supuestos con su origen (medido, tabla de materiales o valor de referencia), modelo, IA, línea base, calibración, inspecciones, mantenimiento e historia. Se cambia de puente activo desde la cabecera; se exporta e importa como archivo `.puente`. El Puente Balta viene como proyecto de ejemplo con el material verificado de la primera parte de la tesis. |
+| **Gemelo digital desde la nube** | Lee la nube de puntos de cualquier puente (PLY, LAS, XYZ/TXT/CSV, hasta 1,5 M puntos), detecta tablero y apoyos, ajusta la geometría (arcos con tablero superior, vigas, armadura Pratt), mide la completitud del levantamiento, arma un modelo 2D con los supuestos del usuario, calcula sus modos y entrena una IA propia (Random Forest) para localizar daño por vibración. Plan de inspección e informe. |
 | **Frecuencias del usuario** | Si el usuario midió o calculó las frecuencias del puente, una IA entrenada solo con cambios de frecuencia propone la zona dañada, con control de dominio. Sin esos datos, la medición se simula. |
-| **Sismo registrado** | Lee acelerogramas en texto (por ejemplo, de CISMID-UNI o del IGP — AcelDat-Perú), calcula el espectro de respuesta y la respuesta del puente por superposición modal (integración exacta de Nigam y Jennings) y la anima en 3D. Aproximación: excitación uniforme, modelo elástico y plano. |
+| **Sismo registrado** | Para el puente activo (cualquiera con modelo), lee acelerogramas en texto (por ejemplo, de CISMID-UNI o del IGP — AcelDat-Perú), calcula el espectro de respuesta y la respuesta del puente por superposición modal (integración exacta de Nigam y Jennings) y la anima en 3D. Aproximación: excitación uniforme, modelo elástico y plano. |
 | **Estado del puente** | Pantalla de inicio del gemelo digital: índice de salud, calificación MTC, último diagnóstico de la IA, modelo de referencia, carga HL-93, vida proyectada, próxima inspección, alertas, seguimiento de las frecuencias medidas en el tiempo y línea de tiempo con cada medición, diagnóstico, calibración, evaluación e inspección (se guarda en el proyecto). |
 | **IA con formas modales** | Con 3 o más sensores, la IA se entrena para la configuración medida (modos y sensores) con frecuencias y cambios de forma modal, con error de modelo (±5 % por elemento) y con la geometría que la nube no registró. |
 | **Geometría no vista** | Para cualquier puente, la app mide qué parte de cada arco (clave, arranques) o de cada vano registró la nube y la convierte en incertidumbre de geometría: cada simulación de entrenamiento usa una geometría plausible distinta. Prueba con 20 puentes por tipo cuya geometría oculta difiere del modelo (comparando contra el modelo): Balta, zona 11 % → 32 % y vano 22 % → 59 % sin falsas alarmas; arco hipotético 7 % → 34 %; viga hipotética 60 % → 76 % y falsas alarmas 6/20 → 0/20; armadura hipotética 31 % → 57 %. Con línea base medida la diferencia es pequeña, por eso la opción «Automática» usa entonces la geometría nominal. Script: `tests/geometria_oculta.js`. |
@@ -68,8 +69,9 @@ Los instaladores se generan en GitHub Actions cada vez que se suben cambios de `
 |---|---|
 | `plataforma/index.html` | Interfaz, solver 2D (réplica del script de OpenSees), modelo C, IA del Balta, láminas |
 | `plataforma/op_core.js` | Núcleo: lectura de nubes, geometría, modelos 2D, modos, campañas de daño, Random Forest, sismo |
-| `plataforma/op_ui.js` | Interfaz de «Tu puente» |
-| `plataforma/v3d.js` | Vista 3D a pantalla completa |
+| `plataforma/op_ui.js` | Flujo de 7 pasos: de la nube de puntos al gemelo y la IA de cada puente |
+| `plataforma/v3d.js` | Vista 3D a pantalla completa: modelo 3D del ejemplo Balta y vista genérica (nube + modelo de barras) para cualquier puente |
+| `plataforma/pg_puentes.js` | Biblioteca de puentes: proyectos, puente activo, guardado en IndexedDB y archivos `.puente` |
 | `plataforma/codigo/` | Scripts de Python que generaron los modelos de IA del Balta |
 | `app/src/` | Proceso principal de Electron, menú y capa de escritorio |
 | `app/tests/run.js` | Pruebas: viga analítica, modelo C (7,437 Hz), Nigam-Jennings vs Newmark, lectura de acelerogramas |

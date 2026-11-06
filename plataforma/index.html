@@ -65,7 +65,7 @@ table.props.txt td:last-child{font-family:var(--f-ui);font-size:12.5px;text-alig
   .work{grid-template-columns:minmax(0,1fr)}
   .side.l{border-right:0;border-bottom:1px solid var(--rule);max-height:none;order:2}
   .canvas{order:1}.side.r{order:3}
-  .mark-br{display:none}
+  .mark-r{flex-wrap:wrap}.mark-br{max-width:100%;overflow:visible;flex-basis:100%}.hbr select{max-width:calc(100vw - 130px)}
   .submenu .gdesc{display:none}
   .mark-r{margin-left:0}
   .side.r{border-left:0;border-top:1px solid var(--rule)}
@@ -220,16 +220,17 @@ import {OrbitControls} from 'three/addons/controls/OrbitControls.js';
 window.BaltaThree={THREE,GLTFLoader,OrbitControls};
 window.dispatchEvent(new Event('three-ready'));
 </script>
-<script src="v3d.js?v=1.2.0"></script>
-<script src="op_core.js?v=1.2.0"></script>
-<script src="op_ui.js?v=1.2.0"></script>
-<script src="pg_mod.js?v=1.2.0"></script>
+<script src="v3d.js?v=2.0.0"></script>
+<script src="op_core.js?v=2.0.0"></script>
+<script src="op_ui.js?v=2.0.0"></script>
+<script src="pg_mod.js?v=2.0.0"></script>
+<script src="pg_puentes.js?v=2.0.0"></script>
 <script>
 "use strict";
 const MODEL_URL='../models/puente-balta-v12.glb';
 /* ================= Utilidades ================= */
 const $=s=>document.querySelector(s);
-const APP_VERSION='1.2.0';
+const APP_VERSION='2.0.0';
 // formato numérico: coma decimal y punto de miles (como en el texto de la tesis)
 const fmt=(x,d=2)=>Number.isFinite(x)?x.toLocaleString('es-ES',{minimumFractionDigits:d,maximumFractionDigits:d,useGrouping:Math.abs(x)>=1e4}):'—';
 const pct=(x,d=1)=>fmt(100*x,d)+' %';
@@ -506,33 +507,37 @@ function elevation({res=null,amp=0,highlight=null,colorBy=null,sensors=false,box
 function legendRow(items,x,y){return items.map(([type,col,label],i)=>{const xx=x,yy=y+i*13;const mk=type==='line'?`<line x1="${xx}" x2="${xx+18}" y1="${yy-3}" y2="${yy-3}" stroke="${col}" stroke-width="2"/>`:`<rect x="${xx}" y="${yy-8}" width="18" height="8" fill="${col}"/>`;return mk+`<text x="${xx+24}" y="${yy}">${label}</text>`;}).join('');}
 
 /* ================= Estado y navegación ================= */
-const VIEWS=['estado','modelo','simulacion','comparacion','dinamica','inspeccion','validacion','registro','tupuente','oma','inspmtc','cargahl','deterioro'];
+const VIEWS=['puentes','estado','sismo','modelo','simulacion','comparacion','dinamica','inspeccion','validacion','registro','tupuente','oma','inspmtc','cargahl','deterioro'];
 const S={view:'modelo',zone:'arco_a2_a3',q:100,E:50,target:'arco_a2_a3',pct:.3,noise:.005,m3d:'3d',
   A:{q:100,E:50,target:'sin_danio',pct:0},B:{q:100,E:50,target:'arco_a2_a3',pct:.3},W:{sens:.3,geo:.3,det:.2,dem:.2,cond:.2}};
 let DATA_READY=false,lastSolveMs=0;
-function show(v){if(!VIEWS.includes(v))v='modelo';S.view=v;if(S.vpFull){S.vpFull=false;document.body.style.overflow='';}
+function show(v){if(!VIEWS.includes(v))v='puentes';
+  // las vistas del material de la primera parte son del ejemplo Balta; el flujo de la nube es de los demás puentes
+  if(typeof PB!=='undefined'){if(PB.active!=='balta'&&BALTA_VIEWS.includes(v))v=v==='dinamica'?'sismo':'tupuente';if(PB.active==='balta'&&v==='sismo')v='dinamica';if(PB.active==='balta'&&v==='tupuente'){pbNew();return;}}S.view=v;if(S.vpFull){S.vpFull=false;document.body.style.overflow='';}
   navRender(v);
   try{history.replaceState(null,'','#'+v);}catch(e){}
   if(DATA_READY)render();}
 // Navegación en dos niveles: secciones (arriba) y herramientas de cada sección (abajo)
-const NAV=[['inicio','Inicio','Estado del puente, alertas y línea de tiempo',[['estado','Estado del puente']]],
- ['gemelo','Gemelo del Balta','Modelo verificado del Puente Balta',[['modelo','Modelo 3D y nube'],['simulacion','Simulación e IA'],['comparacion','Comparación de escenarios'],['dinamica','Dinámica y sismo']]],
- ['monitoreo','Monitoreo con IA','Medición de vibración, calibración y diagnóstico',[['oma','Vibración medida e IA']]],
- ['gestion','Inspección y gestión','Inspección, capacidad de carga y mantenimiento',[['inspeccion','Prioridades de inspección (IA)'],['inspmtc','Inspección de campo (MTC)'],['cargahl','Carga vehicular HL-93'],['deterioro','Deterioro y mantenimiento']]],
- ['tu','Tu puente','Gemelo de cualquier puente desde su nube de puntos',[['tupuente','Tu puente']]],
- ['verif','Verificación','Concordancia con OpenSees, prueba con evaluadores y procedencia de datos',[['validacion','Validación'],['registro','Datos y procedencia']]]];
+const NAV_BALTA=[['modelo','Modelo 3D y nube'],['simulacion','Simulación e IA'],['comparacion','Comparación de escenarios'],['dinamica','Dinámica y sismo']];
+function navGroups(){const bal=typeof PB==='undefined'||PB.active==='balta';
+  return [['inicio','Inicio','Puentes registrados, estado del puente activo, alertas y línea de tiempo',[['puentes','Mis puentes'],['estado','Estado del puente']]],
+  ['gemelo','Gemelo digital',bal?'Ejemplo Balta: material verificado de la primera parte (nube TLS, modelo C, OpenSees, IA SVM)':'Nube de puntos → tablero y apoyos → geometría → modelo y modos → IA → diagnóstico → plan',bal?NAV_BALTA:[['tupuente','Nube, modelo e IA'],['sismo','Sismo registrado']]],
+  ['monitoreo','Monitoreo con IA','Medición de vibración, calibración y diagnóstico del puente activo',[['oma','Vibración medida e IA']]],
+  ['gestion','Inspección y gestión','Inspección, capacidad de carga y mantenimiento del puente activo',[...(bal?[['inspeccion','Prioridades de inspección (IA)']]:[]),['inspmtc','Inspección de campo (MTC)'],['cargahl','Carga vehicular HL-93'],['deterioro','Deterioro y mantenimiento']]],
+  ['verif','Verificación','Concordancia con OpenSees, pruebas de la IA con varios tipos de puente y procedencia de datos',[['validacion','Validación'],['registro','Datos y procedencia']]]];}
 const NAV_LAST={};
-function navRender(v){const g=NAV.find(x=>x[3].some(t=>t[0]===v))||NAV[0];NAV_LAST[g[0]]=v;
+function navRender(v){const NAV=navGroups();const g=NAV.find(x=>x[3].some(t=>t[0]===v))||NAV[0];NAV_LAST[g[0]]=v;
   $('#mGroups').innerHTML=NAV.map(x=>`<button data-g="${x[0]}" aria-selected="${x===g}" title="${x[2]}">${x[1]}</button>`).join('');
   $('#mSub').innerHTML=g[3].map(([k,l])=>`<button role="tab" data-v="${k}" aria-selected="${k===v}">${l}</button>`).join('')+`<span class="gdesc">${g[2]}</span>`;
   document.querySelectorAll('#mGroups button').forEach(b=>b.onclick=()=>{const x=NAV.find(q=>q[0]===b.dataset.g);show(NAV_LAST[x[0]]||x[3][0][0]);});
   document.querySelectorAll('#mSub button').forEach(b=>b.onclick=()=>show(b.dataset.v));
   document.querySelectorAll('#mGroups [aria-selected="true"],#mSub [aria-selected="true"]').forEach(b=>{try{b.scrollIntoView({block:'nearest',inline:'nearest'});}catch(e){}});}
-function render(){({modelo:vModelo,simulacion:vSim,comparacion:vCmp,dinamica:vDin,inspeccion:vInsp,validacion:vVal,registro:vReg,tupuente:vTu,estado:vEstado,oma:vOma,inspmtc:vInspMTC,cargahl:vHL,deterioro:vDet})[S.view]();statusBar();}
+function render(){({modelo:vModelo,simulacion:vSim,comparacion:vCmp,dinamica:vDin,inspeccion:vInsp,validacion:vVal,registro:vReg,tupuente:vTu,puentes:vPuentes,sismo:vSismo,estado:vEstado,oma:vOma,inspmtc:vInspMTC,cargahl:vHL,deterioro:vDet})[S.view]();statusBar();}
 const BALTA_VIEWS=['modelo','simulacion','comparacion','dinamica','inspeccion'];
-function statusBar(extra=''){const v=PROV.verificacion,bal=BALTA_VIEWS.includes(S.view);let br='';try{if(!bal&&typeof pgCtx==='function'&&S.view!=='tupuente'&&S.view!=='validacion'&&S.view!=='registro'){const c=pgCtx();br=`<span>Puente activo: ${esc(c.title)}</span>`;}}catch(e){}
-  $('#status').innerHTML=`<span class="okdot">Modelo verificado con OpenSees</span>${bal?'<span>Puente activo: Puente Balta</span>':br}${extra}<span class="dim">PuenteGemelo ${APP_VERSION} · UPC 2026</span>`;
-  const mb=$('#markBridge');if(mb){let t='';try{t=bal?'Puente Balta · modelo C':(S.view==='tupuente'?(OP.name||'Tu puente'):(typeof pgCtx==='function'?pgCtx().title:''));}catch(e){}mb.innerHTML=t?'Puente activo: <b>'+esc(t)+'</b>':'';}}
+function vSismo(){if(!pgCtxNom())return pbNoModel('el sismo registrado');$('#left').innerHTML=pgBridgeBox();pgBindBridge();$('#canvas').innerHTML='<div class="doc" id="sisDoc"></div>';$('#right').innerHTML='<div class="ph">Modos del modelo</div><div class="pb help keep">Se usa el modelo del puente activo (paso 4 del gemelo, o el calibrado si lo eligió en Monitoreo). Los registros de CISMID-UNI y del IGP se leen en texto.</div>';sisRender();}
+function statusBar(extra=''){const v=PROV.verificacion;let br='';try{if(typeof PB!=='undefined')br=`<span>Puente activo: ${esc(pbTitle())}</span>`;}catch(e){}
+  $('#status').innerHTML=`<span class="okdot">Solver verificado con OpenSees</span>${br}${extra}<span class="dim">PuenteGemelo ${APP_VERSION} · UPC 2026</span>`;
+  try{if(typeof pbHeader==='function')pbHeader();}catch(e){}}
 function timedSolve(sc){const t=performance.now(),r=solve(sc);lastSolveMs=performance.now()-t;return r;}
 
 /* ---------- Árbol de componentes (panel izquierdo) ---------- */
@@ -945,7 +950,10 @@ function histogram(fs,fm,tol,k){const ink=css('--ink'),i3=css('--ink-3'),red=css
   s+=`<text x="${W-pr}" y="${H-3}" font-size="9" text-anchor="end" fill="${i3}">f${k+1} (Hz) · ${fs.length} casos Monte Carlo, modelo C</text><text x="${pl-6}" y="${Y(cm)+3}" font-size="9" text-anchor="end" fill="${i3}">${cm}</text>`;
   return s+'</svg></div>';}
 
-/* ---------- Sismo registrado (CISMID, IGP): aproximación por superposición modal del modelo C ---------- */
+/* ---------- Sismo registrado (CISMID, IGP): superposición modal del modelo del puente activo ---------- */
+// ejemplo Balta: modelo C con los parámetros de «Dinámica y sismo»; cualquier otro puente: su modelo desde la nube (o el calibrado)
+const sisCtx=()=>typeof PB!=='undefined'&&PB.active!=='balta'?pgCtx():null;
+const sisModelName=()=>sisCtx()?'el modelo de '+sisCtx().title:'el modelo C';
 const SIS_UNITS={gal:['gal (cm/s²)',.01],ms2:['m/s²',1],g:['g',9.80665]};
 S.sis={rec:null,name:'',colY:-1,colZ:-1,unit:'gal',dt:null,zeta:.02,scale:1,res:null,key:''};
 function sisSeries(k){const R=S.sis.rec,c=R.cols[k],u=SIS_UNITS[S.sis.unit][1]*S.sis.scale;let m=0;for(const v of c)m+=v;m/=c.length;return Float64Array.from(c,v=>(v-m)*u);} // m/s², sin componente media
@@ -967,14 +975,14 @@ function sisSpecPlot(sp,cols,names,Tb){const W=760,H=190,pl=48,pr=10,pt=10,pb=28
   s+=`<text x="${pl-6}" y="${Y(mx)+3}" font-size="9" text-anchor="end" fill="${css('--ink-3')}">${fmt(mx/9.80665,2)} g</text><text x="${W-pr}" y="${H-3}" font-size="9" text-anchor="end" fill="${css('--ink-3')}">Periodo T (s, escala log.) · Sa con ζ = ${pct(S.sis.zeta,0)} · ${names.join(' · ')} · líneas rojas: periodos del modelo C</text>`;
   return s+'</svg></div>';}
 function sisCompute(){const X=S.sis,R=X.rec;if(!R||!(X.dt>0)||(X.colY<0&&X.colZ<0))return null;
-  const key=JSON.stringify([S.dinP,X.name,X.colY,X.colZ,X.unit,X.dt,X.zeta,X.scale]);if(X.res&&X.key===key)return X.res;
-  const t0=performance.now(),fr=mcBuild(MCD,dinParams()),md=OPC.modal(fr,20),aY=X.colY>=0?sisSeries(X.colY):null,aZ=X.colZ>=0?sisSeries(X.colZ):null;
+  const key=JSON.stringify([sisCtx()?[sisCtx().id,sisCtx().P]:S.dinP,X.name,X.colY,X.colZ,X.unit,X.dt,X.zeta,X.scale]);if(X.res&&X.key===key)return X.res;
+  const C=sisCtx(),t0=performance.now(),fr=C?OPC.build(C.type,C.G,C.P):mcBuild(MCD,dinParams()),md=OPC.modal(fr,Math.min(20,Math.max(4,Math.floor(fr.nodes.length*3/4)))),aY=X.colY>=0?sisSeries(X.colY):null,aZ=X.colZ>=0?sisSeries(X.colZ):null;
   const r=OPC.seismic(fr,md,aY,aZ,X.dt,X.zeta),Ts=Array.from({length:50},(_,i)=>.02*Math.pow(3/.02,i/49));
   r.spec=[aY,aZ].filter(Boolean).map(a=>OPC.spectrum(a,X.dt,X.zeta,Ts));r.fr=fr;r.md=md;r.aY=aY;r.aZ=aZ;r.ms=performance.now()-t0;
   r.pga=[aY,aZ].map(a=>{if(!a)return null;let m=0;for(const v of a)m=Math.max(m,Math.abs(v));return m;});X.res=r;X.key=key;return r;}
 function sisRender(){const d=$('#sisDoc');if(!d)return;const X=S.sis,R=X.rec;
-  let h=`<h2>Sismo registrado · aproximación con el modelo C</h2>
-   <p>Cargue un acelerograma de una estación de la red de CISMID-UNI o del IGP (AcelDat-Perú) en formato de texto: columnas numéricas, con o sin columna de tiempo. La plataforma aplica el registro en la base del modelo C y suma la respuesta de sus 20 primeros modos. Es una aproximación: la estación no está en el puente, se supone el mismo movimiento en todos los apoyos y el modelo es elástico y plano.</p>
+  let h=`<h2>Sismo registrado · aproximación con ${sisModelName()}</h2>
+   <p>Cargue un acelerograma de una estación de la red de CISMID-UNI o del IGP (AcelDat-Perú) en formato de texto: columnas numéricas, con o sin columna de tiempo. La plataforma aplica el registro en la base de ${sisModelName()} y suma la respuesta de sus primeros modos (hasta 20). Es una aproximación: la estación no está en el puente, se supone el mismo movimiento en todos los apoyos y el modelo es elástico y plano.</p>
    <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:end"><label class="btn">Abrir acelerograma…<input type="file" id="sisFile" accept=".txt,.csv,.dat,.asc,.acc,.v2,.tsv" hidden></label><span class="help">${R?esc(X.name)+` · ${R.n.toLocaleString('es-ES')} muestras · ${R.cols.length} columnas`:'Ningún registro cargado.'}</span></div>`;
   if(R){const cn=R.cols.map((_,k)=>k===R.tcol?`Columna ${k+1} (tiempo)`:`Columna ${k+1}`),opt=sel=>`<option value="-1">ninguna</option>`+R.cols.map((_,k)=>k===R.tcol?'':`<option value="${k}" ${k===sel?'selected':''}>${cn[k]}</option>`).join('');
     h+=`<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,160px),1fr));gap:8px;align-items:end">
@@ -987,7 +995,7 @@ function sisRender(){const d=$('#sisDoc');if(!d)return;const X=S.sis,R=X.rec;
      <p class="help">${R.how?`Δt leído de la ${R.how}.`:'No se encontró Δt en el archivo: escríbalo (por ejemplo 0,01 s para 100 muestras por segundo).'} Revise en el encabezado del archivo qué columna es este–oeste, norte–sur y vertical; la longitudinal es la más cercana al eje del puente. Encabezado: <span class="mono" style="font-size:11px">${esc(R.header.split('\n').slice(0,3).join(' | ').slice(0,220))||'—'}</span></p>`;
     const r=sisCompute();
     if(r){const names=[],cols=[],ser=[];if(r.aY){names.push('longitudinal');cols.push(css('--blue'));ser.push(r.aY);}if(r.aZ){names.push('vertical');cols.push(css('--warn'));ser.push(r.aZ);}
-      const sens=mcSensors(r.fr),Tb=r.md.f.map(f=>1/f),N=r.fr.nodes.length;
+      const sens=sisCtx()?OPC.sensorsOf(r.fr):mcSensors(r.fr),Tb=r.md.f.map(f=>1/f),N=r.fr.nodes.length;
       h+=`<h3>Registro y espectro de respuesta</h3>${sisPlot(ser,X.dt,names,cols)}${sisSpecPlot(r.spec,cols,names,Tb)}
        <div class="tw"><table class="data"><tbody>
         <tr><td>Aceleración máxima del registro</td><td class="n">${r.pga.map((v,k)=>v==null?null:`${['long.','vert.'][k]} ${fmt(v,3)} m/s² (${fmt(v/9.80665,3)} g)`).filter(Boolean).join(' · ')}</td></tr>
@@ -1000,7 +1008,7 @@ function sisRender(){const d=$('#sisDoc');if(!d)return;const X=S.sis,R=X.rec;
        <h3>Aporte de cada modo</h3>
        <div class="tw"><table class="data"><thead><tr><th>Modo</th><th class="n">f (Hz)</th><th class="n">T (s)</th><th class="n">Masa long.</th><th class="n">Masa vert.</th><th class="n">Coordenada modal máx.</th></tr></thead><tbody>${r.modes.map((m,k)=>({m,k})).sort((a,b)=>b.m.qmax-a.m.qmax).slice(0,8).map(({m,k})=>`<tr><td class="mono">${k+1}</td><td class="n">${fmt(m.f,3)}</td><td class="n">${fmt(1/m.f,4)}</td><td class="n">${pct(m.mY,1)}</td><td class="n">${pct(m.mZ,1)}</td><td class="n">${m.qmax.toExponential(2)}</td></tr>`).join('')}</tbody></table></div>
        <div><button class="btn b3d" id="sis3d">Vista 3D · animar el sismo</button></div>
-       <div class="msg"><b>Alcance.</b> Respuesta elástica lineal del modelo C (2D, en el plano del puente) con excitación uniforme en la base y amortiguamiento modal supuesto. No incluye interacción suelo–estructura, efectos de sitio entre la estación y el puente, ni la componente transversal. Úsese como orden de magnitud, no como verificación sísmica.</div>`;}
+       <div class="msg"><b>Alcance.</b> Respuesta elástica lineal de ${sisModelName()} (2D, en el plano del puente) con excitación uniforme en la base y amortiguamiento modal supuesto. No incluye interacción suelo–estructura, efectos de sitio entre la estación y el puente, ni la componente transversal. Úsese como orden de magnitud, no como verificación sísmica.</div>`;}
     else h+=`<p class="help">Elija al menos una componente y el intervalo Δt.</p>`;}
   d.innerHTML=h;
   $('#sisFile').onchange=async e=>{const f=e.target.files[0];if(!f)return;try{const R2=OPC.readAccel(await f.text());X.rec=R2;X.name=f.name;X.dt=R2.dt;X.res=null;const av=R2.cols.map((_,k)=>k).filter(k=>k!==R2.tcol);X.colY=av[0]??-1;X.colZ=av.length>=3?av[av.length-1]:-1;sisRender();}catch(err){toast(err.message);}};
@@ -1008,7 +1016,10 @@ function sisRender(){const d=$('#sisDoc');if(!d)return;const X=S.sis,R=X.rec;
   $('#sisY').onchange=e=>{X.colY=+e.target.value;sisRender();};$('#sisZ').onchange=e=>{X.colZ=+e.target.value;sisRender();};$('#sisU').onchange=e=>{X.unit=e.target.value;sisRender();};
   $('#sisDt').onchange=e=>{const v=parseFloat(e.target.value.replace(',','.'));X.dt=v>0?v:null;sisRender();};$('#sisZt').onchange=e=>{X.zeta=Math.min(.1,Math.max(.005,(+e.target.value||2)/100));sisRender();};$('#sisSc').onchange=e=>{X.scale=Math.max(.01,+e.target.value||1);sisRender();};
   const b=$('#sis3d');if(b)b.onclick=open3dSis;}
-function open3dSis(){const r=S.sis.res;if(!r)return;const A=V3D.adaptMC(r.fr),seq=V3D.sequential(),N=r.fr.nodes.length;
+function open3dSis(){const r=S.sis.res;if(!r)return;
+  if(sisCtx()){const N=r.fr.nodes.length,seq=V3D.sequential();let pm=0;const pk=new Float64Array(N);for(let j=0;j<N;j++){pk[j]=Math.hypot(r.peakY[j],r.peakZ[j]);pm=Math.max(pm,pk[j]);}
+    return V3D.openFrame({title:`Sismo registrado · ${S.sis.name}`,sub:`${sisCtx().title} · ζ = ${pct(S.sis.zeta,0)} · desplazamiento máx. ${fmt(r.gmax*1e3,2)} mm · color por desplazamiento máximo de cada barra`,fr:r.fr,fam:t=>pgFam(r.fr.grp[t]),cloud:OP.O,width:opDeckWidth()||(OP.P&&OP.P.width)||6,onClose:back3d,
+      colorOf:t=>{const[i,j]=r.fr.el[t];return seq(Math.max(pk[i],pk[j])/(pm||1));},legend:V3D.legendGradient(['#d1d6db',css('--warn'),css('--red')],['0 mm',fmt(pm*500,1)+' mm',fmt(pm*1e3,1)+' mm'])});}const A=V3D.adaptMC(r.fr),seq=V3D.sequential(),N=r.fr.nodes.length;
   const use=r.modes.map((m,k)=>({m,k})).sort((a,b)=>b.m.qmax-a.m.qmax).slice(0,6),pk=new Float64Array(3*N);for(let j=0;j<N;j++){pk[3*j]=r.peakY[j];pk[3*j+1]=r.peakZ[j];}
   let pm=0;for(let j=0;j<N;j++)pm=Math.max(pm,Math.hypot(r.peakY[j],r.peakZ[j]));const pkF=V3D.dispField(A,pk);
   V3D.open({title:`Sismo registrado · ${S.sis.name}`,sub:`Modelo C · ζ = ${pct(S.sis.zeta,0)} · desplazamiento máx. ${fmt(r.gmax*1e3,2)} mm a los ${fmt(r.tmax,1)} s · animación en tiempo real`,onClose:back3d,
@@ -1019,7 +1030,7 @@ function open3dSis(){const r=S.sis.res;if(!r)return;const A=V3D.adaptMC(r.fr),se
 /* ---------- IA con frecuencias del usuario (medidas o calculadas) ---------- */
 // Sin datos del usuario la plataforma sigue simulando la medición; con sus frecuencias, se usa una IA entrenada solo con Δf del mismo modelo.
 const FQ={};let FQ_SRC=null;
-async function fqWorker(){if(!FQ_SRC)FQ_SRC=await fetch('op_core.js?v=1.2.0').then(r=>{if(!r.ok)throw new Error('No se encontró op_core.js');return r.text();});
+async function fqWorker(){if(!FQ_SRC)FQ_SRC=await fetch('op_core.js?v=2.0.0').then(r=>{if(!r.ok)throw new Error('No se encontró op_core.js');return r.text();});
   const src=FQ_SRC+`\nself.onmessage=e=>{const m=e.data;try{if(m.kind==='camp'){const c=OPC.freqCampaign(m.type,m.G,m.P,m.opts,(q,s)=>self.postMessage({kind:'prog',stage:'Simulaciones de daño',q,s}));self.postMessage({kind:'camp',camp:c});}
    else if(m.kind==='trainM'){const I=OPC.trainModalIA(m.camp,m.sel,m.sf,m.ss,(st,q)=>self.postMessage({kind:'prog',stage:st,q}));self.postMessage({kind:'ia',ia:I});}else{const I=OPC.trainFreqIA(m.camp,m.k,m.sf,(st,q)=>self.postMessage({kind:'prog',stage:st,q}));self.postMessage({kind:'ia',ia:I});}}catch(err){self.postMessage({kind:'error',msg:err.message});}};`;
   return new Worker(URL.createObjectURL(new Blob([src],{type:'text/javascript'})));}
@@ -1085,7 +1096,7 @@ function baltaCtx(){const F=MCD.faces,fit=MCD.fit,yv=c=>-c[1]/(2*c[0]),N0=MCD.no
   const arches=[{a:2*yv(fit.izq.coef)-F.p1_L,b:F.p1_L,coef:fit.izq.coef},{a:F.p1_R,b:F.p2_L,coef:fit.centro.coef},{a:F.p2_R,b:F.abut_R,coef:fit.der.coef}];
   // lo que la nube del Balta registró de cada intradós (misma regla que para cualquier puente)
   ['izq','centro','der'].forEach((k,i)=>{const c=MCD.completitud.find(r=>r.arch===k),g=MCD.geometria[k];arches[i].obs={rise:g.flecha,rms:g.rms_cm/100,clave:c.C_crown,arranque:c.C_springing};});
-  return {id:'balta',type:'arco',title:'modelo C nominal del Balta',G:{supports:[{a:arches[0].a,b:arches[0].a},{a:F.p1_L,b:F.p1_R},{a:F.p2_L,b:F.p2_R},{a:F.abut_R,b:F.abut_R}],arches,deckAxis:MCD.z_deck_axis,zBase:[MCD.z_base.p1,MCD.z_base.p2]},
+  return {id:'balta',kind:'ejemplo',type:'arco',title:'modelo C nominal del Balta',G:{supports:[{a:arches[0].a,b:arches[0].a},{a:F.p1_L,b:F.p1_R},{a:F.p2_L,b:F.p2_R},{a:F.abut_R,b:F.abut_R}],arches,deckAxis:MCD.z_deck_axis,zBase:[MCD.z_base.p1,MCD.z_base.p2]},
     P:{E:N0.E_ci/1e6,rho:N0.rho_ci,rib_h:N0.rib_h,n_ribs:N0.n_ribs,I_factor:1,deck_A:N0.deck_A,deck_I:N0.deck_I,post_A:N0.post_A,post_I:N0.post_I,E_pier:N0.E_pier/1e6,pier_t:N0.pier_t,width:N0.width,w_deck:N0.w_deck,springing:'fixed'}};}
 
 /* ---------- Planos DXF del Puente Balta (modelo C) ---------- */
@@ -1220,6 +1231,9 @@ function vVal(){
   $('#canvas').innerHTML=`<div class="toggle" role="group" aria-label="Sección"><button data-t="tecnica" aria-pressed="${S.valTab==='tecnica'}">Evidencia técnica</button><button data-t="usuarios" aria-pressed="${S.valTab==='usuarios'}">Prueba con evaluadores</button></div><div id="valBody" style="display:grid;gap:14px"></div>`;
   $('#canvas').querySelectorAll('.toggle button').forEach(b=>b.onclick=()=>{S.valTab=b.dataset.t;vVal();});
   if(S.valTab==='tecnica')valTech();else valUsers();
+  if(S.valTab==='tecnica'){const d=document.createElement('div');d.className='doc';d.innerHTML=`<h2>Qué se verificó para cualquier puente y qué es propio del ejemplo</h2>
+   <p><b>Para cualquier puente</b> (mismo código para todos los proyectos): lectura de nubes PLY, LAS, XYZ y CSV; detección de tablero y apoyos probada con la nube TLS del Balta y con dos nubes UAV de Corea (Wonli y Ssanghak); solver de barras contra OpenSees; HL-93 contra soluciones analíticas; identificación modal FDD/EFDD; calibración a ciegas; IA probada en arcos, vigas y armaduras con geometría no vista (tabla más abajo); vibración real de openLAB y OpenBridgeLAB. Son pruebas automáticas que se repiten en cada versión.</p>
+   <p><b>Propio del ejemplo Balta</b> (material de la primera parte de la tesis): modelo C, 450 casos de concordancia con OpenSees, IA SVM de 5080 simulaciones y sustituto Random Forest. Se muestran como referencia de lo que se obtiene con un puente estudiado a fondo.</p>`;const c=$('#canvas');c.insertBefore(d,c.children[1]||null);}
   $('#right').innerHTML=S.valTab==='tecnica'?`<div class="ph">Línea base</div><div class="pb" style="font-size:.84rem"><p>La plataforma se compara con el flujo de archivos separados de la primera parte: scripts de Python, OpenSees, CSV y Blender.</p><p class="help">Los indicadores se recalculan en cada visita a esta pestaña.</p></div>`
    :`<div class="ph">Cómo aplicar la prueba</div><div class="pb" style="font-size:.84rem"><p>1. Cada evaluador hace las ${TASKS.length} tareas dos veces: con la plataforma y con los archivos de la línea base, en orden alternado entre evaluadores.</p><p>2. Al iniciar, una barra inferior queda visible en todas las pestañas con la tarea y el cronómetro.</p><p>3. Las respuestas se comparan con el valor que calcula la plataforma; el evaluador no lo ve.</p><p>4. En la condición plataforma, el evaluador completa el SUS al final.</p><p>5. Exporte el CSV de cada laptop e impórtelos juntos para obtener la tabla final.</p></div>`;
 }
@@ -1442,8 +1456,8 @@ function parseCSV(t){const [h,...ls]=t.trim().split(/\r?\n/);const k=h.split(','
 (async()=>{
   try{const get=p=>fetch(p).then(r=>{if(!r.ok)throw new Error(p);return r;});
     const [m,rf,svm,met,prov,fem,mcd,miac]=await Promise.all([get('data/modelo_2d.json').then(r=>r.json()),get('data/rf_surrogate.json').then(r=>r.json()),get('data/svm_inverse.json').then(r=>r.json()),get('data/metrics_ia.json').then(r=>r.json()),get('data/procedencia.json').then(r=>r.json()),get('data/fem_525.csv').then(r=>r.text()),get('data/modelo_c.json').then(r=>r.json()),get('data/metrics_ia_c.json').then(r=>r.json())]);
-    M2=prepModel(m);RF=rf;SVM=svm;MET=met;PROV=prov;FEM=parseCSV(fem);MCD=mcd;MIAC=miac;computeSensitivity();DATA_READY=true;
-    const h=(location.hash||'').slice(1);show(VIEWS.includes(h)?h:'estado');if(S.proto)protoBar();
+    M2=prepModel(m);RF=rf;SVM=svm;MET=met;PROV=prov;FEM=parseCSV(fem);MCD=mcd;MIAC=miac;computeSensitivity();await pbInit();DATA_READY=true;
+    const h=(location.hash||'').slice(1);show(VIEWS.includes(h)?h:'puentes');if(S.proto)protoBar();
   }catch(e){$('#canvas').innerHTML=`<div class="msg crit"><b>No se pudieron cargar los datos.</b> Falta el archivo ${esc(e.message)}; publique la carpeta data/ junto a la página.</div>`;}
 })();
 </script>

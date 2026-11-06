@@ -37,10 +37,11 @@ function buildMenu() {
     { label: 'Archivo', submenu: [
       { label: 'Inicio', accelerator: 'CmdOrCtrl+H', click: () => send('inicio') },
       { label: 'Nuevo puente desde una nube de puntos', accelerator: 'CmdOrCtrl+N', click: () => send('nuevo') },
-      { label: 'Abrir proyecto…', accelerator: 'CmdOrCtrl+O', click: async () => {
+      { label: 'Mis puentes', accelerator: 'CmdOrCtrl+M', click: () => send('puentes') },
+      { label: 'Importar proyecto (.puente)…', accelerator: 'CmdOrCtrl+O', click: async () => {
           const r = await dialog.showOpenDialog(win, { title: 'Abrir proyecto', filters: [{ name: 'Proyecto de PuenteGemelo', extensions: ['puente', 'json'] }], properties: ['openFile'] });
           if (!r.canceled && r.filePaths[0]) openProjectFile(r.filePaths[0]); } },
-      { label: 'Guardar proyecto…', accelerator: 'CmdOrCtrl+S', click: () => send('guardar-proyecto') },
+      { label: 'Exportar el puente activo (.puente)…', accelerator: 'CmdOrCtrl+S', click: () => send('guardar-proyecto') },
       { label: 'Exportar planos DXF (AutoCAD)…', accelerator: 'CmdOrCtrl+E', click: () => send('dxf') },
       { type: 'separator' },
       { label: 'Proyecto de ejemplo: Puente Balta', click: () => send('ejemplo') },
