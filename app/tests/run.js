@@ -94,7 +94,14 @@ ok('Modelo C: 20 zonas de daño (15 de arcos, 3 de tablero y 2 de pilares por so
 { const d = JSON.parse(fs.readFileSync(path.join(P, 'data', 'nube_balta.json'))), q = new Uint16Array(Buffer.from(d.pos, 'base64').buffer.slice(0)), xyz = new Float32Array(3 * d.n);
   for (let i = 0; i < d.n; i++) for (let k = 0; k < 3; k++) xyz[3 * i + k] = d.lo[k] + q[3 * i + k] / 65535 * (d.hi[k] - d.lo[k]);
   const O = OPC.orient({ xyz, offset: [0, 0, 0] }, 'z', 1), S = OPC.detectSupports(O, OPC.deckLevel(O), OPC.groundLevel(O)).supports, near = (x, y) => Math.abs(x - y) < .6;
-  ok('Apoyos del Balta: pilares P1 y P2 y estribo derecho', S.length === 3 && S[0].tipo === 'pilar' && S[1].tipo === 'pilar' && S[2].tipo === 'estribo' && near(S[0].a, F.p1_L) && near(S[1].b, F.p2_R), S.map(p => `${p.tipo} ${p.a.toFixed(1)}–${p.b.toFixed(1)}`).join(' · ')); }
+  ok('Apoyos del Balta: pilares P1 y P2 y estribo derecho', S.length === 3 && S[0].tipo === 'pilar' && S[1].tipo === 'pilar' && S[2].tipo === 'estribo' && near(S[0].a, F.p1_L) && near(S[1].b, F.p2_R), S.map(p => `${p.tipo} ${p.a.toFixed(1)}–${p.b.toFixed(1)}`).join(' · '));
+  // tipología sugerida: arco, sin pilono (los postes y árboles no cuentan como torre)
+  const dk = OPC.deckLevel(O), gr = OPC.groundLevel(O), T = OPC.suggestType(O, dk, gr, S, { zmin: gr + .2 * (dk - gr), zmax: dk - .38 }, Math.max(3, Math.round(15 * d.n / d.n_original)), { left: 'simetria', right: 'none' });
+  ok('Tipología sugerida del Balta: arco, sin torre', T.tipo === 'arco' && !T.atirantado, T.tipo + (T.atirantado ? ' · torre' : ''));
+  // tramo recortado por el usuario: el eje queda fijo en x aunque la planta sea casi cuadrada
+  const sq = new Float32Array(3 * 4000); for (let i = 0; i < 4000; i++) { sq[3 * i] = (i % 63) * .3; sq[3 * i + 1] = Math.floor(i / 63) * .3; sq[3 * i + 2] = 0; }
+  const Oq = OPC.orient({ xyz: sq, offset: [0, 0, 0] }, 'z', 1), Ox = OPC.orient({ xyz: sq, offset: [0, 0, 0], eje: 'x' }, 'z', 1);
+  ok('Eje: planta cuadrada marcada como dudosa; tramo recortado queda en x', Oq.ejeRatio < 3 && Ox.snap === 0, `cociente ${Oq.ejeRatio.toFixed(2)} · recortado: eje ${Ox.snap === 0 ? 'x' : '?'}`); }
 
 // 15. Campaña de registros: los modos que se repiten se separan del ruido que aparece y desaparece, y se estima el efecto de la temperatura
 { let seed = 5; const rnd = () => { seed = (seed * 16807) % 2147483647; return seed / 2147483647; };

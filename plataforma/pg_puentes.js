@@ -31,7 +31,7 @@ async function pbSaveNow() { if (!OP.id || !OP.O || PB.active !== OP.id) return;
   await PG_DB.set('puente:' + id, pbEstado()); await pbSaveList(); }
 async function pbSaveCloud() { if (!OP.id || !OP.cloud) return; const c = OP.cloud, n = c.xyz.length / 3, m = Math.min(n, 1500000), step = n / m, f = new Float32Array(3 * m);
   for (let j = 0; j < m; j++) { const i = Math.floor(j * step); f[3 * j] = c.xyz[3 * i]; f[3 * j + 1] = c.xyz[3 * i + 1]; f[3 * j + 2] = c.xyz[3 * i + 2]; }
-  await PG_DB.set('nube:' + OP.id, { xyz: f, total: c.total, kept: c.kept, offset: c.offset }); }
+  await PG_DB.set('nube:' + OP.id, { xyz: f, total: c.total, kept: c.kept, offset: c.offset, eje: c.eje || null }); }
 
 // reconstruye el modelo y los modos a partir del estado guardado (no se guardan matrices)
 function pbRebuild() { OP.O = OPC.orient(OP.cloud, OP.up || 'z', OP.unit || 1); OP.model = OP.modes = null;
@@ -47,7 +47,7 @@ async function pbActivate(id, { go = null, silent = false } = {}) {
   if (id === 'balta') { if (OP.id) await pbSaveNow(); PB.active = 'balta'; pbLsSet('pg_activo', 'balta'); }
   else { if (OP.id !== id) { if (OP.id) await pbSaveNow(); const est = await PG_DB.get('puente:' + id), nube = await PG_DB.get('nube:' + id);
       if (!est || !nube) { toast('No se encontró el proyecto en este navegador.'); return false; }
-      pbResetOP(); Object.assign(OP, est); OP.id = id; OP.cloud = { xyz: nube.xyz instanceof Float32Array ? nube.xyz : Float32Array.from(nube.xyz), total: nube.total, kept: nube.kept, offset: nube.offset }; pbRebuild(); pbMigrate(); }
+      pbResetOP(); Object.assign(OP, est); OP.id = id; OP.cloud = { xyz: nube.xyz instanceof Float32Array ? nube.xyz : Float32Array.from(nube.xyz), total: nube.total, kept: nube.kept, offset: nube.offset, eje: nube.eje || undefined }; pbRebuild(); pbMigrate(); }
     PB.active = id; pbLsSet('pg_activo', id); }
   if (!silent && DATA_READY) { if (go) show(go); else render(); }
   return true; }
@@ -67,7 +67,7 @@ function pbSerialize() { const c = OP.cloud, n = c.xyz.length / 3, step = n > PB
   for (let j = 0; j < m; j++) { const i = Math.floor(j * step); f[3 * j] = c.xyz[3 * i]; f[3 * j + 1] = c.xyz[3 * i + 1]; f[3 * j + 2] = c.xyz[3 * i + 2]; }
   const K = pbCtxId(OP.id);
   return { obj: { formato: 'PuenteGemelo', version: 2, app: APP_VERSION, guardado: new Date().toISOString(), id: OP.id, nombre: OP.name,
-    nube: { puntos: m, total: c.total, usados: c.kept, offset: c.offset, eje_vertical: OP.up || 'z', escala: OP.unit || 1, xyz_float32_base64: pbB64(new Uint8Array(f.buffer)) },
+    nube: { puntos: m, total: c.total, usados: c.kept, offset: c.offset, eje_tramo: c.eje || null, eje_vertical: OP.up || 'z', escala: OP.unit || 1, xyz_float32_base64: pbB64(new Uint8Array(f.buffer)) },
     estado: pbEstado(), expediente: PG.I[K] || null, mantenimiento: PG.det[K] || null, historia: PG.H[K] || null, calibracion: PG.cal[K] || null, linea_base: PG.bases[K] || null }, m, n }; }
 async function pbExport(id) { if (id && id !== OP.id) { if (!(await pbActivate(id, { silent: true }))) return; }
   if (!OP.cloud || !OP.O) { toast('Este puente aún no tiene nube.'); return; }
@@ -79,7 +79,7 @@ async function pbImportText(text) {
     const u8 = pbUnB64(P.nube.xyz_float32_base64), xyz = new Float32Array(u8.buffer, u8.byteOffset, u8.byteLength / 4);
     if (OP.id) await pbSaveNow();
     pbResetOP(); Object.assign(OP, P.estado); OP.id = P.id && !pbMeta(P.id) ? P.id : pbNewId(); OP.name = P.nombre || OP.name;
-    OP.cloud = { xyz: Float32Array.from(xyz), total: P.nube.total, kept: P.nube.usados, offset: P.nube.offset }; OP.up = P.nube.eje_vertical; OP.unit = P.nube.escala; pbRebuild();
+    OP.cloud = { xyz: Float32Array.from(xyz), total: P.nube.total, kept: P.nube.usados, offset: P.nube.offset, eje: P.nube.eje_tramo || undefined }; OP.up = P.nube.eje_vertical; OP.unit = P.nube.escala; pbRebuild();
     const K = pbCtxId(OP.id), old = 'tu:' + (P.nombre || 'sin nombre');
     if (P.expediente) { PG.I[K] = P.expediente; pgSave(); } if (P.mantenimiento) PG.det[K] = P.mantenimiento;
     if (P.historia) { PG.H[K] = P.historia; PG_DB.set('hist', PG.H); } if (P.calibracion) { PG.cal[K] = P.calibracion; pgSaveCal(); }
