@@ -1,0 +1,94 @@
+# Banco de nubes de puentes para probar la detección de geometría de PuenteGemelo.
+# Fuentes abiertas (CC BY 4.0): Zenodo 18531104 (UAV LiDAR, 6 puentes de Corea, con etiquetas) y Zenodo 18738225 (Real 3D point clouds of bridges, TLS y MLS).
+# Modos: explorar (lista el contenido de los zip de 18738225) · coreanos (6 puentes con etiquetas) · extraer (archivos elegidos de un zip de 18738225).
+name: Banco de nubes
+on:
+  workflow_dispatch:
+    inputs:
+      modo:
+        description: 'explorar | coreanos | extraer'
+        default: 'explorar'
+      archivos:
+        description: 'coreanos: nombres separados por ; · extraer: zip|miembro;zip|miembro'
+        default: ''
+permissions:
+  contents: write
+jobs:
+  banco:
+    runs-on: ubuntu-latest
+    timeout-minutes: 300
+    steps:
+      - uses: actions/setup-python@v5
+        with: { python-version: '3.12' }
+      - run: pip install numpy plyfile matplotlib remotezip laspy
+      - name: Procesar
+        env: { MODO: '${{ github.event.inputs.modo }}', ARCH: '${{ github.event.inputs.archivos }}' }
+        run: |
+          mkdir -p out
+          python - <<'PY' || true
+          import os, json, urllib.parse, urllib.request, traceback, numpy as np
+          from plyfile import PlyData, PlyElement
+          import matplotlib; matplotlib.use('Agg'); import matplotlib.pyplot as plt
+          modo = os.environ['MODO'].strip(); info = {'modo': modo, 'items': {}, 'errores': []}
+          Z2 = 'https://zenodo.org/records/18738225/files/'
+          def guardar(base, xyz, lab=None, extra=None):
+              n = len(xyz); rng = np.random.default_rng(1); keep = rng.choice(n, size=min(n, 1500000), replace=False); keep.sort()
+              sub = xyz[keep]; off = sub.mean(axis=0); sub = (sub - off).astype(np.float32)
+              el = PlyElement.describe(np.core.records.fromarrays([sub[:, 0], sub[:, 1], sub[:, 2]], names='x,y,z', formats='f4,f4,f4'), 'vertex')
+              PlyData([el], text=False).write(f'out/{base}.ply')
+              d = {'puntos_originales': int(n), 'puntos': int(len(sub)), 'extension_m': (sub.max(0) - sub.min(0)).round(2).tolist(), 'offset': off.round(3).tolist()}
+              if lab is not None:
+                  l = np.asarray(lab)[keep].astype(np.uint8); l.tofile(f'out/{base}_etiquetas.u8')
+                  d['clases'] = {str(int(k)): int(c) for k, c in zip(*np.unique(l, return_counts=True))}
+              if extra: d.update(extra)
+              s = sub[rng.choice(len(sub), size=min(len(sub), 250000), replace=False)]; ext = s.max(0) - s.min(0); i = np.argsort(ext[:2])[::-1]
+              fig, ax = plt.subplots(2, 1, figsize=(14, 8)); ax[0].scatter(s[:, i[0]], s[:, 2], s=.04, c='k'); ax[0].set_aspect('equal'); ax[0].set_title(base + ' · elevación (x/y vs z)')
+              ax[1].scatter(s[:, 0], s[:, 1], s=.04, c='k'); ax[1].set_aspect('equal'); ax[1].set_title('planta'); fig.savefig(f'out/{base}.png', dpi=100); plt.close(fig)
+              info['items'][base] = d; print(base, json.dumps(d), flush=True)
+          def leer(path):
+              p = path.lower()
+              if p.endswith('.ply'):
+                  v = PlyData.read(path)['vertex']; props = [q.name for q in v.properties]
+                  lab = next((q for q in props if q.lower() in ('label', 'class', 'scalar_label', 'classification', 'scalar_class', 'semantic', 'scalar_label_id')), None)
+                  return np.vstack([v['x'], v['y'], v['z']]).T.astype(np.float64), (np.asarray(v[lab]) if lab else None), {'propiedades': props, 'etiqueta': lab}
+              if p.endswith('.las') or p.endswith('.laz'):
+                  import laspy; f = laspy.read(path); return np.vstack([f.x, f.y, f.z]).T, np.asarray(f.classification), {'formato': 'las'}
+              a = np.loadtxt(path, max_rows=30000000, usecols=None, comments='//', delimiter=None if not p.endswith('.csv') else ',', ndmin=2)
+              return a[:, :3], (a[:, -1] if a.shape[1] > 3 else None), {'columnas': int(a.shape[1])}
+          try:
+              if modo == 'explorar':
+                  from remotezip import RemoteZip
+                  for z in ['tls_dataset.zip', 'mls_data.zip']:
+                      with RemoteZip(Z2 + z + '?download=1') as rz:
+                          info['items'][z] = [[m.filename, m.file_size, m.compress_size] for m in rz.infolist()]
+              elif modo == 'coreanos':
+                  for name in [p.strip() for p in os.environ['ARCH'].split(';') if p.strip()]:
+                      try:
+                          url = 'https://zenodo.org/records/18531104/files/' + urllib.parse.quote(name) + '?download=1'
+                          print('Descargando', url, flush=True); urllib.request.urlretrieve(url, 'tmp.ply')
+                          xyz, lab, ex = leer('tmp.ply'); guardar(name.replace(' Bridge_annotation.ply', '').replace(' ', '_'), xyz, lab, ex); os.remove('tmp.ply')
+                      except Exception as e: info['errores'].append([name, repr(e), traceback.format_exc()[-1500:]])
+              elif modo == 'extraer':
+                  from remotezip import RemoteZip
+                  for it in [p.strip() for p in os.environ['ARCH'].split(';') if p.strip()]:
+                      try:
+                          z, m = it.split('|', 1)
+                          with RemoteZip(Z2 + z + '?download=1') as rz: rz.extract(m, 'tmpx')
+                          base = os.path.splitext(os.path.basename(m))[0].replace(' ', '_')
+                          xyz, lab, ex = leer(os.path.join('tmpx', m)); ex['zip'] = z; ex['miembro'] = m; guardar(base, xyz, lab, ex)
+                          os.remove(os.path.join('tmpx', m))
+                      except Exception as e: info['errores'].append([it, repr(e), traceback.format_exc()[-1500:]])
+          except Exception as e: info['errores'].append(['general', repr(e), traceback.format_exc()[-2000:]])
+          json.dump(info, open(f'out/info_{modo}.json', 'w'), indent=1)
+          PY
+          ls -la out
+      - name: Publicar (pre-release de datos, no es la app)
+        if: always()
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: datos-banco-puentes
+          name: Datos de prueba · banco de nubes de puentes (Zenodo 18531104 y 18738225, CC BY 4.0)
+          prerelease: true
+          make_latest: false
+          body: Nubes reducidas a 1,5 M puntos para probar la detección de geometría de PuenteGemelo. Fuentes UAV LiDAR bridge point cloud dataset (Zenodo 18531104) y Real 3D point clouds of bridges (Zenodo 18738225), CC BY 4.0; citar a sus autores.
+          files: out/*
