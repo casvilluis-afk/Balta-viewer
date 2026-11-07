@@ -101,6 +101,11 @@ ok('Modelo C: 20 zonas de daño (15 de arcos, 3 de tablero y 2 de pilares por so
   // tramo recortado por el usuario: el eje queda fijo en x aunque la planta sea casi cuadrada
   const sq = new Float32Array(3 * 4000); for (let i = 0; i < 4000; i++) { sq[3 * i] = (i % 63) * .3; sq[3 * i + 1] = Math.floor(i / 63) * .3; sq[3 * i + 2] = 0; }
   const Oq = OPC.orient({ xyz: sq, offset: [0, 0, 0] }, 'z', 1), Ox = OPC.orient({ xyz: sq, offset: [0, 0, 0], eje: 'x' }, 'z', 1);
+  // esviaje: tablero de 40 × 8 m a cota 0 con terreno a −6 y dos muros de pila oblicuos a 30° (en s = 13 y 27 sobre el eje): se mide el ángulo y las pilas quedan en el eje
+  { const P = [], k30 = Math.tan(30 * Math.PI / 180); for (let s0 = 0; s0 <= 40; s0 += .25) for (let t = -4; t <= 4; t += .25) { P.push(s0, t, 0); P.push(s0, t, -6); }
+    for (const c of [13, 27]) for (let t = -4; t <= 4; t += .1) for (let z = -6; z <= -.8; z += .1) P.push(c + t * k30, t, z);
+    const Os = OPC.orient({ xyz: Float32Array.from(P), offset: [0, 0, 0], eje: 'x' }, 'z', 1), Ss = OPC.detectSupports(Os, 0, -6), pil = Ss.supports.filter(p => p.tipo === 'pilar').map(p => (p.a + p.b) / 2);
+    ok('Esviaje: ángulo de las pilas medido y pilas en el eje del tablero', Math.abs(Math.abs(Ss.skew) - 30) <= 2 && pil.length === 2 && Math.abs(pil[1] - pil[0] - 14) < .6, `esviaje ${Ss.skew}° · pilas ${pil.map(v => v.toFixed(1)).join(', ')}`); }
   ok('Eje: planta cuadrada marcada como dudosa; tramo recortado queda en x', Oq.ejeRatio < 3 && Ox.snap === 0, `cociente ${Oq.ejeRatio.toFixed(2)} · recortado: eje ${Ox.snap === 0 ? 'x' : '?'}`); }
 
 // 15. Campaña de registros: los modos que se repiten se separan del ruido que aparece y desaparece, y se estima el efecto de la temperatura

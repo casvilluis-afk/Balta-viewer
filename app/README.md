@@ -31,16 +31,16 @@ Todo se calcula en la computadora del usuario; ningún dato sale a internet.
 
 ## Detección de geometría probada con otros puentes
 
-Mismo código que usa la app para cualquier nube, sin ajustes por puente (banco de pruebas de la versión 2.3.0):
+Mismo código que usa la app para cualquier nube, sin ajustes por puente (banco de pruebas de la versión 2.4.0):
 
 | Nubes | Fuente | Resultado |
 |---|---|---|
-| 6 puentes de vigas, Corea (UAV LiDAR, etiquetados) | Zenodo 18531104, CC BY 4.0 | Pilares 9/9; 5 apoyos de más, todos marcados «confirme»; estribos 11/12 a menos de 3 m; tipología viga en los 6 |
-| 20 pasos superiores y pasarelas, Alemania y Reino Unido (láser terrestre) | Zenodo 18738225, CC BY 4.0; vanos según la tabla 3 de arXiv 2512.15369 | Número de vanos correcto en 12/20 sin intervención (13/20 recortando el tramo cuando la app lo pide); tipología viga en los 20, sin torres falsas |
+| 6 puentes de vigas, Corea (UAV LiDAR, etiquetados) | Zenodo 18531104, CC BY 4.0 | Esviaje a 0–3° del real (4 oblicuos, hasta 44°); pilares 8/8 en el eje del tablero; 4 apoyos de más, 3 marcados «confirme»; estribos 12/12 a menos de 3 m; tipología viga en los 6 |
+| 20 pasos superiores y pasarelas, Reino Unido y Alemania (láser terrestre) | Zenodo 18738225, CC BY 4.0; vanos según la tabla 3 de arXiv 2512.15369 | Número de vanos correcto en 18/20 sin intervención (12/20 en la 2.3.0); tipología viga en los 20, sin torres ni arcos falsos |
 | Armadura de acero, tranvía de Schipluiden (láser terrestre, nube limpia) | TU Delft, doi 10.4121/13626368, CC BY-NC 4.0 | Tipología armadura; tablero inferior reconocido; estribos en los extremos (59,9 m) |
 | Puente Balta (muestra TLS) | Primera parte de la tesis | Tipología arco; P1, P2 y estribo derecho |
 
-Fallan sobre todo los puentes esviados (las columnas de una pila aparecen corridas a lo largo del eje), los muros al final del tablero y la vegetación densa bajo el puente. Por eso el paso 2 siempre pide revisar los apoyos.
+Siguen fallando columnas muy delgadas junto a taludes densos (bridge_10) y la vegetación en los taludes (bridge_19); en bridge_1 el número de vanos coincide pero un pilar queda mal ubicado. Por eso el paso 2 siempre pide revisar los apoyos.
 
 ## Limitaciones conocidas
 

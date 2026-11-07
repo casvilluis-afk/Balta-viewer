@@ -6,7 +6,7 @@
    Web: los proyectos se guardan en IndexedDB de este navegador. Escritorio: además se abren y guardan como archivos .puente. */
 const PB = { active: 'balta', list: [], ready: false, confirmDel: null };
 const PB_OP0 = JSON.parse(JSON.stringify(OP));
-const PB_EST = ['step', 'deckTop', 'deckThick', 'ground', 'zSlab', 'supports', 'ends', 'type', 'band', 'minPts', 'geo', 'mat', 'P', 'Pedit', 'Psrc', 'nz', 'dx', 'camp', 'ia', 'geomOpt', 'geomUsed', 'name', 'up', 'unit'];
+const PB_EST = ['step', 'deckTop', 'deckThick', 'ground', 'zSlab', 'supports', 'ends', 'type', 'band', 'minPts', 'geo', 'mat', 'P', 'Pedit', 'Psrc', 'nz', 'dx', 'camp', 'ia', 'geomOpt', 'geomUsed', 'name', 'up', 'unit', 'skew', 'sinTerreno'];
 const PB_MAXP = 500000;
 const pbPlain = (k, v) => ArrayBuffer.isView(v) ? Array.from(v) : v;
 const pbB64 = u8 => { let s = ''; for (let i = 0; i < u8.length; i += 0x8000) s += String.fromCharCode.apply(null, u8.subarray(i, i + 0x8000)); return btoa(s); };
@@ -34,7 +34,7 @@ async function pbSaveCloud() { if (!OP.id || !OP.cloud) return; const c = OP.clo
   await PG_DB.set('nube:' + OP.id, { xyz: f, total: c.total, kept: c.kept, offset: c.offset, eje: c.eje || null }); }
 
 // reconstruye el modelo y los modos a partir del estado guardado (no se guardan matrices)
-function pbRebuild() { OP.O = OPC.orient(OP.cloud, OP.up || 'z', OP.unit || 1); OP.model = OP.modes = null;
+function pbRebuild() { OP.O = OPC.orient(OP.cloud, OP.up || 'z', OP.unit || 1); if (OP.skew) OP.O = OPC.applySkew(OP.O, OP.skew); OP.model = OP.modes = null;
   if (OP.geo && OP.P) { try { OP.model = OPC.build(OP.type, opModelG(), OP.P); OP.modes = OPC.modal(OP.model, 6); OP.modes.ms = 0; OP.modeSel = 0; } catch (e) { OP.model = OP.modes = null; } }
   if (!OP.modes) OP.camp = OP.ia = null;
   OP.step = Math.min(OP.step || 1, OP.ia ? 7 : OP.modes ? 5 : OP.geo ? 4 : OP.O ? 2 : 1); }
