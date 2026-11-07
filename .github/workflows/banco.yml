@@ -48,8 +48,8 @@ jobs:
           def leer(path):
               p = path.lower()
               if p.endswith('.ply'):
-                  v = PlyData.read(path)['vertex']; props = [q.name for q in v.properties]
-                  lab = next((q for q in props if q.lower() in ('label', 'class', 'scalar_label', 'classification', 'scalar_class', 'semantic', 'scalar_label_id')), None)
+                  pd = PlyData.read(path); v = next(e for e in pd.elements if all(k in [q.name for q in e.properties] for k in ('x', 'y', 'z'))); props = [q.name for q in v.properties]
+                  lab = next((q for q in props if any(t in q.lower() for t in ('label', 'class', 'semantic'))), None)
                   return np.vstack([v['x'], v['y'], v['z']]).T.astype(np.float64), (np.asarray(v[lab]) if lab else None), {'propiedades': props, 'etiqueta': lab}
               if p.endswith('.las') or p.endswith('.laz'):
                   import laspy; f = laspy.read(path); return np.vstack([f.x, f.y, f.z]).T, np.asarray(f.classification), {'formato': 'las'}
@@ -75,11 +75,11 @@ jobs:
                           z, m = it.split('|', 1)
                           with RemoteZip(Z2 + z + '?download=1') as rz: rz.extract(m, 'tmpx')
                           base = os.path.splitext(os.path.basename(m))[0].replace(' ', '_')
-                          xyz, lab, ex = leer(os.path.join('tmpx', m)); ex['zip'] = z; ex['miembro'] = m; guardar(base, xyz, lab, ex)
+                          xyz, lab, ex = leer(os.path.join('tmpx', m)); ex['zip'] = z; ex['miembro'] = m; ex['nombre_elemento'] = 'auto'; guardar(base, xyz, lab, ex)
                           os.remove(os.path.join('tmpx', m))
                       except Exception as e: info['errores'].append([it, repr(e), traceback.format_exc()[-1500:]])
           except Exception as e: info['errores'].append(['general', repr(e), traceback.format_exc()[-2000:]])
-          json.dump(info, open(f'out/info_{modo}.json', 'w'), indent=1)
+          json.dump(info, open(f'out/info_{modo}_' + os.environ.get('GITHUB_RUN_ID', '0') + '.json', 'w'), indent=1)
           PY
           ls -la out
       - name: Publicar (pre-release de datos, no es la app)
