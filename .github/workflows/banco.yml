@@ -64,6 +64,19 @@ jobs:
               sk = 1 if p.endswith('.pts') else 0
               a = pd.read_csv(path, sep=',' if p.endswith('.csv') else r'\s+', header=None, skiprows=sk, nrows=60000000, usecols=[0, 1, 2], dtype=np.float64, on_bad_lines='skip').to_numpy()
               return a[:, :3], None, {'formato': 'texto'}
+          import zipfile, shutil
+          PUNTOS = ('.ply', '.las', '.laz', '.e57', '.pts', '.xyz', '.txt', '.csv')
+          def desde_zip(f, base, extra):
+              # zip local: se listan sus archivos; los de nubes de puntos se leen y se juntan en una sola nube (registradas en el mismo sistema)
+              with zipfile.ZipFile(f) as z:
+                  L = [[q.filename, q.file_size] for q in z.infolist()]; info['items'][base + '_contenido'] = L
+                  pts = [q for q, sz in L if q.lower().endswith(PUNTOS) and sz > 1000]
+                  for q, sz in L:
+                      if q.lower().endswith(('.pdf', '.md', '.json')) and sz < 5e6: z.extract(q, 'tmpz'); shutil.copy(os.path.join('tmpz', q), 'out/' + base + '_' + os.path.basename(q).replace(' ', '_'))
+                  xs = []; ex = dict(extra); ex['archivos'] = pts
+                  for q in pts[:12]:
+                      z.extract(q, 'tmpz'); x, _, e = leer(os.path.join('tmpz', q)); xs.append(x); ex.setdefault('formatos', []).append(e); os.remove(os.path.join('tmpz', q))
+                  if xs: guardar(base, np.vstack(xs), None, ex)
           try:
               if modo == 'explorar':
                   from remotezip import RemoteZip
@@ -97,14 +110,19 @@ jobs:
                       try:
                           u, m = it.split('|', 1)
                           with RemoteZip(u) as rz: rz.extract(m, 'tmpx')
-                          base = os.path.splitext(os.path.basename(m))[0].replace(' ', '_')
-                          xyz, lab, ex = leer(os.path.join('tmpx', m)); ex['url'] = u; ex['miembro'] = m; guardar(base, xyz, lab, ex); os.remove(os.path.join('tmpx', m))
+                          f = os.path.join('tmpx', m); base = os.path.splitext(os.path.basename(m))[0].replace(' ', '_')
+                          if f.lower().endswith('.zip'): desde_zip(f, base, {'url': u, 'miembro': m})
+                          elif f.lower().endswith(PUNTOS): xyz, lab, ex = leer(f); ex['url'] = u; ex['miembro'] = m; guardar(base, xyz, lab, ex)
+                          else: shutil.copy(f, 'out/' + os.path.basename(f).replace(' ', '_'))
+                          os.remove(f)
                       except Exception as e: info['errores'].append([it, repr(e), traceback.format_exc()[-1500:]])
               elif modo == 'url':
                   for it in [p.strip() for p in os.environ['ARCH'].split(';') if p.strip()]:
                       try:
                           nm, u = it.split('|', 1); print('Descargando', u, flush=True); urllib.request.urlretrieve(u, nm)
-                          xyz, lab, ex = leer(nm); ex['url'] = u; guardar(os.path.splitext(nm)[0], xyz, lab, ex); os.remove(nm)
+                          if nm.lower().endswith('.zip'): desde_zip(nm, os.path.splitext(nm)[0], {'url': u})
+                          else: xyz, lab, ex = leer(nm); ex['url'] = u; guardar(os.path.splitext(nm)[0], xyz, lab, ex)
+                          os.remove(nm)
                       except Exception as e: info['errores'].append([it, repr(e), traceback.format_exc()[-1500:]])
           except Exception as e: info['errores'].append(['general', repr(e), traceback.format_exc()[-2000:]])
           json.dump(info, open(f'out/info_{modo}_' + os.environ.get('GITHUB_RUN_ID', '0') + '.json', 'w'), indent=1)
