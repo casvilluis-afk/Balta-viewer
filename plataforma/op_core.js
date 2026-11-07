@@ -126,13 +126,28 @@ function deckLevel(O) {
 }
 function groundLevel(O) { const a = []; for (let i = 0; i < O.n; i += 3) a.push(O.z[i]); return quantile(a, .001); }
 // apoyos: caras de pilares y estribos = bandas densas de puntos en una franja horizontal bajo los arranques (como pier_faces en geom.py)
+// perfil de la rodadura: tableros en pendiente (rampas, puentes peatonales) se siguen con una recta; si la pendiente es < 0,4 % se toma horizontal
+function deckProfile(O, deckTop) { const [sl, sh] = bounds(O.s), bw = 2, nb = Math.ceil((sh - sl) / bw) + 1, H = Array.from({ length: nb }, () => new Uint32Array(100)), lo = deckTop - 2.5;
+  for (let i = 0; i < O.n; i += 2) { const z = O.z[i]; if (z < lo || z >= deckTop + 2.5) continue; H[Math.floor((O.s[i] - sl) / bw)][Math.floor((z - lo) / .05)]++; }
+  const X = [], Y = []; H.forEach((h, k) => { let m = -1, v = 0; for (let j = 0; j < 100; j++) { const c = h[j] + (h[j - 1] || 0) + (h[j + 1] || 0); if (c > v) { v = c; m = j; } } if (v >= 30) { X.push(sl + (k + .5) * bw); Y.push(lo + (m + .5) * .05); } });
+  const flat = { slope: 0, at: () => deckTop }; if (X.length < 6) return flat;
+  let use = X.map(() => true), a = 0, b = deckTop;
+  for (let it = 0; it < 3; it++) { const xs = X.filter((_, i) => use[i]), ys = Y.filter((_, i) => use[i]), n = xs.length, mx = xs.reduce((p, q) => p + q, 0) / n, my = ys.reduce((p, q) => p + q, 0) / n;
+    let sxy = 0, sxx = 0; xs.forEach((x, i) => { sxy += (x - mx) * (ys[i] - my); sxx += (x - mx) ** 2; }); a = sxx ? sxy / sxx : 0; b = my - a * mx;
+    const r = X.map((x, i) => Math.abs(Y[i] - (a * x + b))), md = median(r) || .05; use = r.map(v => v <= Math.max(.15, 3 * md)); }
+  if (Math.abs(a) < .004) return flat; return { slope: a, at: s => a * s + b }; }
 function detectSupports(O, deckTop, ground, frac = 0.62, tol = 0.25) {
+  // 0) rodadura (recta si el tablero está en pendiente) y profundidad de cada punto bajo ella
+  const DP = deckProfile(O, deckTop), rel = i => O.z[i] - DP.at(O.s[i]);
   // 1) huella del tablero en planta (+1 m): fuera de ella quedan taludes y vegetación laterales. Con láser terrestre desde un lado se ven las caras laterales, por eso no se recorta más.
-  const dS = [], dT = []; for (let i = 0; i < O.n; i += 2) if (Math.abs(O.z[i] - deckTop) < .3) { dS.push(O.s[i]); dT.push(O.t[i]); }
+  const dS = [], dT = []; for (let i = 0; i < O.n; i += 2) if (Math.abs(rel(i)) < .3) { dS.push(O.s[i]); dT.push(O.t[i]); }
   const t0 = quantile(dT, .03), t1 = quantile(dT, .97), tm = (t0 + t1) / 2, th = (t1 - t0) / 2 + 1, d0 = quantile(dS, .005), d1 = quantile(dS, .995);
-  const core = i => Math.abs(O.t[i] - tm) <= th, H = deckTop - ground;
-  const zc = deckTop - frac * H, [sl, sh] = bounds(O.s), bw = 0.1, nb = Math.ceil((sh - sl) / bw) + 1;
-  const slice = (z0, tl) => { const h = new Float64Array(nb); for (let i = 0; i < O.n; i++) if (Math.abs(O.z[i] - z0) < tl && core(i)) h[Math.floor((O.s[i] - sl) / bw)]++; return h; };
+  const core = i => Math.abs(O.t[i] - tm) <= th;
+  // altura libre: si el punto más bajo de la nube (cauce, otra calzada) está muy por debajo del terreno típico bajo el tablero, los apoyos se buscan respecto del terreno típico
+  let H = deckTop - ground; { const dep = []; for (let k = 0; k < Math.ceil((d1 - d0) / 2); k++) dep.push([]); for (let i = 0; i < O.n; i += 3) { if (!core(i) || O.s[i] < d0 || O.s[i] >= d1) continue; const r = rel(i); if (r < -1.5) dep[Math.floor((O.s[i] - d0) / 2)].push(-r); }
+    const loc = dep.filter(a => a.length >= 20).map(a => quantile(a, .95)); if (loc.length >= 5) { const Hl = median(loc); if (H - Hl > 3 && Hl > 2) H = Hl; } }
+  const zc = -frac * H, [sl, sh] = bounds(O.s), bw = 0.1, nb = Math.ceil((sh - sl) / bw) + 1;
+  const slice = (z0, tl) => { const h = new Float64Array(nb); for (let i = 0; i < O.n; i++) if (Math.abs(rel(i) - z0) < tl && core(i)) h[Math.floor((O.s[i] - sl) / bw)]++; return h; };
   const h = slice(zc, tol);
   const sm = h.map((_, k) => (h[k - 1] || 0) * .25 + h[k] * .5 + (h[k + 1] || 0) * .25), nz = Array.from(sm).filter(v => v > 0);
   const thr = Math.max(2, 0.2 * quantile(nz.length ? nz : [0], .98));
@@ -140,7 +155,7 @@ function detectSupports(O, deckTop, ground, frac = 0.62, tol = 0.25) {
   for (let k = 0; k <= nb; k++) { const on = k < nb && sm[k] >= thr; if (on && a < 0) a = k; if (!on && a >= 0) { let m = a; for (let j = a; j < k; j++) if (sm[j] > sm[m]) m = j; let tot = 0; for (let j = a; j < k; j++) tot += h[j]; runs.push({ a: sl + a * bw, b: sl + k * bw, peak: sl + (m + .5) * bw, tot }); a = -1; } }
   // 2) un apoyo es un elemento vertical: debe aparecer también en cortes más altos (hacia el tablero) en la misma posición;
   //    el terreno inclinado o el talud cruzan cada corte en otra posición y se descartan
-  const hz = [deckTop - Math.min(.9, frac + .13) * H, deckTop - (frac - .12) * H].map(z => slice(z, tol)), occ = (hh, s0) => { let c = 0; for (let k = Math.max(0, Math.floor((s0 - 1.2 - sl) / bw)); k <= Math.min(nb - 1, Math.floor((s0 + 1.2 - sl) / bw)); k++) c += hh[k]; return c; };
+  const hz = [-Math.min(.9, frac + .13) * H, -(frac - .12) * H].map(z => slice(z, tol)), occ = (hh, s0) => { let c = 0; for (let k = Math.max(0, Math.floor((s0 - 1.2 - sl) / bw)); k <= Math.min(nb - 1, Math.floor((s0 + 1.2 - sl) / bw)); k++) c += hh[k]; return c; };
   const peakAt = (hh, s0) => { let m = -1, v = -1; for (let k = Math.max(0, Math.floor((s0 - 1.5 - sl) / bw)); k <= Math.min(nb - 1, Math.floor((s0 + 1.5 - sl) / bw)); k++) { const x = (hh[k - 1] || 0) + hh[k] + (hh[k + 1] || 0); if (x > v) { v = x; m = k; } } return sl + (m + .5) * bw; };
   // vegetación: aparece en varias alturas pero sin una cara alineada; un pilar o muro tiene su cara en la misma posición a todas las alturas
   const vert = r => { const o = hz.filter(hh => occ(hh, r.peak) >= Math.max(3, .15 * r.tot)), al = o.filter(hh => peakAt(hh, r.peak) >= r.a - .4 && peakAt(hh, r.peak) <= r.b + .4); return al.length >= 1 && o.length >= (H > 4 ? 2 : 1); };
@@ -149,11 +164,11 @@ function detectSupports(O, deckTop, ground, frac = 0.62, tol = 0.25) {
   const groups = []; big.forEach(r => { const g = groups[groups.length - 1]; if (g && r.peak - g[g.length - 1].peak <= 4.5) g.push(r); else groups.push([r]); });
   const sup = groups.map(g => ({ a: g[0].peak, b: g[g.length - 1].peak }));
   // es estribo si no hay tablero más allá; si el tablero sigue, es un pilar y el vano extremo se completa por simetría
-  const deckBeyond = (s0, dir) => { let c = 0; for (let i = 0; i < O.n; i++) if (Math.abs(O.z[i] - deckTop) < .3 && (dir < 0 ? O.s[i] < s0 - 5 : O.s[i] > s0 + 5)) c++; return c > 200; };
+  const deckBeyond = (s0, dir) => { let c = 0; for (let i = 0; i < O.n; i++) if (Math.abs(rel(i)) < .3 && (dir < 0 ? O.s[i] < s0 - 5 : O.s[i] > s0 + 5)) c++; return c > 200; };
   // 3) estribos en los extremos: donde el terreno bajo el tablero sube hasta cerca de la cara inferior (≤ 2,5 m bajo la rodadura)
   const gb = .5, gn = Math.ceil((d1 - d0) / gb), low = Array.from({ length: gn }, () => []);
-  for (let i = 0; i < O.n; i++) { if (!core(i) || O.s[i] < d0 || O.s[i] >= d1 || O.z[i] > deckTop - .6) continue; low[Math.floor((O.s[i] - d0) / gb)].push(O.z[i]); }
-  const gz = low.map(b => b.length >= 5 ? quantile(b, .05) : null), clear = k => gz[k] == null ? null : deckTop - gz[k], mid = sup.length ? (sup[0].a + sup[sup.length - 1].b) / 2 : (d0 + d1) / 2, km = Math.min(gn - 1, Math.max(0, Math.floor((mid - d0) / gb)));
+  for (let i = 0; i < O.n; i++) { if (!core(i) || O.s[i] < d0 || O.s[i] >= d1 || rel(i) > -.6) continue; low[Math.floor((O.s[i] - d0) / gb)].push(rel(i)); }
+  const gz = low.map(b => b.length >= 5 ? quantile(b, .05) : null), clear = k => gz[k] == null ? null : -gz[k], mid = sup.length ? (sup[0].a + sup[sup.length - 1].b) / 2 : (d0 + d1) / 2, km = Math.min(gn - 1, Math.max(0, Math.floor((mid - d0) / gb)));
   const edge = dir => { for (let k = km; k >= 0 && k < gn; k += dir) { const c = clear(k); if (c != null && c < 2.5) return d0 + (k + (dir > 0 ? 0 : 1)) * gb; } return dir > 0 ? d1 : d0; };
   const clearAt = s0 => { const k = Math.floor((s0 - d0) / gb); let best = null; for (let j = k - 2; j <= k + 2; j++) { const c = j >= 0 && j < gn ? clear(j) : null; if (c != null) best = best == null ? c : Math.min(best, c); } return best; };
   // en los extremos: estribo si más allá el terreno está cerca del tablero (terraplén) o no sigue el tablero; pilar si hay vano libre detrás
@@ -167,7 +182,7 @@ function detectSupports(O, deckTop, ground, frac = 0.62, tol = 0.25) {
     if (f.tipo === 'pilar') { const L = edgeFrom(f.a, -1); if (f.a - L > Math.max(6, .3 * (sup.length > 1 ? sup[1].a - f.b : 0))) sup.unshift({ a: L, b: L, tipo: 'estribo', auto: 'terreno' }); }
     if (l.tipo === 'pilar') { const R = edgeFrom(l.b, 1); if (R - l.b > Math.max(6, .3 * (sup.length > 1 ? l.a - sup[sup.length - 2].b : 0))) sup.push({ a: R, b: R, tipo: 'estribo', auto: 'terreno' }); } }
   // un "estribo" detectado dentro del tablero lejos de los extremos y con terreno libre debajo era talud: se descarta si hay un estribo por terreno más afuera
-  return { supports: sup, zSlab: zc, faces: big.map(r => r.peak), deck: [d0, d1], band: [tm - th, tm + th] };
+  return { supports: sup, zSlab: deckTop + zc, faces: big.map(r => r.peak), deck: [d0, d1], band: [tm - th, tm + th], slope: DP.slope };
 }
 function spansOf(sup) { const sp = []; for (let k = 0; k < sup.length - 1; k++) sp.push({ a: sup[k].b, b: sup[k + 1].a, k }); return sp; }
 
@@ -209,8 +224,26 @@ function archGeometry(O, span, zmin, zmax, minPts) {
   const zone = r => r < .15 || r > .85 ? 'arranque' : (r < .35 || r > .65) ? 'riñón' : 'clave', Cz = { arranque: [0, 0], 'riñón': [0, 0], clave: [0, 0] };
   for (let k = 0; k < nb; k++) { const z = zone((k + .5) / nb); Cz[z][0] += obs[k]; Cz[z][1]++; }
   const rms = Math.sqrt(median(E.zc.map((v, i) => (v - polyval(c, E.yc[i])) ** 2).filter((_, i) => F.inliers[i])));
+  // control de calidad: una parábola que no sigue los puntos (terreno, vegetación, vigas) no es un arco
+  const rise0 = polyval(c, yv) - zs;
+  if (rms > Math.max(.15, .006 * L) || rise0 / L > .45 || rise0 / L < .03) return { ok: false, E, msg: `Los puntos bajo el tablero no forman un arco (error del ajuste ${(100 * rms).toFixed(0)} cm, flecha/luz ${(rise0 / L).toFixed(2)}). ¿Es un puente de vigas o armadura?` };
   return { ok: true, E, coef: c, inliers: F.inliers, vertexY: yv, rise: polyval(c, yv) - zs, L, rms, obs: Array.from(obs),
     completeness: { total: obs.reduce((a, b) => a + b, 0) / nb, arranque: Cz.arranque[0] / Cz.arranque[1], 'riñón': Cz['riñón'][0] / Cz['riñón'][1], clave: Cz.clave[0] / Cz.clave[1] } };
+}
+// sugerencia de tipología a partir de la nube (orientativa; el usuario decide):
+// arco si la parábola del intradós ajusta bien en los vanos; armadura si hay barras continuas 2,5–7 m sobre el tablero;
+// torre alta sobre el tablero → posible puente atirantado o colgante (no soportado); si no, vigas.
+function suggestType(O, deckTop, ground, sup, band, minPts, ends) {
+  const [s0, s1] = bounds(O.s), nb = Math.max(1, Math.round((s1 - s0) / .5)), hiTr = new Uint16Array(nb), hiTw = new Uint16Array(nb);
+  for (let i = 0; i < O.n; i++) { const k = Math.min(nb - 1, Math.floor((O.s[i] - s0) / .5)), dz = O.z[i] - deckTop; if (dz > 2.5 && dz < 7) hiTr[k]++; if (dz > 12) hiTw[k]++; }
+  const occ = a => a.filter(v => v >= 3).length / nb, tower = occ(hiTw);
+  let arcoOk = false, arcs = null;
+  try { arcs = archAll(O, sup, band.zmin, band.zmax, minPts, ends); arcoOk = arcs.length > 0 && arcs.every(a => a.ok); } catch (e) {}
+  const why = [];
+  if (tower > .01) why.push('hay estructura alta sobre el tablero (torre o pilono)');
+  if (arcoOk) return { tipo: 'arco', atirantado: tower > .01, why: ['los puntos bajo el tablero forman arcos'].concat(why) };
+  if (occ(hiTr) > .6 && tower <= .01) return { tipo: 'armadura', atirantado: false, why: ['hay barras continuas entre 2,5 y 7 m sobre el tablero'] };
+  return { tipo: 'viga', atirantado: tower > .01, why: ['bajo el tablero no hay arcos'].concat(why) };
 }
 // arcos de todos los vanos. Los vanos extremos sin estribo detectado se cierran por simetría respecto de la clave ajustada.
 function archAll(O, supports, zmin, zmax, minPts, ends = { left: 'simetria', right: 'simetria' }) {
@@ -912,7 +945,7 @@ function maintenancePlan(els, { years = 20, budget = 0, thr = 60 } = {}) { const
   const life = arr => { const k = arr.findIndex(v => v != null && v < thr); return k < 0 ? null : k; };
   return { plan, hi, hi0, total, vidaSin: life(hi0), vidaCon: life(hi) }; }
 
-return { fftInPlace, detrend, csdMatrix, fdd, efdd, fddModes, pickPeaks, staticPrep, fiberStress, influence, HL93, hl93Extremes, liveLoad, CS_WF, pTrans, markovStep, elemHI, bridgeHI, calibrateAlpha, maintenancePlan, Dxf, bridgePlans, sensorsOf, readAccel, sdof, spectrum, seismic, freqCampaign, geomSigmas, perturbGeom, archRise, peakCampaign, csdAverage, calibrateModel, nelderMead, trainFreqIA, trainVecIA, trainModalIA, modalFeat, modalMeasFeat, modalMeasFeatBase, freqPredict, build, modal, archAll, parseCloud, orient, bounds, deckLevel, groundLevel, detectSupports, spansOf, envelope, fitParabola, polyval, archGeometry, spanCoverage, MATERIALS,
+return { fftInPlace, detrend, csdMatrix, fdd, efdd, fddModes, pickPeaks, staticPrep, fiberStress, influence, HL93, hl93Extremes, liveLoad, CS_WF, pTrans, markovStep, elemHI, bridgeHI, calibrateAlpha, maintenancePlan, Dxf, bridgePlans, sensorsOf, readAccel, sdof, spectrum, seismic, freqCampaign, suggestType, geomSigmas, perturbGeom, archRise, peakCampaign, csdAverage, calibrateModel, nelderMead, trainFreqIA, trainVecIA, trainModalIA, modalFeat, modalMeasFeat, modalMeasFeatBase, freqPredict, build, modal, archAll, parseCloud, orient, bounds, deckLevel, groundLevel, detectSupports, spansOf, envelope, fitParabola, polyval, archGeometry, spanCoverage, MATERIALS,
   build, sensorsOf, modal, signConvention, features, campaign, trainIA, forestPredict, LEVELS, noisy, mulberry, gaussR, quantile, median };
 })();
 if (typeof module !== 'undefined') module.exports = OPC;

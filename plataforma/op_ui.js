@@ -53,15 +53,47 @@ function opNube() {
 function opSetCloud(c, name, minPts) {
   OP.cloud = c; OP.name = String(name).replace(/\.[a-z0-9]+$/i, '').replace(/[_-]+/g, ' ').replace(/\s+\d+([.,]\d+)?\s*[mk]\b/i, '').trim() || name; OP.up = $('#opUp').value; OP.unit = +$('#opUnit').value; OP.O = OPC.orient(c, OP.up, OP.unit); OP.minPts = Math.max(3, Math.round(minPts));
   OP.deckTop = OPC.deckLevel(OP.O); OP.ground = OPC.groundLevel(OP.O); const S = OPC.detectSupports(OP.O, OP.deckTop, OP.ground); OP.supports = S.supports.map(p => ({ ...p })); OP.zSlab = S.zSlab; const sp = OP.supports; OP.ends = { left: sp.length && sp[0].tipo === 'estribo' ? 'none' : 'simetria', right: sp.length && sp[sp.length - 1].tipo === 'estribo' ? 'none' : 'simetria' };
-  OP.band = { zmin: OP.ground + .2 * (OP.deckTop - OP.ground), zmax: OP.deckTop - .38 }; OP.geo = OP.model = OP.modes = OP.camp = OP.ia = null;
+  OP.band = { zmin: OP.ground + .2 * (OP.deckTop - OP.ground), zmax: OP.deckTop - .38 }; OP.geo = OP.model = OP.modes = OP.camp = OP.ia = OP.sug = null;
   $('#opLoad').textContent = ''; opInfo(); vTu();
 }
 function opInfo() { if (!OP.O || !$('#opInfo')) return; const [s0, s1] = OPC.bounds(OP.O.s), [z0, z1] = OPC.bounds(OP.O.z);
   $('#opInfo').innerHTML = `<div class="doc"><div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;align-items:baseline"><label class="f" style="flex:1;min-width:220px;max-width:420px">Nombre del puente<input id="opName" value="${esc(OP.name)}" placeholder="Ej.: Puente Balta"></label><span class="mono dim" style="font-size:.76rem">${OP.cloud.kept.toLocaleString('es-ES')} puntos usados de ${OP.cloud.total.toLocaleString('es-ES')}</span></div>
    <div class="tw"><table class="data"><tbody><tr><td>Longitud</td><td class="n">${fmt(s1 - s0, 2)} m</td><td>Desnivel</td><td class="n">${fmt(z1 - z0, 2)} m</td><td>Eje longitudinal</td><td class="n">${OP.O.snap == null ? 'girado ' + fmt(OP.O.angleDeg, 1) + '°' : (OP.O.snap === 0 ? 'eje x de la nube' : 'eje y de la nube')}</td></tr></tbody></table></div>
-   <canvas id="opElev" style="width:100%;height:280px;display:block;background:var(--sheet);border:1px solid var(--rule)"></canvas><p class="help">Elevación de la nube (densidad de puntos). Escala vertical exagerada para ver los arcos y apoyos.</p></div>${opNext()}`;
-  opDrawElev({}); opBindNext();
+   ${(() => { const [t0, t1] = OPC.bounds(OP.O.t), r = (t1 - t0) / (s1 - s0); return r > .45 && !OP.cloudFull ? `<div class="msg warn"><b>La nube parece incluir más que un tramo recto del puente</b> (${fmt(t1 - t0, 0)} m de ancho para ${fmt(s1 - s0, 0)} m de largo). La app analiza un tramo recto: márquelo en la planta y pulse «Recortar».</div>` : ''; })()}
+   <h3>Elevación</h3><canvas id="opElev" style="width:100%;height:260px;display:block;background:var(--sheet);border:1px solid var(--rule)"></canvas>
+   <h3>Planta</h3><canvas id="opPlan" style="width:100%;height:240px;display:block;background:var(--sheet);border:1px solid var(--rule);cursor:crosshair"></canvas>
+   <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:end;margin-top:6px"><span class="help keep" style="flex:1;min-width:220px">${OP.crop && OP.crop.b ? 'Tramo marcado. Ajuste el ancho y pulse «Recortar».' : OP.crop && OP.crop.a ? 'Ahora haga clic en el otro extremo del tramo.' : 'Para analizar solo un tramo recto: haga clic en la planta en un extremo del tramo y luego en el otro.'}</span>
+    <label class="f" style="width:150px">Ancho del tramo (m)<input type="number" id="opCropW" min="2" step="1" value="${OP.cropW || 16}"></label>
+    <button class="btn" id="opCropGo" ${OP.crop && OP.crop.b ? '' : 'disabled'}>Recortar</button>${OP.cloudFull ? '<button class="btn line" id="opCropUndo">Volver a la nube completa</button>' : ''}</div></div>${opNext()}`;
+  opDrawElev({}); opDrawPlan(); opBindNext();
+  const pc = $('#opPlan'); pc.onclick = e => { const M = OP._pm, r = pc.getBoundingClientRect(), dpr = pc.width / r.width, p = [M.S((e.clientX - r.left) * dpr), M.T((e.clientY - r.top) * dpr)];
+    if (!OP.crop || OP.crop.b) OP.crop = { a: p, b: null }; else OP.crop.b = p; opInfo(); };
+  $('#opCropW').onchange = e => { OP.cropW = Math.max(2, +e.target.value || 16); opDrawPlan(); };
+  $('#opCropGo').onclick = opCrop; const un = $('#opCropUndo'); if (un) un.onclick = opCropUndo;
   const nm = $('#opName'); if (nm) nm.onchange = () => { const v = nm.value.trim(); if (v) { OP.name = v; if (typeof pbSaveNow === 'function') pbSaveNow().then(() => { if (typeof statusBar === 'function') statusBar(); }); } }; }
+
+/* ---------- planta y recorte de un tramo recto (nubes con accesos, curvas o varios puentes) ---------- */
+function opDrawPlan() { const cv = $('#opPlan'); if (!cv) return; const [s0, s1] = OPC.bounds(OP.O.s), [t0, t1] = OPC.bounds(OP.O.t), dpr = Math.min(2, devicePixelRatio || 1);
+  cv.style.height = Math.max(140, Math.min(420, cv.clientWidth * (t1 - t0) / (s1 - s0) + 30)) + 'px'; cv.width = cv.clientWidth * dpr; cv.height = cv.clientHeight * dpr;
+  const W = cv.width, H = cv.height, pad = 14 * dpr, k = Math.min((W - 2 * pad) / (s1 - s0), (H - 2 * pad) / (t1 - t0)), ox = (W - (s1 - s0) * k) / 2, oy = (H - (t1 - t0) * k) / 2;
+  const M = OP._pm = { X: s => ox + (s - s0) * k, Y: t => H - oy - (t - t0) * k, S: x => s0 + (x - ox) / k, T: y => t0 + (H - oy - y) / k };
+  const g = cv.getContext('2d'), acc = new Float32Array(W * H); for (let i = 0; i < OP.O.n; i++) { const x = Math.round(M.X(OP.O.s[i])), y = Math.round(M.Y(OP.O.t[i])); if (x >= 0 && x < W && y >= 0 && y < H) acc[y * W + x]++; }
+  let mx = 0; for (const v of acc) if (v > mx) mx = v; const lm = Math.log1p(mx), img = g.createImageData(W, H), ink = hex(css('--ink')), bg = hex(css('--sheet'));
+  for (let i = 0; i < acc.length; i++) { const t = acc[i] ? .2 + .8 * Math.log1p(acc[i]) / lm : 0; for (let q = 0; q < 3; q++) img.data[4 * i + q] = Math.round(bg[q] + (ink[q] - bg[q]) * t); img.data[4 * i + 3] = 255; }
+  g.putImageData(img, 0, 0); const C = OP.crop; g.fillStyle = g.strokeStyle = css('--red'); g.lineWidth = 2 * dpr;
+  if (C && C.a) { g.beginPath(); g.arc(M.X(C.a[0]), M.Y(C.a[1]), 4 * dpr, 0, 7); g.fill(); }
+  if (C && C.b) { const dx = C.b[0] - C.a[0], dy = C.b[1] - C.a[1], L = Math.hypot(dx, dy) || 1, nx = -dy / L * (OP.cropW || 16) / 2, ny = dx / L * (OP.cropW || 16) / 2;
+    g.beginPath(); g.arc(M.X(C.b[0]), M.Y(C.b[1]), 4 * dpr, 0, 7); g.fill(); g.globalAlpha = .18; g.beginPath();
+    [[C.a[0] + nx, C.a[1] + ny], [C.b[0] + nx, C.b[1] + ny], [C.b[0] - nx, C.b[1] - ny], [C.a[0] - nx, C.a[1] - ny]].forEach(([s, t], i) => i ? g.lineTo(M.X(s), M.Y(t)) : g.moveTo(M.X(s), M.Y(t))); g.closePath(); g.fill(); g.globalAlpha = 1; g.stroke(); } }
+function opCrop() { const C = OP.crop, w = (OP.cropW || 16) / 2, O = OP.O, dx = C.b[0] - C.a[0], dy = C.b[1] - C.a[1], L = Math.hypot(dx, dy); if (L < 5) { toast('El tramo marcado es muy corto.'); return; }
+  const ux = dx / L, uy = dy / L, out = [];
+  for (let i = 0; i < O.n; i++) { const ds = O.s[i] - C.a[0], dt = O.t[i] - C.a[1], u = ds * ux + dt * uy, v = -ds * uy + dt * ux; if (u >= -1 && u <= L + 1 && Math.abs(v) <= w) out.push(u, v, O.z[i]); }
+  if (out.length < 3 * 5000) { toast('Quedan muy pocos puntos en el tramo marcado.'); return; }
+  if (!OP.cloudFull) OP.cloudFull = { cloud: OP.cloud, up: OP.up, unit: OP.unit };
+  const nm = OP.name; OP.crop = null; $('#opUp').value = 'z'; $('#opUnit').value = '1';
+  opSetCloud({ xyz: Float32Array.from(out), total: OP.cloud.total, kept: out.length / 3, offset: [0, 0, 0] }, nm, OP.minPts);
+  toast(`Tramo recortado: ${fmt(L, 1)} m de largo, ${(out.length / 3).toLocaleString('es-ES')} puntos.`); }
+function opCropUndo() { const F = OP.cloudFull; if (!F) return; const nm = OP.name; OP.cloudFull = null; OP.crop = null; $('#opUp').value = F.up; $('#opUnit').value = String(F.unit); opSetCloud(F.cloud, nm, OP.minPts); }
 
 /* ---------- dibujo de la elevación ---------- */
 function opMap(cv) { const [s0, s1] = OPC.bounds(OP.O.s), z0 = Math.min(OP.ground, OPC.bounds(OP.O.z)[0]), z1 = OPC.bounds(OP.O.z)[1], pad = 30, W = cv.width, H = cv.height;
@@ -85,6 +117,7 @@ function opRightHelp(t) { $('#right').innerHTML = `<div class="ph">Ayuda</div><d
 
 /* ---------- 2 · Tablero y apoyos ---------- */
 function opApoyos() {
+  OP.sug = null;
   $('#canvas').innerHTML = `<div class="doc"><h2>2 · Tablero y apoyos</h2>
    <p>La plataforma estima la superficie del tablero y las caras de pilares y estribos. Revise los valores sobre la elevación y corríjalos si hace falta. Para agregar un apoyo, haga clic en la elevación.</p>
    <canvas id="opElev" style="width:100%;height:300px;display:block;background:var(--sheet);border:1px solid var(--rule);cursor:crosshair"></canvas>
@@ -115,7 +148,10 @@ function opSupTable() {
 
 /* ---------- 3 · Geometría y completitud ---------- */
 function opGeometria() {
-  $('#canvas').innerHTML = `<div class="doc"><h2>3 · Geometría</h2>
+  // la app propone el tipo de puente a partir de la nube (una vez por nube); el usuario puede cambiarlo
+  if (!OP.sug) { try { OP.sug = OPC.suggestType(OP.O, OP.deckTop, OP.ground, OP.supports.slice().sort((p, q) => p.a - q.a), OP.band, OP.minPts, OP.ends); if (!OP.geo) OP.type = OP.sug.tipo; } catch (e) { OP.sug = { tipo: OP.type, why: [] }; } }
+  const sg = OP.sug, sgMsg = sg && sg.why.length ? `<div class="msg ${sg.atirantado ? 'warn' : ''}">${sg.atirantado ? `<b>Parece un puente atirantado o colgante</b> (${sg.why.join('; ')}). La app no modela cables ni torres: el resultado solo representará los tramos apoyados en pilares. Si la nube trae varios tramos, recorte en el paso 1 el que quiera analizar.` : `Según la nube parece un puente de <b>${OP_TYPES[sg.tipo].toLowerCase()}</b> (${sg.why.join('; ')}). Cámbielo si no es así.`}</div>` : '';
+  $('#canvas').innerHTML = `<div class="doc"><h2>3 · Geometría</h2>${sgMsg}
    <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:end"><label class="f" style="width:260px">Tipo de puente<select id="opType">${Object.entries(OP_TYPES).map(([k, l]) => `<option value="${k}" ${k === OP.type ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
     <button class="btn pri" id="opGo">Calcular geometría</button></div>
    <details class="adv"><summary>Más opciones</summary><div style="display:flex;gap:12px;flex-wrap:wrap;align-items:end;padding-top:6px">
@@ -141,7 +177,7 @@ function opGeoShow() {
     ov = (g, M, dpr) => { G.arches.forEach(a => { if (!a.E) return; g.fillStyle = css('--blue'); a.E.yc.forEach((y, i) => { g.fillRect(M.X(y) - dpr, M.Z(a.E.zc[i]) - dpr, 2 * dpr, 2 * dpr); });
       if (a.ok) { g.strokeStyle = css('--red'); g.lineWidth = 2 * dpr; g.beginPath(); for (let k = 0; k <= 60; k++) { const y = a.a + (a.b - a.a) * k / 60, x = M.X(y), z = M.Z(OPC.polyval(a.coef, y)); k ? g.lineTo(x, z) : g.moveTo(x, z); } g.stroke(); } }); };
     $('#opGeoOut').innerHTML = `<h3>Arcos ajustados</h3><div class="tw"><table class="data"><thead><tr><th>Arco</th><th class="n">Desde (m)</th><th class="n">Hasta (m)</th><th class="n">Luz (m)</th><th class="n">Flecha (m)</th><th class="n">f/L</th><th class="n">RMS (cm)</th><th class="n">Compl. total</th><th class="n">Arranques</th><th class="n">Riñones</th><th class="n">Clave</th></tr></thead><tbody>${G.arches.map((a, i) => a.ok ? `<tr${a.completeness.total < .5 ? ' class="hl"' : ''}><td>Arco ${i + 1}${a.symmetric ? ' <span class="dim">(luz por simetría)</span>' : ''}</td><td class="n">${fmt(a.a, 2)}</td><td class="n">${fmt(a.b, 2)}</td><td class="n">${fmt(a.L, 2)}</td><td class="n">${fmt(a.rise, 2)}</td><td class="n">1/${fmt(a.L / a.rise, 1)}</td><td class="n">${fmt(100 * a.rms, 2)}</td><td class="n">${pct(a.completeness.total, 0)}</td><td class="n">${pct(a.completeness.arranque, 0)}</td><td class="n">${pct(a.completeness['riñón'], 0)}</td><td class="n">${pct(a.completeness.clave, 0)}</td></tr>` : `<tr class="hl"><td>Arco ${i + 1}</td><td colspan="10">${esc(a.msg || 'No se pudo ajustar')}. Revise los apoyos o la franja de búsqueda.</td></tr>`).join('')}</tbody></table></div>
-      <p class="help">Puntos azules: envolvente del intradós. Línea roja: parábola robusta.</p>${G.ok ? opGeoUncBlock() : ''}${G.ok ? '' : '<div class="msg crit"><b>Hay arcos sin ajustar.</b> Corrija apoyos o franja antes de continuar.</div>'}`;
+      <p class="help">Puntos azules: envolvente del intradós. Línea roja: parábola robusta.</p>${G.ok ? opGeoUncBlock() : ''}${G.ok ? '' : '<div class="msg crit"><b>Hay arcos sin ajustar.</b> Si el puente no es de arcos, elija otro tipo arriba. Si lo es, revise los apoyos (paso 2) o la franja de búsqueda (Más opciones).</div>'}`;
   } else {
     ov = (g, M, dpr) => { g.strokeStyle = css('--blue'); g.setLineDash([4 * dpr, 3 * dpr]); [OP.band.zmin, OP.band.zmax].forEach(z => { g.beginPath(); g.moveTo(M.X(M.s0), M.Z(z)); g.lineTo(M.X(M.s1), M.Z(z)); g.stroke(); }); g.setLineDash([]); };
     $('#opGeoOut').innerHTML = `<h3>Vanos</h3><div class="tw"><table class="data"><thead><tr><th>Vano</th><th class="n">Desde (m)</th><th class="n">Hasta (m)</th><th class="n">Luz (m)</th><th class="n">Cobertura bajo el tablero</th></tr></thead><tbody>${G.spans.map((s, i) => `<tr><td>Vano ${i + 1}</td><td class="n">${fmt(s.a, 2)}</td><td class="n">${fmt(s.b, 2)}</td><td class="n">${fmt(s.b - s.a, 2)}</td><td class="n">${pct(s.coverage, 0)}</td></tr>`).join('')}</tbody></table></div><p class="help">Para vigas y armaduras la luz se mide entre centros de apoyo en el modelo.</p>${opGeoUncBlock()}`;
@@ -207,7 +243,7 @@ function opFrameSVG(fr, phi, hl) {
 /* ---------- 5 · Entrenar la IA (Web Worker) ---------- */
 let OP_CORE_SRC = null;
 async function opWorker() {
-  if (!OP_CORE_SRC) OP_CORE_SRC = await fetch('op_core.js?v=2.1.0').then(r => { if (!r.ok) throw new Error('No se encontró op_core.js'); return r.text(); });
+  if (!OP_CORE_SRC) OP_CORE_SRC = await fetch('op_core.js?v=2.2.0').then(r => { if (!r.ok) throw new Error('No se encontró op_core.js'); return r.text(); });
   const src = OP_CORE_SRC + `\nself.onmessage = e => { const m = e.data; try {
     const camp = OPC.campaign(m.type, m.G, m.P, m.opts, (q, s) => self.postMessage({ kind: 'prog', stage: 'Simulaciones de daño', q, s }));
     self.postMessage({ kind: 'prog', stage: 'Entrenando la IA', q: 0 });
