@@ -1,6 +1,6 @@
 # Banco de nubes de puentes para probar la detección de geometría de PuenteGemelo.
 # Fuentes abiertas (CC BY 4.0): Zenodo 18531104 (UAV LiDAR, 6 puentes de Corea, con etiquetas) y Zenodo 18738225 (Real 3D point clouds of bridges, TLS y MLS).
-# Modos: explorar (lista el contenido de los zip de 18738225) · coreanos (6 puentes con etiquetas) · extraer (archivos elegidos de un zip de 18738225)
+# Modos: zipcada (cada nube de un zip por separado) · explorar (lista el contenido de los zip de 18738225) · coreanos (6 puentes con etiquetas) · extraer (archivos elegidos de un zip de 18738225)
 # · listar (contenido de un zip remoto: archivos = url) · zipurl (miembros de un zip remoto: url|miembro;...) · url (descarga directa: nombre|url;...).
 # Otras fuentes usadas: ArchScanLib, U. de Cambridge (doi 10.17863/CAM.114586, CC BY 4.0); Tram bridge Schipluiden, TU Delft (doi 10.4121/13626368, CC BY-NC 4.0).
 name: Banco de nubes
@@ -8,7 +8,7 @@ on:
   workflow_dispatch:
     inputs:
       modo:
-        description: 'explorar | coreanos | extraer | listar | zipurl | url'
+        description: 'explorar | coreanos | extraer | listar | zipurl | zipcada | url'
         default: 'explorar'
       archivos:
         description: 'coreanos: nombres separados por ; · extraer: zip|miembro;zip|miembro'
@@ -51,8 +51,14 @@ jobs:
               p = path.lower()
               if p.endswith('.ply'):
                   pd = PlyData.read(path); v = next(e for e in pd.elements if all(k in [q.name for q in e.properties] for k in ('x', 'y', 'z'))); props = [q.name for q in v.properties]
-                  lab = next((q for q in props if any(t in q.lower() for t in ('label', 'class', 'semantic'))), None)
-                  return np.vstack([v['x'], v['y'], v['z']]).T.astype(np.float64), (np.asarray(v[lab]) if lab else None), {'propiedades': props, 'etiqueta': lab}
+                  els = {e.name: [[q.name, str(q.val_dtype)] for q in e.properties] + [len(e.data)] for e in pd.elements}
+                  lab = next((q for q in props if any(t in q.lower() for t in ('label', 'class', 'semantic', 'scalar'))), None); L = np.asarray(v[lab]) if lab else None
+                  if L is None:
+                      # etiquetas en otro elemento con el mismo número de puntos
+                      for e in pd.elements:
+                          if e is not v and len(e.data) == len(v.data) and len(e.properties) >= 1:
+                              q = next((q.name for q in e.properties if any(t in q.name.lower() for t in ('label', 'class', 'semantic'))), e.properties[0].name); L = np.asarray(e[q]); lab = e.name + '.' + q; break
+                  return np.vstack([v['x'], v['y'], v['z']]).T.astype(np.float64), L, {'propiedades': props, 'etiqueta': lab, 'elementos': els}
               if p.endswith('.las') or p.endswith('.laz'):
                   import laspy; f = laspy.read(path); return np.vstack([f.x, f.y, f.z]).T, np.asarray(f.classification), {'formato': 'las'}
               if p.endswith('.e57'):
@@ -116,6 +122,18 @@ jobs:
                           else: shutil.copy(f, 'out/' + os.path.basename(f).replace(' ', '_'))
                           os.remove(f)
                       except Exception as e: info['errores'].append([it, repr(e), traceback.format_exc()[-1500:]])
+              elif modo == 'zipcada':
+                  # ARCH = URL del zip | filtro opcional (texto que debe contener el nombre) | máximo de nubes
+                  u, *rest = [x.strip() for x in os.environ['ARCH'].split('|')]; filt = rest[0] if rest else ''; mx = int(rest[1]) if len(rest) > 1 else 40
+                  urllib.request.urlretrieve(u, 'z.zip')
+                  with zipfile.ZipFile('z.zip') as z:
+                      L = [[q.filename, q.file_size] for q in z.infolist()]; info['items']['_contenido'] = L
+                      pts = [q for q, sz in L if q.lower().endswith(PUNTOS) and sz > 1000 and filt in q][:mx]
+                      for q in pts:
+                          try:
+                              z.extract(q, 'tmpz'); xyz, lab, ex = leer(os.path.join('tmpz', q)); ex['miembro'] = q; os.remove(os.path.join('tmpz', q))
+                              guardar(os.path.splitext(os.path.basename(q))[0], xyz, lab, ex)
+                          except Exception as e: info['errores'].append([q, repr(e), traceback.format_exc()])
               elif modo == 'url':
                   for it in [p.strip() for p in os.environ['ARCH'].split(';') if p.strip()]:
                       try:
