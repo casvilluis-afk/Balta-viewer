@@ -129,6 +129,14 @@ ok('Modelo C: 20 zonas de daño (15 de arcos, 3 de tablero y 2 de pilares por so
     for (const c of [0, 40]) for (let t = -4; t <= 4; t += .1) for (let z = -6; z <= -.4; z += .1) Q.push(c, t, z);
     const Oh = OPC.orient({ xyz: Float32Array.from(Q), offset: [0, 0, 0], eje: 'x' }, 'z', 1), H = OPC.estribosHueco(Oh, 0, -6, [{ a: -4, b: -4, tipo: 'estribo' }, { a: 19.6, b: 20.4, tipo: 'pilar' }, { a: 44, b: 44, tipo: 'estribo' }]), e = H.supports.filter(p => p.tipo === 'estribo').map(p => p.a);
     ok('Fin del hueco: estribos movidos a la cara (0 y 40 m)', e.length === 2 && Math.abs(e[0]) < .8 && Math.abs(e[1] - 40) < .8, e.map(v => v.toFixed(1)).join(', ')); }
+  // Superestructura sobre el tablero: arco fino y simétrico → arco superior; mástil con cables rectos → atirantado; tablero solo → nada
+  { const base = () => { const Q = []; for (let s0 = 0; s0 <= 200; s0 += .5) for (let t = -6; t <= 6; t += .5) { Q.push(s0, t, 0); Q.push(s0, t, -12); } return Q; };
+    const A = base(); for (let s0 = 40; s0 <= 160; s0 += .25) { const z = 30 * (1 - ((s0 - 100) / 60) ** 2); for (const t of [-6, 6]) for (let d = 0; d < .8; d += .2) A.push(s0, t, z - d); if (Math.abs(s0 % 8) < .2) for (let z2 = 1; z2 < z; z2 += .3) { A.push(s0, -6, z2); A.push(s0, 6, z2); } }
+    const C = base(); for (const m of [60, 140]) { for (let z = 0; z <= 45; z += .2) for (let d = -.5; d <= .5; d += .25) C.push(m + d, 0, z); for (let k = 1; k <= 8; k++) { const sx = 4.5 * k; for (let u = 0; u <= 1; u += .005) { C.push(m - sx * u, 0, 45 - 45 * u + 1e-3); C.push(m + sx * u, 0, 45 - 45 * u + 1e-3); } } }
+    const G = OPC => (Q) => { const Oq = OPC.orient({ xyz: Float32Array.from(Q), offset: [0, 0, 0], eje: 'x' }, 'z', 1); return OPC.superestructura(Oq, 0, -12); };
+    const ra = G(OPC)(A), rc = G(OPC)(C), r0 = G(OPC)(base());
+    ok('Superestructura: arco sobre el tablero, pilonos con cables y tablero solo', ra.some(x => x.tipo === 'arco_superior' && Math.abs(x.altura - 30) < 2) && rc.filter(x => x.tipo === 'atirantado').length === 2 && !r0.length,
+      `arco: ${ra.map(x => x.tipo + ' ' + x.altura).join(', ')} · atirantado: ${rc.map(x => x.tipo + ' ' + x.pilonos.map(p => p.s).join('/')).join(', ')}`); }
   ok('Eje: planta cuadrada marcada como dudosa; tramo recortado queda en x', Oq.ejeRatio < 3 && Ox.snap === 0, `cociente ${Oq.ejeRatio.toFixed(2)} · recortado: eje ${Ox.snap === 0 ? 'x' : '?'}`); }
 
 // 15. Campaña de registros: los modos que se repiten se separan del ruido que aparece y desaparece, y se estima el efecto de la temperatura
