@@ -53,9 +53,31 @@ function opNube() {
 function opSetCloud(c, name, minPts) {
   OP.cloud = c; OP.name = String(name).replace(/\.[a-z0-9]+$/i, '').replace(/[_-]+/g, ' ').replace(/\s+\d+([.,]\d+)?\s*[mk]\b/i, '').trim() || name; OP.up = $('#opUp').value; OP.unit = +$('#opUnit').value; OP.O = OPC.orient(c, OP.up, OP.unit); OP.minPts = Math.max(3, Math.round(minPts));
   OP.deckTop = OPC.deckLevel(OP.O); OP.ground = OPC.groundLevel(OP.O); const S = OPC.detectSupports(OP.O, OP.deckTop, OP.ground); OP.skew = S.skew ? { phi: S.skew, tm: S.skewTm } : null; if (OP.skew) OP.O = OPC.applySkew(OP.O, OP.skew); OP.supports = S.supports.map(p => ({ ...p })); OP.zSlab = S.zSlab; OP.sinTerreno = !!S.sinTerreno; const sp = OP.supports; OP.ends = { left: sp.length && sp[0].tipo === 'estribo' ? 'none' : 'simetria', right: sp.length && sp[sp.length - 1].tipo === 'estribo' ? 'none' : 'simetria' };
-  OP.band = { zmin: OP.ground + .2 * (OP.deckTop - OP.ground), zmax: OP.deckTop - .38 }; OP.geo = OP.model = OP.modes = OP.camp = OP.ia = OP.sug = null;
-  $('#opLoad').textContent = ''; opInfo(); vTu();
+  OP.band = { zmin: OP.ground + .2 * (OP.deckTop - OP.ground), zmax: OP.deckTop - .38 }; OP.geo = OP.model = OP.modes = OP.camp = OP.ia = OP.sug = OP.iaRev = null;
+  $('#opLoad').textContent = ''; opInfo(); vTu(); opIARev();
 }
+// Segunda opinión de la IA de apoyos (bosque aleatorio entrenado con 6 puentes etiquetados; ver data/ia_apoyos.json).
+async function opIARev(after) {
+  if (OP.iaOn === false) { OP.iaRev = null; if (after) after(); return; }
+  const O = OP.O, sup0 = OP.supports; OP.iaBusy = true; const st = $('#opIAst'); if (st) st.textContent = 'La IA está revisando los apoyos…';
+  try {
+    await new Promise(r => setTimeout(r, 30));
+    OP.iaModel = OP.iaModel || await fetch('data/ia_apoyos.json?v=2.5.0').then(r => { if (!r.ok) throw new Error('sin modelo'); return r.json(); });
+    if (OP.O !== O || OP.supports !== sup0) return;
+    const t0 = performance.now(), R = OPC.iaRefine(OP.O, OP.deckTop, OP.ground, OP.supports, OP.iaModel), f = q => ((q.a + q.b) / 2).toFixed(1).replace('.', ',');
+    OP.iaRev = { usado: R.usado, motivo: R.motivo || '', veto: R.veto.map(f), rescate: R.rescate.map(f), aEstribo: R.aEstribo.map(f), seg: +((performance.now() - t0) / 1000).toFixed(1) };
+    if (R.usado) { OP.supports = R.supports; const sp = OP.supports; OP.ends = { left: sp.length && sp[0].tipo === 'estribo' ? 'none' : 'simetria', right: sp.length && sp[sp.length - 1].tipo === 'estribo' ? 'none' : 'simetria' }; OP.geo = null; }
+  } catch (e) { OP.iaRev = { usado: false, motivo: 'no se pudo cargar el modelo de IA (' + e.message + ')', veto: [], rescate: [], aEstribo: [] }; }
+  finally { OP.iaBusy = false; }
+  if (after) after(); else vTu();
+}
+function opIAText() { const r = OP.iaRev; if (!r) return '';
+  if (!r.usado) return `La IA de apoyos no se usó: ${r.motivo}.`;
+  const m = [], ls = a => (a.length > 1 ? a.slice(0, -1).join(' m, ') + ' m y ' + a[a.length - 1] : a[0]) + ' m';
+  if (r.veto.length) m.push(`quitó ${r.veto.length === 1 ? 'un pilar' : r.veto.length + ' pilares'} donde no ve ninguna columna (en ${ls(r.veto)}; si sí hay un pilar, agréguelo con un clic en la elevación)`);
+  if (r.aEstribo.length) m.push(`pasó a estribo ${r.aEstribo.length === 1 ? 'el apoyo extremo' : 'los apoyos extremos'} en ${ls(r.aEstribo)}`);
+  if (r.rescate.length) m.push(`propuso ${r.rescate.length === 1 ? 'un pilar' : r.rescate.length + ' pilares'} que la regla geométrica no encontró (en ${ls(r.rescate)})`);
+  return m.length ? 'La IA de apoyos revisó la detección: ' + m.join('; ') + '.' : 'La IA de apoyos coincide con la detección geométrica.'; }
 function opInfo() { if (!OP.O || !$('#opInfo')) return; const [s0, s1] = OPC.bounds(OP.O.s), [z0, z1] = OPC.bounds(OP.O.z);
   $('#opInfo').innerHTML = `<div class="doc"><div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;align-items:baseline"><label class="f" style="flex:1;min-width:220px;max-width:420px">Nombre del puente<input id="opName" value="${esc(OP.name)}" placeholder="Ej.: Puente Balta"></label><span class="mono dim" style="font-size:.76rem">${OP.cloud.kept.toLocaleString('es-ES')} puntos usados de ${OP.cloud.total.toLocaleString('es-ES')}</span></div>
    <div class="tw"><table class="data"><tbody><tr><td>Longitud</td><td class="n">${fmt(s1 - s0, 2)} m</td><td>Desnivel</td><td class="n">${fmt(z1 - z0, 2)} m</td><td>Eje longitudinal</td><td class="n">${OP.O.snap == null ? 'girado ' + fmt(OP.O.angleDeg, 1) + '°' : (OP.O.snap === 0 ? 'eje x de la nube' : 'eje y de la nube')}</td></tr></tbody></table></div>
@@ -78,7 +100,7 @@ function opCoh(step, d) { const L = OPC.coherence(step, d); if (!L.length) retur
   const worst = L.some(x => x.nivel === 'error') ? 'crit' : L.some(x => x.nivel === 'revisar') ? 'warn' : 'ok';
   return `<div class="coh ${worst}"><b>Revisión automática</b><ul>${L.map(x => `<li class="${cl[x.nivel]}"><span>${ic[x.nivel]}</span>${esc(x.texto)}</li>`).join('')}</ul></div>`; }
 function opSpansNow() { const sp = OP.supports.slice().sort((p, q) => p.a - q.a), L = OPC.spansOf(sp).map(x => x.b - x.a); if (!L.length) return L; if (OP.ends && OP.ends.left === 'simetria') L.unshift(L[0]); if (OP.ends && OP.ends.right === 'simetria') L.push(L[L.length - 1]); return L; }
-function opFlags() { return (OP.skew ? [`Puente esviado: los apoyos forman un ángulo de unos ${Math.abs(OP.skew.phi)}° con la perpendicular al eje. La nube se enderezó y las posiciones se miden en el eje del tablero; en la planta (paso 1) las pilas deben verse ahora perpendiculares al eje.`] : []).concat(OP.sinTerreno ? ['La nube no tiene terreno bajo el tablero: los estribos se pusieron en los extremos del tablero. Si el puente tiene pilares, agréguelos a mano.'] : []).concat((OP.supports || []).filter(p => p.duda).map((p, i) => `Apoyo ${OP.supports.indexOf(p) + 1}: ${p.duda}`)); }
+function opFlags() { const ia = OP.iaRev && (OP.iaRev.veto.length || OP.iaRev.rescate.length || OP.iaRev.aEstribo.length || !OP.iaRev.usado) ? [opIAText()] : []; return ia.concat(OP.skew ? [`Puente esviado: los apoyos forman un ángulo de unos ${Math.abs(OP.skew.phi)}° con la perpendicular al eje. La nube se enderezó y las posiciones se miden en el eje del tablero; en la planta (paso 1) las pilas deben verse ahora perpendiculares al eje.`] : []).concat(OP.sinTerreno ? ['La nube no tiene terreno bajo el tablero: los estribos se pusieron en los extremos del tablero. Si el puente tiene pilares, agréguelos a mano.'] : []).concat((OP.supports || []).filter(p => p.duda).map((p, i) => `Apoyo ${OP.supports.indexOf(p) + 1}: ${p.duda}`)); }
 (function () { const st = document.createElement('style'); st.textContent = '.coh{border:1px solid var(--rule);border-left:4px solid var(--ok);padding:6px 10px;margin:10px 0;font-size:.86rem;background:var(--paper,#fff)}.coh.warn{border-left-color:var(--warn)}.coh.crit{border-left-color:var(--red)}.coh ul{list-style:none;margin:4px 0 0;padding:0;display:grid;gap:3px}.coh li{display:grid;grid-template-columns:18px 1fr;gap:4px}.coh li span{font-weight:700}.coh li.ok span{color:var(--ok)}.coh li.warn span{color:var(--warn)}.coh li.crit span{color:var(--red)}'; document.head.appendChild(st); })();
 
 /* ---------- planta y recorte de un tramo recto (nubes con accesos, curvas o varios puentes) ---------- */
@@ -133,7 +155,7 @@ function opApoyos() {
    <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:end"><label class="f" style="width:170px">Superficie del tablero (m)<input type="number" id="opDeck" step="0.01" value="${OP.deckTop.toFixed(2)}"></label>
     <label class="f" style="width:170px">Espesor tablero → eje (m)<input type="number" id="opThick" step="0.05" value="${OP.deckThick}"></label>
     <label class="f" style="width:170px">Cota del terreno o agua (m)<input type="number" id="opGround" step="0.1" value="${OP.ground.toFixed(2)}"></label>
-    <button class="btn line" id="opRedetect">Detectar apoyos otra vez</button></div>
+    <button class="btn line" id="opRedetect">Detectar apoyos otra vez</button><label style="display:flex;gap:6px;align-items:center;font-size:.84rem"><input type="checkbox" id="opIAon" ${OP.iaOn === false ? '' : 'checked'}> Revisar los apoyos con IA</label><span id="opIAst" class="dim" style="font-size:.8rem">${OP.iaBusy ? 'La IA está revisando los apoyos…' : (OP.iaRev && OP.iaRev.usado && !(OP.iaRev.veto.length || OP.iaRev.rescate.length || OP.iaRev.aEstribo.length) ? esc(opIAText()) : '')}</span></div>
    <h3>Apoyos (caras en metros a lo largo del puente)</h3><div class="tw" id="opSupTbl"></div><div id="opCoh2"></div>
    <div style="display:flex;gap:12px;flex-wrap:wrap"><label class="f" style="width:260px">Extremo izquierdo<select id="opEndL"><option value="simetria">Sin estribo visible: completar por simetría</option><option value="none">El primer apoyo es el estribo</option></select></label>
     <label class="f" style="width:260px">Extremo derecho<select id="opEndR"><option value="simetria">Sin estribo visible: completar por simetría</option><option value="none">El último apoyo es el estribo</option></select></label></div>
@@ -144,7 +166,8 @@ function opApoyos() {
   $('#opThick').onchange = e => { OP.deckThick = +e.target.value; OP.geo = null; };
   $('#opGround').onchange = e => { OP.ground = +e.target.value; OP.band.zmin = OP.ground + .2 * (OP.deckTop - OP.ground); OP.geo = null; redraw(); };
   $('#opEndL').onchange = e => { OP.ends.left = e.target.value; OP.geo = null; }; $('#opEndR').onchange = e => { OP.ends.right = e.target.value; OP.geo = null; };
-  $('#opRedetect').onclick = () => { const S = OPC.detectSupports(OP.O, OP.deckTop, OP.ground); OP.supports = S.supports; const sp = OP.supports; OP.ends = { left: sp.length && sp[0].tipo === 'estribo' ? 'none' : 'simetria', right: sp.length && sp[sp.length - 1].tipo === 'estribo' ? 'none' : 'simetria' }; $('#opEndL').value = OP.ends.left; $('#opEndR').value = OP.ends.right; OP.geo = null; redraw(); };
+  $('#opRedetect').onclick = () => { const S = OPC.detectSupports(OP.O, OP.deckTop, OP.ground); OP.supports = S.supports; OP.iaRev = null; const sp = OP.supports; OP.ends = { left: sp.length && sp[0].tipo === 'estribo' ? 'none' : 'simetria', right: sp.length && sp[sp.length - 1].tipo === 'estribo' ? 'none' : 'simetria' }; $('#opEndL').value = OP.ends.left; $('#opEndR').value = OP.ends.right; OP.geo = null; redraw(); opIARev(); };
+  $('#opIAon').onchange = e => { OP.iaOn = e.target.checked; $('#opRedetect').click(); };
   $('#opElev').onclick = ev => { const cv = $('#opElev'), r = cv.getBoundingClientRect(), M = opMap(cv), s = M.S((ev.clientX - r.left) * cv.width / r.width); OP.supports.push({ a: +(s - .5).toFixed(2), b: +(s + .5).toFixed(2), tipo: 'pilar' }); OP.supports.sort((p, q) => p.a - q.a); OP.geo = null; redraw(); };
   redraw(); opBindNext();
   opRightHelp('<p>Un <b>pilar</b> tiene dos caras: la izquierda y la derecha. Un <b>estribo</b> visible puede tener ambas caras iguales.</p><p>Los arcos o vanos van de una cara a la siguiente. Si la nube no muestra un estribo, elija «completar por simetría» en ese extremo.</p><p>Revise que cada pilar real tenga su fila y que no haya árboles marcados como pilares.</p>');

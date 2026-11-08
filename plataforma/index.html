@@ -224,17 +224,17 @@ import {OrbitControls} from 'three/addons/controls/OrbitControls.js';
 window.BaltaThree={THREE,GLTFLoader,OrbitControls};
 window.dispatchEvent(new Event('three-ready'));
 </script>
-<script src="v3d.js?v=2.4.0"></script>
-<script src="op_core.js?v=2.4.0"></script>
-<script src="op_ui.js?v=2.4.0"></script>
-<script src="pg_mod.js?v=2.4.0"></script>
-<script src="pg_puentes.js?v=2.4.0"></script>
+<script src="v3d.js?v=2.5.0"></script>
+<script src="op_core.js?v=2.5.0"></script>
+<script src="op_ui.js?v=2.5.0"></script>
+<script src="pg_mod.js?v=2.5.0"></script>
+<script src="pg_puentes.js?v=2.5.0"></script>
 <script>
 "use strict";
 const MODEL_URL='../models/puente-balta-v12.glb';
 /* ================= Utilidades ================= */
 const $=s=>document.querySelector(s);
-const APP_VERSION='2.4.0';
+const APP_VERSION='2.5.0';
 // formato numérico: coma decimal y punto de miles (como en el texto de la tesis)
 const fmt=(x,d=2)=>Number.isFinite(x)?x.toLocaleString('es-ES',{minimumFractionDigits:d,maximumFractionDigits:d,useGrouping:Math.abs(x)>=1e4}):'—';
 const pct=(x,d=1)=>fmt(100*x,d)+' %';
@@ -1036,7 +1036,7 @@ function open3dSis(){const r=S.sis.res;if(!r)return;
 /* ---------- IA con frecuencias del usuario (medidas o calculadas) ---------- */
 // Sin datos del usuario la plataforma sigue simulando la medición; con sus frecuencias, se usa una IA entrenada solo con Δf del mismo modelo.
 const FQ={};let FQ_SRC=null;
-async function fqWorker(){if(!FQ_SRC)FQ_SRC=await fetch('op_core.js?v=2.4.0').then(r=>{if(!r.ok)throw new Error('No se encontró op_core.js');return r.text();});
+async function fqWorker(){if(!FQ_SRC)FQ_SRC=await fetch('op_core.js?v=2.5.0').then(r=>{if(!r.ok)throw new Error('No se encontró op_core.js');return r.text();});
   const src=FQ_SRC+`\nself.onmessage=e=>{const m=e.data;try{if(m.kind==='camp'){const c=OPC.freqCampaign(m.type,m.G,m.P,m.opts,(q,s)=>self.postMessage({kind:'prog',stage:'Simulaciones de daño',q,s}));self.postMessage({kind:'camp',camp:c});}
    else if(m.kind==='trainM'){const I=OPC.trainModalIA(m.camp,m.sel,m.sf,m.ss,(st,q)=>self.postMessage({kind:'prog',stage:st,q}));self.postMessage({kind:'ia',ia:I});}else{const I=OPC.trainFreqIA(m.camp,m.k,m.sf,(st,q)=>self.postMessage({kind:'prog',stage:st,q}));self.postMessage({kind:'ia',ia:I});}}catch(err){self.postMessage({kind:'error',msg:err.message});}};`;
   return new Worker(URL.createObjectURL(new Blob([src],{type:'text/javascript'})));}
@@ -1239,21 +1239,22 @@ function vVal(){
   $('#canvas').querySelectorAll('.toggle button').forEach(b=>b.onclick=()=>{S.valTab=b.dataset.t;vVal();});
   if(S.valTab==='tecnica')valTech();else valUsers();
   if(S.valTab==='tecnica'){const d=document.createElement('div');d.className='doc';d.innerHTML=`<h2>Qué se verificó para cualquier puente y qué es propio del ejemplo</h2>
-   <p><b>Para cualquier puente</b> (mismo código para todos los proyectos): lectura de nubes PLY, LAS, XYZ y CSV; detección de tablero, apoyos y tipología probada con 29 nubes de otros puentes (tabla «Detección de geometría» más abajo); solver de barras contra OpenSees; HL-93 contra soluciones analíticas; identificación modal FDD/EFDD; calibración a ciegas; IA probada en arcos, vigas y armaduras con geometría no vista (tabla más abajo); vibración real de openLAB y OpenBridgeLAB. Son pruebas automáticas que se repiten en cada versión.</p>
+   <p><b>Para cualquier puente</b> (mismo código para todos los proyectos): lectura de nubes PLY, LAS, XYZ y CSV; detección de tablero, apoyos y tipología probada con 29 nubes de otros puentes, con revisión de apoyos por una IA entrenada con 6 puentes etiquetados (tabla «Detección de geometría» más abajo); solver de barras contra OpenSees; HL-93 contra soluciones analíticas; identificación modal FDD/EFDD; calibración a ciegas; IA probada en arcos, vigas y armaduras con geometría no vista (tabla más abajo); vibración real de openLAB y OpenBridgeLAB. Son pruebas automáticas que se repiten en cada versión.</p>
    <p><b>Propio del ejemplo Balta</b> (material de la primera parte de la tesis): modelo C, 450 casos de concordancia con OpenSees, IA SVM de 5080 simulaciones y sustituto Random Forest. Se muestran como referencia de lo que se obtiene con un puente estudiado a fondo.</p>`;const c=$('#canvas');c.insertBefore(d,c.children[1]||null);}
   $('#right').innerHTML=S.valTab==='tecnica'?`<div class="ph">Línea base</div><div class="pb" style="font-size:.84rem"><p>La plataforma se compara con el flujo de archivos separados de la primera parte: scripts de Python, OpenSees, CSV y Blender.</p><p class="help">Los indicadores se recalculan en cada visita a esta pestaña.</p></div>`
    :`<div class="ph">Cómo aplicar la prueba</div><div class="pb" style="font-size:.84rem"><p>1. Cada evaluador hace las ${TASKS.length} tareas dos veces: con la plataforma y con los archivos de la línea base, en orden alternado entre evaluadores.</p><p>2. Al iniciar, una barra inferior queda visible en todas las pestañas con la tarea y el cronómetro.</p><p>3. Las respuestas se comparan con el valor que calcula la plataforma; el evaluador no lo ve.</p><p>4. En la condición plataforma, el evaluador completa el SUS al final.</p><p>5. Exporte el CSV de cada laptop e impórtelos juntos para obtener la tabla final.</p></div>`;
 }
 // prueba de la detección de geometría con nubes abiertas de otros puentes (banco de pruebas, versión 2.4.0); se resume aquí, no se recalcula en el navegador
 const BANCO_GEO=[
- ['6 puentes de vigas, Corea (UAV LiDAR, con etiquetas por punto)','Zenodo 18531104, CC BY 4.0','Esviaje medido a 0–3° del real en los 6 (4 son oblicuos, hasta 44°). Pilares: 8 de 8, medidos en el eje del tablero; 4 apoyos de más, 3 marcados «confirme». Estribos: 12 de 12 a menos de 3 m. Tipología: viga en los 6.'],
- ['20 pasos superiores y pasarelas, Reino Unido y Alemania (láser terrestre)','Zenodo 18738225, CC BY 4.0; número de vanos de la tabla 3 de arXiv 2512.15369','Número de vanos correcto en 18 de 20 sin intervención (antes 12). Fallan bridge_10 (columnas delgadas no vistas) y bridge_19 (vegetación en el talud tomada como pilar); en bridge_1 el número coincide pero un pilar está mal ubicado, y bridge_14 necesita recortar el tramo, como pide el aviso. Tipología: viga en los 20, sin torres ni arcos falsos.'],
+ ['6 puentes de vigas, Corea (UAV LiDAR, con etiquetas por punto)','Zenodo 18531104, CC BY 4.0','Esviaje medido a 0–3° del real en los 6 (4 son oblicuos, hasta 44°). Pilares: 8 de 8, medidos en el eje del tablero; 1 apoyo de más, marcado «confirme» (antes de la revisión con IA eran 4). Estribos: 12 de 12 a menos de 3 m. Tipología: viga en los 6. La IA de cada puente se entrenó con los otros 5.'],
+ ['20 pasos superiores y pasarelas, Reino Unido y Alemania (láser terrestre)','Zenodo 18738225, CC BY 4.0; número de vanos de la tabla 3 de arXiv 2512.15369','Número de vanos correcto en 19 de 20 sin intervención (12 en la versión 2.2, 18 sin la revisión con IA). La IA encontró las columnas delgadas de bridge_10 y los pilares reales de bridge_18 y bridge_19. Falla bridge_19 (sigue un pilar de más en el talud con vegetación); en bridge_1 el número coincide pero un pilar está mal ubicado; bridge_14 necesita el recorte. Los umbrales de la revisión con IA se eligieron mirando estas mismas nubes.'],
  ['Puente de armadura de acero, tranvía de Schipluiden, Países Bajos (láser terrestre, nube limpia)','TU Delft, doi 10.4121/13626368, CC BY-NC 4.0','Tipología: armadura (tablero inferior reconocido por las barandas). Sin terreno en la nube: estribos en los extremos, 59,9 m.'],
- ['Puente Balta (láser terrestre, muestra)','Primera parte de la tesis','Tipología: arco. Pilares P1 y P2 y estribo derecho en las caras medidas.'],
- ['Puente Rayitos de Sol, tramo recto recortado','Nube aportada por el usuario','4 pilares; tipología viga.']];
+ ['Puente Balta (láser terrestre, muestra)','Primera parte de la tesis','Tipología: arco. Pilares P1 y P2 y estribo derecho en las caras medidas; la IA coincide.'],
+ ['Puente Rayitos de Sol, tramo recto recortado','Nube aportada por el usuario','4 pilares; tipología viga. La IA no se usa: el gálibo (12 m) supera el de los puentes con que se entrenó.']];
 function valTech(){const v=MET.sustituto.validaciones,nm={aleatorio_80_20:'Partición aleatoria 80/20',sin_q75:'Sin el nivel q = 75 kN/m',sin_q150:'Sin el nivel q = 150 kN/m',sin_E50:'Sin E = 50 GPa'},p=MET.inversa.por_ruido;
   $('#valBody').innerHTML=`<div class="doc"><h2>Detección de geometría con nubes de otros puentes</h2>
    <p>Mismo código que usa la app para cualquier puente, sin ajustes por nube. El inspector siempre revisa y corrige los apoyos en el paso 2.</p>
+   <p class="help keep">Desde la versión 2.5 una IA revisa los apoyos: un bosque aleatorio (40 árboles) clasifica cada vóxel de 0,15 m en fondo, tablero o apoyo con rasgos de forma local y altura, entrenado con los 6 puentes coreanos etiquetados. Validación dejando un puente fuera: IoU fondo 0,91, tablero 0,81, apoyo 0,48 (bajo el tablero acierta 74–100 % de los puntos de columna, pero confunde vegetación y almas de vigas). Por eso no reemplaza a la regla: quita un pilar intermedio solo si no ve ninguna columna cerca y propone uno nuevo solo si ve una columna clara que llega al terreno, siempre marcado «Confirme».</p>
    <div class="tw"><table class="data"><thead><tr><th>Nubes</th><th>Fuente</th><th>Resultado</th></tr></thead><tbody>${BANCO_GEO.map(r=>`<tr><td>${r[0]}</td><td>${r[1]}</td><td>${r[2]}</td></tr>`).join('')}</tbody></table></div></div><div class="doc">
    <h2>Concordancia con OpenSees 3.8.0</h2>
    <p>Se recalculan en este navegador los 450 casos con carga del dataset y se comparan con los resultados archivados de OpenSees.</p>

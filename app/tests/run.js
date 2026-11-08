@@ -106,6 +106,13 @@ ok('Modelo C: 20 zonas de daño (15 de arcos, 3 de tablero y 2 de pilares por so
     for (const c of [13, 27]) for (let t = -4; t <= 4; t += .1) for (let z = -6; z <= -.8; z += .1) P.push(c + t * k30, t, z);
     const Os = OPC.orient({ xyz: Float32Array.from(P), offset: [0, 0, 0], eje: 'x' }, 'z', 1), Ss = OPC.detectSupports(Os, 0, -6), pil = Ss.supports.filter(p => p.tipo === 'pilar').map(p => (p.a + p.b) / 2);
     ok('Esviaje: ángulo de las pilas medido y pilas en el eje del tablero', Math.abs(Math.abs(Ss.skew) - 30) <= 2 && pil.length === 2 && Math.abs(pil[1] - pil[0] - 14) < .6, `esviaje ${Ss.skew}° · pilas ${pil.map(v => v.toFixed(1)).join(', ')}`); }
+  // IA de apoyos: en el Balta coincide con la regla geométrica; en un caso sintético quita un pilar sin columna y propone el que falta
+  { const M = JSON.parse(fs.readFileSync(path.join(P, 'data', 'ia_apoyos.json'))), Rb = OPC.iaRefine(O, dk, gr, S, M);
+    ok('IA de apoyos: en el Balta no cambia P1, P2 ni el estribo', Rb.usado && !Rb.veto.length && !Rb.rescate.length && !Rb.aEstribo.length && Rb.supports.length === 3, `${Rb.clusters.length} grupos de columnas vistos`);
+    const Q = []; for (let s0 = 0; s0 <= 40; s0 += .15) for (let t = -4; t <= 4; t += .15) { Q.push(s0, t, 0); Q.push(s0, t, -.8); Q.push(s0, t, -6); }
+    for (const c of [13, 27]) for (const tc of [-2.5, 2.5]) for (let a = 0; a < 6.28; a += .15) for (let z = -6; z <= -.8; z += .1) Q.push(c + .4 * Math.cos(a), tc + .4 * Math.sin(a), z);
+    const Oc = OPC.orient({ xyz: Float32Array.from(Q), offset: [0, 0, 0], eje: 'x' }, 'z', 1), Rc = OPC.iaRefine(Oc, 0, -6, [{ a: 0, b: 0, tipo: 'estribo' }, { a: 12.6, b: 13.4, tipo: 'pilar' }, { a: 19.6, b: 20.4, tipo: 'pilar' }, { a: 40, b: 40, tipo: 'estribo' }], M), pc = Rc.supports.filter(p => p.tipo === 'pilar').map(p => (p.a + p.b) / 2);
+    ok('IA de apoyos: quita el pilar sin columna (20 m) y propone el que faltaba (27 m)', Rc.veto.length === 1 && Rc.rescate.length === 1 && pc.length === 2 && Math.abs(pc[0] - 13) < .6 && Math.abs(pc[1] - 27) < .6, `pilares ${pc.map(v => v.toFixed(1)).join(', ')}`); }
   ok('Eje: planta cuadrada marcada como dudosa; tramo recortado queda en x', Oq.ejeRatio < 3 && Ox.snap === 0, `cociente ${Oq.ejeRatio.toFixed(2)} · recortado: eje ${Ox.snap === 0 ? 'x' : '?'}`); }
 
 // 15. Campaña de registros: los modos que se repiten se separan del ruido que aparece y desaparece, y se estima el efecto de la temperatura

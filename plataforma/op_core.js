@@ -1095,7 +1095,152 @@ function maintenancePlan(els, { years = 20, budget = 0, thr = 60 } = {}) { const
   const life = arr => { const k = arr.findIndex(v => v != null && v < thr); return k < 0 ? null : k; };
   return { plan, hi, hi0, total, vidaSin: life(hi0), vidaCon: life(hi) }; }
 
-return { fftInPlace, detrend, csdMatrix, fdd, efdd, fddModes, pickPeaks, staticPrep, fiberStress, influence, HL93, hl93Extremes, liveLoad, CS_WF, pTrans, markovStep, elemHI, bridgeHI, calibrateAlpha, maintenancePlan, Dxf, bridgePlans, sensorsOf, readAccel, sdof, spectrum, seismic, freqCampaign, setConcMin, suggestType, applySkew, coherence, f1Band, geomSigmas, perturbGeom, archRise, peakCampaign, csdAverage, calibrateModel, nelderMead, trainFreqIA, trainVecIA, trainModalIA, modalFeat, modalMeasFeat, modalMeasFeatBase, freqPredict, build, modal, archAll, parseCloud, orient, bounds, deckLevel, groundLevel, detectSupports, spansOf, envelope, fitParabola, polyval, archGeometry, spanCoverage, MATERIALS,
+/* ---------- IA de apoyos: clasificador de puntos (fondo / tablero / apoyo) ----------
+   Bosque aleatorio entrenado con los 6 puentes etiquetados de Lee (2026, Zenodo 18531104, CC BY 4.0).
+   Rasgos geométricos por vóxel de 0,15 m (covarianza local a 0,4, 0,8 y 1,6 m, altura y columna en planta).
+   Se usa como segunda opinión sobre los pilares que encuentra la regla geométrica. */
+function eig3(a) {
+  const A = [[a[0], a[1], a[2]], [a[1], a[3], a[4]], [a[2], a[4], a[5]]], V = [[1, 0, 0], [0, 1, 0], [0, 0, 1]];
+  for (let it = 0; it < 12; it++) {
+    let p = 0, q = 1, m = Math.abs(A[0][1]);
+    if (Math.abs(A[0][2]) > m) { p = 0; q = 2; m = Math.abs(A[0][2]); }
+    if (Math.abs(A[1][2]) > m) { p = 1; q = 2; m = Math.abs(A[1][2]); }
+    if (m < 1e-12) break;
+    const th = (A[q][q] - A[p][p]) / (2 * A[p][q]), t = Math.sign(th || 1) / (Math.abs(th) + Math.sqrt(th * th + 1)), c = 1 / Math.sqrt(t * t + 1), s = t * c;
+    for (let k = 0; k < 3; k++) { const akp = A[k][p], akq = A[k][q]; A[k][p] = c * akp - s * akq; A[k][q] = s * akp + c * akq; }
+    for (let k = 0; k < 3; k++) { const apk = A[p][k], aqk = A[q][k]; A[p][k] = c * apk - s * aqk; A[q][k] = s * apk + c * aqk; }
+    for (let k = 0; k < 3; k++) { const vkp = V[k][p], vkq = V[k][q]; V[k][p] = c * vkp - s * vkq; V[k][q] = s * vkp + c * vkq; }
+  }
+  const idx = [0, 1, 2].sort((i, j) => A[j][j] - A[i][i]);
+  return { l: idx.map(i => Math.max(A[i][i], 0)), v: idx.map(i => [V[0][i], V[1][i], V[2][i]]) };
+}
+const IA_SCALES = [0.4, 0.8, 1.6], IA_NAMES = [];
+for (const c of IA_SCALES) for (const n of ['lin', 'pla', 'esf', 'vertN', 'vertP', 'llen']) IA_NAMES.push(n + '_' + c);
+IA_NAMES.push('hRel', 'hTab', 'hLoc', 'spanCol', 'occCol', 'techo', 'debajo', 'distEje');
+function iaFeatures(O, dk, gr, vox = 0.15) {
+  const n = O.n, H = Math.max(dk - gr, 1), K3 = (a, b, d) => (a + 1e5) * 8e8 + (b + 1e5) * 4e3 + (d + 2000);
+  const vm = new Map(), pv = new Int32Array(n), cx = [], cy = [], cz = [], cnt = [];
+  for (let i = 0; i < n; i++) {
+    const key = K3(Math.floor(O.s[i] / vox), Math.floor(O.t[i] / vox), Math.floor(O.z[i] / vox));
+    let j = vm.get(key);
+    if (j === undefined) { j = cx.length; vm.set(key, j); cx.push(0); cy.push(0); cz.push(0); cnt.push(0); }
+    cx[j] += O.s[i]; cy[j] += O.t[i]; cz[j] += O.z[i]; cnt[j]++; pv[i] = j;
+  }
+  const nv = cx.length, X = new Float32Array(nv), Y = new Float32Array(nv), Z = new Float32Array(nv);
+  for (let j = 0; j < nv; j++) { X[j] = cx[j] / cnt[j]; Y[j] = cy[j] / cnt[j]; Z[j] = cz[j] / cnt[j]; }
+  const nf = IA_NAMES.length, F = new Float32Array(nv * nf);
+  IA_SCALES.forEach((c, si) => {
+    const g = new Map(), cell = new Int32Array(nv * 3);
+    for (let j = 0; j < nv; j++) {
+      const a = Math.floor(X[j] / c), b = Math.floor(Y[j] / c), d = Math.floor(Z[j] / c); cell[3 * j] = a; cell[3 * j + 1] = b; cell[3 * j + 2] = d;
+      const k = K3(a, b, d); let m = g.get(k); if (!m) { m = new Float64Array(10); g.set(k, m); }
+      const x = X[j], y = Y[j], z = Z[j]; m[0]++; m[1] += x; m[2] += y; m[3] += z; m[4] += x * x; m[5] += x * y; m[6] += x * z; m[7] += y * y; m[8] += y * z; m[9] += z * z;
+    }
+    const memo = new Map();
+    for (let j = 0; j < nv; j++) {
+      const a = cell[3 * j], b = cell[3 * j + 1], d = cell[3 * j + 2], k0 = K3(a, b, d);
+      let r = memo.get(k0);
+      if (!r) {
+        const s = new Float64Array(10);
+        for (let da = -1; da <= 1; da++) for (let db = -1; db <= 1; db++) for (let dd = -1; dd <= 1; dd++) { const m = g.get(K3(a + da, b + db, d + dd)); if (m) for (let q = 0; q < 10; q++) s[q] += m[q]; }
+        const N = s[0], mx = s[1] / N, my = s[2] / N, mz = s[3] / N; r = new Float32Array(6);
+        if (N >= 4) {
+          const e = eig3([s[4] / N - mx * mx, s[5] / N - mx * my, s[6] / N - mx * mz, s[7] / N - my * my, s[8] / N - my * mz, s[9] / N - mz * mz]), l1 = e.l[0] + 1e-9;
+          r[0] = (e.l[0] - e.l[1]) / l1; r[1] = (e.l[1] - e.l[2]) / l1; r[2] = e.l[2] / l1; r[3] = 1 - Math.abs(e.v[2][2]); r[4] = Math.abs(e.v[0][2]);
+          r[5] = Math.min(N / Math.pow(3 * c / vox, 2) / 9, 3);
+        } else r[5] = N / Math.pow(3 * c / vox, 2) / 9;
+        memo.set(k0, r);
+      }
+      for (let q = 0; q < 6; q++) F[j * nf + si * 6 + q] = r[q];
+    }
+  });
+  const cc = 0.5, col = new Map(), ck = (a, b) => (a + 1e5) * 2e5 + (b + 1e5);
+  for (let j = 0; j < nv; j++) {
+    const k = ck(Math.floor(X[j] / cc), Math.floor(Y[j] / cc)); let m = col.get(k);
+    if (!m) { m = { zmin: 1e9, zmax: -1e9, lv: new Set(), techo: 0 }; col.set(k, m); }
+    if (Z[j] < m.zmin) m.zmin = Z[j]; if (Z[j] > m.zmax) m.zmax = Z[j];
+    if (Z[j] < dk - 0.8) m.lv.add(Math.floor((Z[j] - gr) / 0.3));
+    if (Math.abs(Z[j] - dk) < 1.0) m.techo = 1;
+  }
+  const gm = new Map();
+  for (let j = 0; j < nv; j++) { const k = ck(Math.floor(X[j]), Math.floor(Y[j])); const v = gm.get(k); if (v === undefined || Z[j] < v) gm.set(k, Z[j]); }
+  const tt = []; for (let j = 0; j < nv; j++) if (Math.abs(Z[j] - dk) < 0.5) tt.push(Y[j]); tt.sort((a, b) => a - b);
+  const tm = tt.length ? tt[tt.length >> 1] : 0, hw = tt.length ? Math.max((tt[Math.floor(tt.length * .97)] - tt[Math.floor(tt.length * .03)]) / 2, 1) : 5, o = IA_SCALES.length * 6;
+  for (let j = 0; j < nv; j++) {
+    const a = Math.floor(X[j] / cc), b = Math.floor(Y[j] / cc), m = col.get(ck(a, b));
+    let gl = 1e9; const ga = Math.floor(X[j]), gb = Math.floor(Y[j]);
+    for (let da = -2; da <= 2; da++) for (let db = -2; db <= 2; db++) { const v = gm.get(ck(ga + da, gb + db)); if (v !== undefined && v < gl) gl = v; }
+    const nlev = Math.max(1, Math.floor((dk - 0.8 - Math.max(gl, gr)) / 0.3));
+    F[j * nf + o] = (Z[j] - gr) / H; F[j * nf + o + 1] = (Z[j] - dk) / H; F[j * nf + o + 2] = Math.min((Z[j] - gl) / H, 2);
+    F[j * nf + o + 3] = (m.zmax - m.zmin) / H; F[j * nf + o + 4] = Math.min(m.lv.size / nlev, 1.5);
+    let techo = 0; for (let da = -1; da <= 1 && !techo; da++) for (let db = -1; db <= 1; db++) { const q = col.get(ck(a + da, b + db)); if (q && q.techo) { techo = 1; break; } }
+    F[j * nf + o + 5] = techo; F[j * nf + o + 6] = Z[j] < dk - 1 ? 1 : 0; F[j * nf + o + 7] = Math.min(Math.abs(Y[j] - tm) / hw, 3);
+  }
+  return { F, nf, nv, pv, X, Y, Z, names: IA_NAMES };
+}
+function iaPredict(model, F, nf, nv) {
+  const K = model.clases.length, P = new Float32Array(nv * K);
+  for (const T of model.arboles) for (let j = 0; j < nv; j++) {
+    let k = 0; while (T.l[k] >= 0) k = F[j * nf + T.f[k]] <= T.t[k] ? T.l[k] : T.r[k];
+    const v = T.v[k]; for (let c = 0; c < K; c++) P[j * K + c] += v[c];
+  }
+  const m = model.arboles.length; for (let i = 0; i < P.length; i++) P[i] /= m;
+  return P;
+}
+// Grupos de vóxeles «apoyo» con cara vertical en la parte baja del gálibo, a lo largo del eje (celdas de 0,5 m).
+function iaClusters(R, P, dk, gr) {
+  let s0 = 1e9, s1 = -1e9; for (const x of R.X) { if (x < s0) s0 = x; if (x > s1) s1 = x; }
+  const bw = .5, nb = Math.ceil((s1 - s0) / bw) + 1, cnt = new Float32Array(nb), lg = new Float32Array(nb).fill(1e9), nf = R.nf;
+  for (let j = 0; j < R.nv; j++) { const b = Math.floor((R.X[j] - s0) / bw); if (R.Z[j] < lg[b]) lg[b] = R.Z[j]; }
+  const lg2 = lg.map((v, b) => { let m = v; for (let k = Math.max(0, b - 4); k <= Math.min(nb - 1, b + 4); k++) m = Math.min(m, lg[k]); return Math.max(m, gr); });
+  const sup = j => P[j * 3 + 2] > .5;
+  for (let j = 0; j < R.nv; j++) { const b = Math.floor((R.X[j] - s0) / bw); if (R.Z[j] < lg2[b] + .6 * (dk - lg2[b]) && sup(j) && R.F[j * nf + 9] > .6) cnt[b]++; }
+  let mx = 0; for (const v of cnt) if (v > mx) mx = v; if (!mx) return [];
+  const thr = Math.max(5, .03 * mx), C = []; let cur = null;
+  for (let b = 0; b < nb; b++) if (cnt[b] >= thr) { if (cur && b - cur.b <= 2) cur.b = b; else { cur = { a: b, b }; C.push(cur); } }
+  return C.map(c => {
+    const a = s0 + c.a * bw, b = s0 + (c.b + 1) * bw; let g = 1e9; for (let k = Math.max(0, c.a - 2); k <= Math.min(nb - 1, c.b + 2); k++) g = Math.min(g, lg[k]);
+    let pk = 0, ka = -1, kb = -1; for (let k = c.a; k <= c.b; k++) pk = Math.max(pk, cnt[k]); for (let k = c.a; k <= c.b; k++) if (cnt[k] >= .5 * pk) { if (ka < 0) ka = k; kb = k; }
+    const lv = new Set(), ss = [], tq = [], zz = []; let n = 0;
+    for (let j = 0; j < R.nv; j++) {
+      if (R.X[j] < a || R.X[j] > b || !sup(j)) continue; if (R.Z[j] < dk) zz.push(R.Z[j]);
+      if (R.Z[j] >= dk - 1 || R.F[j * nf + 9] <= .6) continue; n++; ss.push(R.X[j]); tq.push(R.Y[j]); lv.add(Math.floor((R.Z[j] - g) / .3));
+    }
+    if (!n) return null; ss.sort((x, y) => x - y); tq.sort((x, y) => x - y); zz.sort((x, y) => x - y);
+    const nl = Math.max(1, Math.floor((dk - 1 - g) / .3)); let occ = 0; for (let k = 0; k < nl; k++) if (lv.has(k)) occ++;
+    let nuc = 0; for (let k = c.a; k <= c.b; k++) if (cnt[k] >= .5 * pk) nuc++;
+    return { s: (ss[Math.floor(n * .1)] + ss[Math.floor(n * .9)]) / 2, a: s0 + ka * bw, b: s0 + (kb + 1) * bw, n, pico: pk / mx, nucleo: nuc * bw, cont: occ / nl, altura: dk - g,
+      techo: dk - zz[Math.floor(zz.length * .98)], fondo: zz[Math.floor(zz.length * .02)] - g, anchoT: tq[Math.floor(n * .9)] - tq[Math.floor(n * .1)] };
+  }).filter(Boolean);
+}
+// Segunda opinión de la IA sobre los apoyos de la regla geométrica.
+// Umbrales elegidos con el banco de pruebas (puentes coreanos con modelos que no los vieron, 20 puentes TLS, Balta y Rayitos).
+const IA_REGLA = { HMAX: 10, VETO: .15, DV: 1.5, PICO: .6, NMIN: 300, NUC: 1.5, TECHO: 1.8, FONDO: 1.5, WK: 1.2, WA: .5, REFP: .6 };
+function iaRefine(O, dk, gr, supports, model, U = IA_REGLA) {
+  const R = iaFeatures(O, dk, gr), P = iaPredict(model, R.F, R.nf, R.nv), C = iaClusters(R, P, dk, gr);
+  const H = C.reduce((m, c) => Math.max(m, c.altura), 0), out = { supports: supports.map(p => ({ ...p })), veto: [], rescate: [], aEstribo: [], clusters: C, usado: false };
+  if (!C.length) { out.motivo = 'la IA no encontró columnas bajo el tablero'; return out; }
+  if (H > U.HMAX) { out.motivo = `gálibo de ${H.toFixed(0)} m, fuera del rango con que se entrenó la IA (hasta unos 8 m)`; return out; }
+  out.usado = true;
+  const near = (p, th) => C.filter(c => c.s >= p.a - U.DV && c.s <= p.b + U.DV && c.pico >= th);
+  let S = out.supports.sort((p, q) => p.a - q.a);
+  S = S.filter((p, i) => {
+    if (p.tipo !== 'pilar' || near(p, U.VETO).length) return true;
+    if (i > 0 && i < S.length - 1) { out.veto.push(p); return false; }
+    p.tipo = 'estribo'; p.auto = 'ia'; p.duda = 'La IA no ve una columna en este extremo; se tomó como estribo. Confirme.'; out.aEstribo.push(p); return true;
+  });
+  const ref = []; for (const p of S) if (p.tipo === 'pilar') for (const c of near(p, U.REFP)) ref.push(c.anchoT);
+  ref.sort((x, y) => x - y); const wmax = ref.length ? U.WK * ref[ref.length >> 1] + U.WA : 1e9;
+  for (const c of C) {
+    if (c.pico < U.PICO || c.n < U.NMIN || c.nucleo > U.NUC || c.techo > U.TECHO || c.fondo > U.FONDO || c.anchoT > wmax) continue;
+    if (S.some(p => Math.abs(c.s - (p.a + p.b) / 2) <= 3)) continue;
+    const q = { a: +c.a.toFixed(2), b: +c.b.toFixed(2), tipo: 'pilar', auto: 'ia', duda: `Lo propuso la IA: ve una columna de ${c.altura.toFixed(1).replace('.', ',')} m bajo el tablero que la regla geométrica no encontró. Confirme.` };
+    S.push(q); out.rescate.push(q);
+  }
+  out.supports = S.sort((p, q) => p.a - q.a);
+  return out;
+}
+return { iaFeatures, iaPredict, iaClusters, iaRefine, IA_NAMES, IA_REGLA, fftInPlace, detrend, csdMatrix, fdd, efdd, fddModes, pickPeaks, staticPrep, fiberStress, influence, HL93, hl93Extremes, liveLoad, CS_WF, pTrans, markovStep, elemHI, bridgeHI, calibrateAlpha, maintenancePlan, Dxf, bridgePlans, sensorsOf, readAccel, sdof, spectrum, seismic, freqCampaign, setConcMin, suggestType, applySkew, coherence, f1Band, geomSigmas, perturbGeom, archRise, peakCampaign, csdAverage, calibrateModel, nelderMead, trainFreqIA, trainVecIA, trainModalIA, modalFeat, modalMeasFeat, modalMeasFeatBase, freqPredict, build, modal, archAll, parseCloud, orient, bounds, deckLevel, groundLevel, detectSupports, spansOf, envelope, fitParabola, polyval, archGeometry, spanCoverage, MATERIALS,
   build, sensorsOf, modal, signConvention, features, campaign, trainIA, forestPredict, LEVELS, noisy, mulberry, gaussR, quantile, median };
 })();
 if (typeof module !== 'undefined') module.exports = OPC;

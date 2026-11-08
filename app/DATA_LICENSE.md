@@ -10,3 +10,11 @@ Cite así:
 
 Levantamiento TLS con escáner Trimble X7 (2024). Los acelerogramas de CISMID-UNI o del IGP que el usuario cargue en la app
 no se incluyen ni se redistribuyen; se rigen por las condiciones de cada institución.
+
+## Modelo de IA de apoyos (`data/ia_apoyos.json`)
+
+Bosque aleatorio entrenado con el conjunto de datos de Lee, C. (2026), *UAV LiDAR bridge point cloud dataset*,
+Zenodo, registro 18531104, licencia CC BY 4.0 (https://zenodo.org/records/18531104).
+Artículo asociado: *UAV LiDAR bridge point cloud dataset and hybrid deep learning framework for robust semantic segmentation*,
+Automation in Construction 188, 107045 (2026), doi 10.1016/j.autcon.2026.107045.
+El modelo se distribuye bajo CC BY 4.0 con esta atribución. No contiene puntos de las nubes originales, solo los umbrales y proporciones de los árboles.
