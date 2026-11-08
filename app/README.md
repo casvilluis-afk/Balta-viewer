@@ -31,7 +31,7 @@ Todo se calcula en la computadora del usuario; ningún dato sale a internet.
 
 ## Detección de geometría probada con otros puentes
 
-Mismo código que usa la app para cualquier nube, sin ajustes por puente (banco de pruebas de la versión 2.8.1, 59 nubes: 49 con etiquetas por punto y 7 puentes famosos de varios vanos con LiDAR aéreo). Etapas: regla geométrica → IA de apoyos (quita pilares sin columna, propone columnas que faltan) → estribos donde termina el espacio libre bajo el tablero (teoría: ahí se apoya la superestructura) → interpretación del puente completo con conocimiento de diseño (se ofrece al inspector, no se aplica sola).
+Mismo código que usa la app para cualquier nube, sin ajustes por puente (banco de pruebas de la versión 2.9.0, 59 nubes: 49 con etiquetas por punto y 7 puentes famosos de varios vanos con LiDAR aéreo; cada nube con diagnóstico de calidad: huecos, cortes, finales en el aire, parte de abajo y pilares poco vistos). Etapas: regla geométrica → IA de apoyos (quita pilares sin columna, propone columnas que faltan) → estribos donde termina el espacio libre bajo el tablero (teoría: ahí se apoya la superestructura) → interpretación del puente completo con conocimiento de diseño (se ofrece al inspector, no se aplica sola).
 
 | Nubes | Fuente | Resultado |
 |---|---|---|

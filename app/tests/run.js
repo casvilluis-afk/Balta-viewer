@@ -143,6 +143,17 @@ ok('Modelo C: 20 zonas de daño (15 de arcos, 3 de tablero y 2 de pilares por so
     for (let k = 1; k <= 10; k++) { const zt = 60 + 6 * k, st = 250 + 22 * zt / 120; for (let u = 0; u <= 1; u += .05) { Q.push(st - 20 * k * u, 0, zt * (1 - u) + 1e-3); Q.push(st + 6 * k * u, 0, zt * (1 - u) + 1e-3); } }
     const Oq = OPC.orient({ xyz: Float32Array.from(Q), offset: [0, 0, 0], eje: 'x' }, 'z', 1), r = OPC.superestructura(Oq, 0, -12), at = r.filter(x => x.tipo === 'atirantado');
     ok('Superestructura: pilono único inclinado reconocido como atirantado', at.length === 1 && at[0].pilonos.length === 1, r.map(x => x.tipo + ' ' + x.pilonos.map(p => p.s + '/' + p.h).join(',')).join('; ')); }
+  // Calidad de la nube: un tablero completo no da alarmas; uno con un hueco de 10 m y el extremo derecho sobre el vacío sí
+  { const mk = (hueco, aire) => { const Q = []; for (let s0 = -30; s0 <= 90; s0 += .25) for (let t = -4; t <= 4; t += .5) {
+        const enPuente = s0 >= 0 && s0 <= 60; if (hueco && s0 > 25 && s0 < 35) continue; if (aire && s0 > 60) { if (t === 0) Q.push(s0, t, -8); continue; }
+        Q.push(s0, t, enPuente ? 0 : 0); if (enPuente) Q.push(s0, t, -.9); if (!enPuente) for (let z = -8; z < 0; z += 2) if (Math.abs(s0) < .3 || Math.abs(s0 - 60) < .3) Q.push(s0, t, z);
+        if (enPuente) Q.push(s0, t, -8); }
+      for (const c of [20, 40]) for (let z = -8; z <= -1; z += .1) for (let t = -1; t <= 1; t += .25) Q.push(c, t, z);
+      return OPC.orient({ xyz: Float32Array.from(Q), offset: [0, 0, 0], eje: 'x' }, 'z', 1); };
+    const sup = [{ a: -.5, b: .5, tipo: 'estribo' }, { a: 19.5, b: 20.5, tipo: 'pilar' }, { a: 39.5, b: 40.5, tipo: 'pilar' }, { a: 59.5, b: 60.5, tipo: 'estribo' }];
+    const q0 = OPC.calidadNube(mk(false, false), 0, -8, sup), q1 = OPC.calidadNube(mk(true, true), 0, -8, sup.slice(0, 3));
+    const crit = q => q.avisos.filter(a => a.nivel === 'crit').map(a => a.txt.slice(0, 40));
+    ok('Calidad de la nube: completo sin alarmas; hueco de 10 m y final en el aire detectados', !crit(q0).length && q1.huecos.some(h => h.a >= 24 && h.b <= 36) && crit(q1).some(t => /aire/.test(t)), `completo: ${crit(q0).length} alarmas · con fallas: ${crit(q1).join(' | ')}`); }
   ok('Eje: planta cuadrada marcada como dudosa; tramo recortado queda en x', Oq.ejeRatio < 3 && Ox.snap === 0, `cociente ${Oq.ejeRatio.toFixed(2)} · recortado: eje ${Ox.snap === 0 ? 'x' : '?'}`); }
 
 // 15. Campaña de registros: los modos que se repiten se separan del ruido que aparece y desaparece, y se estima el efecto de la temperatura
