@@ -55,8 +55,10 @@ jobs:
                   lab = next((q for q in props if any(t in q.lower() for t in ('label', 'class', 'semantic', 'scalar'))), None); L = np.asarray(v[lab]) if lab else None
                   if L is None:
                       # etiquetas en otro elemento con el mismo número de puntos
-                      for e in pd.elements:
-                          if e is not v and len(e.data) == len(v.data) and len(e.properties) >= 1:
+                      cands = [e for e in pd.elements if e is not v and len(e.data) == len(v.data) and len(e.properties) >= 1]
+                      cands.sort(key=lambda e: 0 if any(t in (e.name + ' '.join(q.name for q in e.properties)).lower() for t in ('label', 'class', 'semantic')) else 1)
+                      for e in cands:
+                          if any(t in (e.name + ' '.join(q.name for q in e.properties)).lower() for t in ('label', 'class', 'semantic')):
                               q = next((q.name for q in e.properties if any(t in q.name.lower() for t in ('label', 'class', 'semantic'))), e.properties[0].name); L = np.asarray(e[q]); lab = e.name + '.' + q; break
                   return np.vstack([v['x'], v['y'], v['z']]).T.astype(np.float64), L, {'propiedades': props, 'etiqueta': lab, 'elementos': els}
               if p.endswith('.las') or p.endswith('.laz'):
