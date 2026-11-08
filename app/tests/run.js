@@ -123,6 +123,12 @@ ok('Modelo C: 20 zonas de daño (15 de arcos, 3 de tablero y 2 de pilares por so
     const Oc = OPC.orient({ xyz: Float32Array.from(Q), offset: [0, 0, 0], eje: 'x' }, 'z', 1), sc = [{ a: 0, b: 0, tipo: 'estribo' }, { a: 12.6, b: 13.4, tipo: 'pilar' }, { a: 26.6, b: 27.4, tipo: 'pilar' }, { a: 40, b: 40, tipo: 'estribo' }];
     const Hc = OPC.hipotesis(Oc, 0, -6, sc, null), pc = Hc.supports.map(p => p.tipo[0] + Math.round((p.a + p.b) / 2)).join(' ');
     ok('Interpretación del puente completo: puente regular de 3 vanos sin cambios', pc === 'e0 p13 p27 e40', pc); }
+  // Estribos por el fin del hueco bajo el tablero: el Balta no cambia; en un puente sintético los estribos puestos 4 m afuera vuelven a la cara (0 y 40 m)
+  { const Hb = OPC.estribosHueco(O, dk, gr, S); ok('Fin del hueco: el Balta queda igual', !Hb.cambios.length, Hb.supports.map(p => p.tipo[0] + ((p.a + p.b) / 2).toFixed(1)).join(' '));
+    const Q = []; for (let s0 = -8; s0 <= 48; s0 += .2) for (let t = -4; t <= 4; t += .2) { Q.push(s0, t, 0); Q.push(s0, t, s0 > 0 && s0 < 40 ? -6 : -.3); }
+    for (const c of [0, 40]) for (let t = -4; t <= 4; t += .1) for (let z = -6; z <= -.4; z += .1) Q.push(c, t, z);
+    const Oh = OPC.orient({ xyz: Float32Array.from(Q), offset: [0, 0, 0], eje: 'x' }, 'z', 1), H = OPC.estribosHueco(Oh, 0, -6, [{ a: -4, b: -4, tipo: 'estribo' }, { a: 19.6, b: 20.4, tipo: 'pilar' }, { a: 44, b: 44, tipo: 'estribo' }]), e = H.supports.filter(p => p.tipo === 'estribo').map(p => p.a);
+    ok('Fin del hueco: estribos movidos a la cara (0 y 40 m)', e.length === 2 && Math.abs(e[0]) < .8 && Math.abs(e[1] - 40) < .8, e.map(v => v.toFixed(1)).join(', ')); }
   ok('Eje: planta cuadrada marcada como dudosa; tramo recortado queda en x', Oq.ejeRatio < 3 && Ox.snap === 0, `cociente ${Oq.ejeRatio.toFixed(2)} · recortado: eje ${Ox.snap === 0 ? 'x' : '?'}`); }
 
 // 15. Campaña de registros: los modos que se repiten se separan del ruido que aparece y desaparece, y se estima el efecto de la temperatura

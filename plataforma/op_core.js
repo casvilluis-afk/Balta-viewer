@@ -1268,7 +1268,7 @@ function hipotesis(O, dk, gr, geo, ia, W = HIP_W) {
   for (const q of C) { const e = Math.min(Math.max(q.e, 1e-3), 1 - 1e-3); q.llr = Math.max(-W.CLIP, Math.min(W.CLIP, Math.log(e / (1 - e)))); q.clr = CP.clr(q.s); }
   const P0 = C.filter(q => q.clr == null || q.clr > W.PCLR).sort((p, q) => p.s - q.s);
   // candidatos a estribo
-  const BON = { '': W.BON, iaface: W.BON, terreno: W.BTER, extremo: W.BEXT, ia: W.BEXT }, AB = [];
+  const BON = { '': W.BON, iaface: W.BON, hueco: W.BON, terreno: W.BTER, extremo: W.BEXT, ia: W.BEXT }, AB = [];
   for (const p of antes) if (p.tipo === 'estribo') AB.push({ s: mid(p), bon: BON[p.auto || ''] ?? W.BEXT, clr: null, ref: p });
   const addA = (s, bon, ref) => { if (s < CP.d0 - 2 || s > CP.d1 + 2 || AB.some(b => Math.abs(b.s - s) < 1.5)) return; AB.push({ s, bon, clr: CP.clr(s), ref }); };
   for (const p of geo) if (p.tipo === 'pilar') { const c = CP.clr(mid(p)); if (c != null && c <= W.ABCLR) addA(mid(p), W.BWALL, p); }
@@ -1322,7 +1322,47 @@ function iaEstribos(R, Pe, dk, supports, W = EST_W) {
   return { supports: out, cambios };
 }
 
-return { hipotesis, clearanceProfile, iaEstribos, HIP_W, EST_W, iaFeatures, iaPredict, iaClusters, iaRefine, IA_NAMES, IA_REGLA, fftInPlace, detrend, csdMatrix, fdd, efdd, fddModes, pickPeaks, staticPrep, fiberStress, influence, HL93, hl93Extremes, liveLoad, CS_WF, pTrans, markovStep, elemHI, bridgeHI, calibrateAlpha, maintenancePlan, Dxf, bridgePlans, sensorsOf, readAccel, sdof, spectrum, seismic, freqCampaign, setConcMin, suggestType, applySkew, coherence, f1Band, geomSigmas, perturbGeom, archRise, peakCampaign, csdAverage, calibrateModel, nelderMead, trainFreqIA, trainVecIA, trainModalIA, modalFeat, modalMeasFeat, modalMeasFeatBase, freqPredict, build, modal, archAll, parseCloud, orient, bounds, deckLevel, groundLevel, detectSupports, spansOf, envelope, fitParabola, polyval, archGeometry, spanCoverage, MATERIALS,
+/* ---------- Estribos por el fin del hueco bajo el tablero ----------
+   Teoría: un puente termina donde su superestructura deja de tener espacio libre debajo, porque ahí se apoya en el estribo;
+   más allá, la calzada va sobre terreno macizo. En cada celda de 0,5 m del eje se busca bajo el tablero una separación vertical
+   ≥ 0,8 m; la región principal con hueco (uniendo cortes ≤ 4 m, que son pilas) da las caras de los estribos. */
+const GAP_W = { TH: .8, TOL: 4, CONV: 2.5, DMAX: 12, CORE: .5, BW: .5 };
+function gapProfile(O, dk, gr, W = GAP_W) {
+  const tt = []; for (let i = 0; i < O.n; i++) if (Math.abs(O.z[i] - dk) < .3) tt.push(O.t[i]); tt.sort((a, b) => a - b);
+  if (tt.length < 50) return null;
+  const tm = tt[tt.length >> 1], hw = (tt[Math.floor(tt.length * .95)] - tt[Math.floor(tt.length * .05)]) / 2;
+  let s0 = 1e9, s1 = -1e9; for (let i = 0; i < O.n; i++) { if (O.s[i] < s0) s0 = O.s[i]; if (O.s[i] > s1) s1 = O.s[i]; }
+  const bw = W.BW, nb = Math.ceil((s1 - s0) / bw) + 1, Z = Array.from({ length: nb }, () => []);
+  for (let i = 0; i < O.n; i++) { if (Math.abs(O.t[i] - tm) > W.CORE * hw || O.z[i] > dk - .15) continue; Z[Math.floor((O.s[i] - s0) / bw)].push(O.z[i]); }
+  const gap = new Array(nb).fill(null);
+  for (let b = 0; b < nb; b++) { const z = Z[b].sort((a, c) => c - a); if (!z.length) continue; let top = dk, g = 0;
+    for (let k = 0; k < z.length; k++) { if (top - z[k] >= 1) { g = top - z[k]; break; } top = z[k]; }
+    gap[b] = g ? g : (top - gr >= 1 && z[z.length - 1] > gr + 1 ? null : 0); }
+  return { s0, bw, nb, gap };
+}
+function gapEnds(G, W = GAP_W) {
+  if (!G) return null; const { gap, nb, bw, s0 } = G, ok = gap.map(g => g != null && g >= W.TH), unk = gap.map(g => g == null), runs = [];
+  for (let i = 0; i < nb;) { if (ok[i]) { let j = i; while (j + 1 < nb && (ok[j + 1] || unk[j + 1])) j++; while (j > i && unk[j]) j--; runs.push([i, j]); i = j + 1; } else i++; }
+  if (!runs.length) return null; const M = [runs[0]]; for (const r of runs.slice(1)) { if ((r[0] - M[M.length - 1][1]) * bw <= W.TOL) M[M.length - 1][1] = r[1]; else M.push(r); }
+  const b = M.reduce((x, y) => y[1] - y[0] > x[1] - x[0] ? y : x);
+  return { L: s0 + b[0] * bw, R: s0 + (b[1] + 1) * bw, abiertoL: b[0] * bw < 1.5, abiertoR: (nb - 1 - b[1]) * bw < 1.5 };
+}
+function estribosHueco(O, dk, gr, supports, W = GAP_W) {
+  const E = gapEnds(gapProfile(O, dk, gr, W), W), m = p => (p.a + p.b) / 2, cambios = [];
+  let S = supports.map(p => ({ ...p })).sort((p, q) => p.a - q.a); if (!E) return { supports: S, cambios };
+  const msg = 'Estribo donde termina el espacio libre bajo el tablero (ahí se apoya la superestructura). Confirme.';
+  const fuera = S.filter(p => p.tipo === 'pilar' && ((!E.abiertoL && m(p) < E.L - 1) || (!E.abiertoR && m(p) > E.R + 1)));
+  for (const p of fuera) cambios.push({ tipo: 'quitado', s: +m(p).toFixed(1) });
+  S = S.filter(p => !fuera.includes(p));
+  const lado = (end, isL) => { if (isL ? E.abiertoL : E.abiertoR) return; end = +end.toFixed(2); const i = isL ? 0 : S.length - 1, p = S[i], nm = isL ? 'izquierdo' : 'derecho';
+    if (p && p.tipo === 'pilar' && Math.abs(m(p) - end) <= W.CONV) { cambios.push({ tipo: 'a_estribo', lado: nm, de: +m(p).toFixed(1), a: end }); S[i] = { a: end, b: end, tipo: 'estribo', auto: 'hueco', duda: msg }; return; }
+    if (p && p.tipo === 'estribo') { if (Math.abs(m(p) - end) <= W.DMAX && Math.abs(m(p) - end) > .3) { cambios.push({ tipo: 'movido', lado: nm, de: +m(p).toFixed(1), a: end }); S[i] = { ...p, a: end, b: end, auto: 'hueco', duda: msg }; } return; }
+    if (!p || (isL ? m(p) - end : end - m(p)) >= 4) { cambios.push({ tipo: 'agregado', lado: nm, a: end }); const q = { a: end, b: end, tipo: 'estribo', auto: 'hueco', duda: msg }; isL ? S.unshift(q) : S.push(q); } };
+  lado(E.L, true); lado(E.R, false);
+  return { supports: S, cambios, extremos: E };
+}
+
+return { gapProfile, gapEnds, estribosHueco, GAP_W, hipotesis, clearanceProfile, iaEstribos, HIP_W, EST_W, iaFeatures, iaPredict, iaClusters, iaRefine, IA_NAMES, IA_REGLA, fftInPlace, detrend, csdMatrix, fdd, efdd, fddModes, pickPeaks, staticPrep, fiberStress, influence, HL93, hl93Extremes, liveLoad, CS_WF, pTrans, markovStep, elemHI, bridgeHI, calibrateAlpha, maintenancePlan, Dxf, bridgePlans, sensorsOf, readAccel, sdof, spectrum, seismic, freqCampaign, setConcMin, suggestType, applySkew, coherence, f1Band, geomSigmas, perturbGeom, archRise, peakCampaign, csdAverage, calibrateModel, nelderMead, trainFreqIA, trainVecIA, trainModalIA, modalFeat, modalMeasFeat, modalMeasFeatBase, freqPredict, build, modal, archAll, parseCloud, orient, bounds, deckLevel, groundLevel, detectSupports, spansOf, envelope, fitParabola, polyval, archGeometry, spanCoverage, MATERIALS,
   build, sensorsOf, modal, signConvention, features, campaign, trainIA, forestPredict, LEVELS, noisy, mulberry, gaussR, quantile, median };
 })();
 if (typeof module !== 'undefined') module.exports = OPC;

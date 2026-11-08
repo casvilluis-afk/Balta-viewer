@@ -58,40 +58,37 @@ function opSetCloud(c, name, minPts) {
 }
 // Segunda opinión de la IA de apoyos (bosque aleatorio entrenado con 6 puentes etiquetados; ver data/ia_apoyos.json).
 async function opIARev(after) {
-  if (OP.iaOn === false) { OP.iaRev = null; if (after) after(); return; }
-  const O = OP.O, sup0 = OP.supports; OP.iaBusy = true; const st = $('#opIAst'); if (st) st.textContent = 'La IA está revisando los apoyos…';
+  const O = OP.O, sup0 = OP.supports, fin = () => { if (after) after(); else vTu(); }, f = q => ((q.a + q.b) / 2).toFixed(1).replace('.', ',');
+  const ends = () => { const sp = OP.supports; OP.ends = { left: sp.length && sp[0].tipo === 'estribo' ? 'none' : 'simetria', right: sp.length && sp[sp.length - 1].tipo === 'estribo' ? 'none' : 'simetria' }; OP.geo = null; };
+  // estribos donde termina el espacio libre bajo el tablero (regla geométrica; se aplica siempre)
+  const hueco = sup => { const H = OPC.estribosHueco(OP.O, OP.deckTop, OP.ground, sup); return { sup: H.supports, cambios: H.cambios.map(c => ({ ...c, de: c.de == null ? null : c.de.toFixed(1).replace('.', ','), a: c.a != null ? (+c.a).toFixed(1).replace('.', ',') : null, s: c.s != null ? c.s.toFixed(1).replace('.', ',') : null })) }; };
+  if (OP.iaOn === false) { const h = hueco(sup0); OP.supports = h.sup; ends(); OP.iaRev = { usado: false, motivo: 'desactivada', veto: [], rescate: [], aEstribo: [], hueco: h.cambios }; OP.hipRev = null; fin(); return; }
+  OP.iaBusy = true; const st = $('#opIAst'); if (st) st.textContent = 'La IA está revisando los apoyos…';
   try {
     await new Promise(r => setTimeout(r, 30));
-    OP.iaModel = OP.iaModel || await fetch('data/ia_apoyos.json?v=2.6.1').then(r => { if (!r.ok) throw new Error('sin modelo'); return r.json(); });
+    OP.iaModel = OP.iaModel || await fetch('data/ia_apoyos.json?v=2.7.0').then(r => { if (!r.ok) throw new Error('sin modelo'); return r.json(); });
     if (OP.O !== O || OP.supports !== sup0) return;
-    const t0 = performance.now(), R = OPC.iaRefine(OP.O, OP.deckTop, OP.ground, OP.supports, OP.iaModel), f = q => ((q.a + q.b) / 2).toFixed(1).replace('.', ',');
-    const rev = { usado: R.usado, motivo: R.motivo || '', veto: R.veto.map(f), rescate: R.rescate.map(f), aEstribo: R.aEstribo.map(f) }; let hip = null;
-    if (R.usado) {
-      // IA de estribos: cara del estribo más allá del último pilar (solo en el mismo rango de gálibo que la IA de apoyos)
-      let sup = R.supports;
-      try { OP.iaModelE = OP.iaModelE || await fetch('data/ia_estribos.json?v=2.6.1').then(r => { if (!r.ok) throw new Error('sin modelo'); return r.json(); });
-        const Pe = OPC.iaPredict(OP.iaModelE, R.R.F, R.R.nf, R.R.nv), E = OPC.iaEstribos(R.R, Pe, OP.deckTop, sup); sup = E.supports;
-        rev.estribos = E.cambios.map(c => ({ lado: c.lado, de: c.de == null ? null : c.de.toFixed(1).replace('.', ','), a: c.a.toFixed(1).replace('.', ',') }));
-      } catch (e) { rev.estribos = []; rev.motivoE = 'no se pudo cargar el modelo de estribos'; }
-      if (OP.O !== O || OP.supports !== sup0) return;
-      OP.supports = sup; const sp = OP.supports; OP.ends = { left: sp.length && sp[0].tipo === 'estribo' ? 'none' : 'simetria', right: sp.length && sp[sp.length - 1].tipo === 'estribo' ? 'none' : 'simetria' }; OP.geo = null;
-      // interpretación del puente completo: se ofrece, no se aplica sola
-      const Hp = OPC.hipotesis(OP.O, OP.deckTop, OP.ground, sup0, Object.assign({}, R, { supports: sup }));
-      if (Hp.usado && (Hp.cambios.quitados.length || Hp.cambios.agregados.length)) hip = { supports: Hp.supports, cambios: Hp.cambios, vanos: Hp.vanos };
-    }
+    const t0 = performance.now(), R = OPC.iaRefine(OP.O, OP.deckTop, OP.ground, OP.supports, OP.iaModel);
+    const rev = { usado: R.usado, motivo: R.motivo || '', veto: R.veto.map(f), rescate: R.rescate.map(f), aEstribo: R.aEstribo.map(f) };
+    const h = hueco(R.usado ? R.supports : sup0); rev.hueco = h.cambios; OP.supports = h.sup; ends();
+    // interpretación del puente completo: se ofrece, no se aplica sola
+    let hip = null; const Hp = OPC.hipotesis(OP.O, OP.deckTop, OP.ground, sup0, R.usado ? Object.assign({}, R, { supports: h.sup }) : null);
+    if (Hp.usado && (Hp.cambios.quitados.length || Hp.cambios.agregados.length)) hip = { supports: Hp.supports, cambios: Hp.cambios, vanos: Hp.vanos };
     rev.seg = +((performance.now() - t0) / 1000).toFixed(1); OP.hipRev = hip; OP.iaRev = rev;
-  } catch (e) { OP.iaRev = { usado: false, motivo: 'no se pudo cargar el modelo de IA (' + e.message + ')', veto: [], rescate: [], aEstribo: [] }; }
+  } catch (e) { const h = hueco(sup0); OP.supports = h.sup; ends(); OP.iaRev = { usado: false, motivo: 'no se pudo cargar el modelo de IA (' + e.message + ')', veto: [], rescate: [], aEstribo: [], hueco: h.cambios }; }
   finally { OP.iaBusy = false; }
-  if (after) after(); else vTu();
+  fin();
 }
 function opIAText() { const r = OP.iaRev; if (!r) return '';
-  if (!r.usado) return `La IA de apoyos no se usó: ${r.motivo}.`;
+  const hz = (r.hueco || []).map(c => c.tipo === 'movido' ? `movió el estribo ${c.lado} de ${c.de} m a ${c.a} m` : c.tipo === 'a_estribo' ? `tomó como estribo ${c.lado} el apoyo en ${c.de} m (queda en ${c.a} m)` : c.tipo === 'agregado' ? `agregó el estribo ${c.lado} en ${c.a} m` : `quitó el pilar en ${c.s} m, fuera del puente`);
+  const hzt = hz.length ? ` Estribos: donde termina el espacio libre bajo el tablero, la app ${hz.join('; ')}.` : '';
+  if (!r.usado) return (r.motivo === 'desactivada' ? 'La IA de apoyos está desactivada.' : `La IA de apoyos no se usó: ${r.motivo}.`) + hzt;
   const m = [], ls = a => (a.length > 1 ? a.slice(0, -1).join(' m, ') + ' m y ' + a[a.length - 1] : a[0]) + ' m';
   if (r.veto.length) m.push(`quitó ${r.veto.length === 1 ? 'un pilar' : r.veto.length + ' pilares'} donde no ve ninguna columna (en ${ls(r.veto)}; si sí hay un pilar, agréguelo con un clic en la elevación)`);
   if (r.aEstribo.length) m.push(`pasó a estribo ${r.aEstribo.length === 1 ? 'el apoyo extremo' : 'los apoyos extremos'} en ${ls(r.aEstribo)}`);
   if (r.rescate.length) m.push(`propuso ${r.rescate.length === 1 ? 'un pilar' : r.rescate.length + ' pilares'} que la regla geométrica no encontró (en ${ls(r.rescate)})`);
   if (r.estribos && r.estribos.length) m.push(r.estribos.map(c => c.de == null ? `agregó el estribo ${c.lado} en ${c.a} m` : `movió el estribo ${c.lado} de ${c.de} m a la cara del muro, en ${c.a} m`).join('; '));
-  return m.length ? 'La IA revisó la detección: ' + m.join('; ') + '.' : 'La IA de apoyos coincide con la detección geométrica.'; }
+  return (m.length ? 'La IA revisó la detección: ' + m.join('; ') + '.' : 'La IA de apoyos coincide con la detección geométrica.') + hzt; }
 // Propuesta de la interpretación del puente completo (vanos regulares, simetría, estribos donde el terreno llega al tablero)
 function opHipBox() { const el = $('#opHip'); if (!el) return; const h = OP.hipRev; if (!h || h.aplicado) { el.innerHTML = ''; return; }
   const n = x => x.toFixed(1).replace('.', ','), ls = a => a.map(x => `${x.tipo} en ${n(x.s)} m`).join(', ');
@@ -124,7 +121,7 @@ function opCoh(step, d) { const L = OPC.coherence(step, d); if (!L.length) retur
   const worst = L.some(x => x.nivel === 'error') ? 'crit' : L.some(x => x.nivel === 'revisar') ? 'warn' : 'ok';
   return `<div class="coh ${worst}"><b>Revisión automática</b><ul>${L.map(x => `<li class="${cl[x.nivel]}"><span>${ic[x.nivel]}</span>${esc(x.texto)}</li>`).join('')}</ul></div>`; }
 function opSpansNow() { const sp = OP.supports.slice().sort((p, q) => p.a - q.a), L = OPC.spansOf(sp).map(x => x.b - x.a); if (!L.length) return L; if (OP.ends && OP.ends.left === 'simetria') L.unshift(L[0]); if (OP.ends && OP.ends.right === 'simetria') L.push(L[L.length - 1]); return L; }
-function opFlags() { const ia = OP.iaRev && (OP.iaRev.veto.length || OP.iaRev.rescate.length || OP.iaRev.aEstribo.length || (OP.iaRev.estribos && OP.iaRev.estribos.length) || !OP.iaRev.usado) ? [opIAText()] : []; return ia.concat(OP.skew ? [`Puente esviado: los apoyos forman un ángulo de unos ${Math.abs(OP.skew.phi)}° con la perpendicular al eje. La nube se enderezó y las posiciones se miden en el eje del tablero; en la planta (paso 1) las pilas deben verse ahora perpendiculares al eje.`] : []).concat(OP.sinTerreno ? ['La nube no tiene terreno bajo el tablero: los estribos se pusieron en los extremos del tablero. Si el puente tiene pilares, agréguelos a mano.'] : []).concat((OP.supports || []).filter(p => p.duda).map((p, i) => `Apoyo ${OP.supports.indexOf(p) + 1}: ${p.duda}`)); }
+function opFlags() { const ia = OP.iaRev && (OP.iaRev.veto.length || OP.iaRev.rescate.length || OP.iaRev.aEstribo.length || (OP.iaRev.hueco && OP.iaRev.hueco.length) || !OP.iaRev.usado) ? [opIAText()] : []; return ia.concat(OP.skew ? [`Puente esviado: los apoyos forman un ángulo de unos ${Math.abs(OP.skew.phi)}° con la perpendicular al eje. La nube se enderezó y las posiciones se miden en el eje del tablero; en la planta (paso 1) las pilas deben verse ahora perpendiculares al eje.`] : []).concat(OP.sinTerreno ? ['La nube no tiene terreno bajo el tablero: los estribos se pusieron en los extremos del tablero. Si el puente tiene pilares, agréguelos a mano.'] : []).concat((OP.supports || []).filter(p => p.duda).map((p, i) => `Apoyo ${OP.supports.indexOf(p) + 1}: ${p.duda}`)); }
 (function () { const st = document.createElement('style'); st.textContent = '.coh{border:1px solid var(--rule);border-left:4px solid var(--ok);padding:6px 10px;margin:10px 0;font-size:.86rem;background:var(--paper,#fff)}.coh.warn{border-left-color:var(--warn)}.coh.crit{border-left-color:var(--red)}.coh ul{list-style:none;margin:4px 0 0;padding:0;display:grid;gap:3px}.coh li{display:grid;grid-template-columns:18px 1fr;gap:4px}.coh li span{font-weight:700}.coh li.ok span{color:var(--ok)}.coh li.warn span{color:var(--warn)}.coh li.crit span{color:var(--red)}'; document.head.appendChild(st); })();
 
 /* ---------- planta y recorte de un tramo recto (nubes con accesos, curvas o varios puentes) ---------- */
