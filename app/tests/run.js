@@ -154,6 +154,11 @@ ok('Modelo C: 20 zonas de daño (15 de arcos, 3 de tablero y 2 de pilares por so
     const q0 = OPC.calidadNube(mk(false, false), 0, -8, sup), q1 = OPC.calidadNube(mk(true, true), 0, -8, sup.slice(0, 3));
     const crit = q => q.avisos.filter(a => a.nivel === 'crit').map(a => a.txt.slice(0, 40));
     ok('Calidad de la nube: completo sin alarmas; hueco de 10 m y final en el aire detectados', !crit(q0).length && q1.huecos.some(h => h.a >= 24 && h.b <= 36) && crit(q1).some(t => /aire/.test(t)), `completo: ${crit(q0).length} alarmas · con fallas: ${crit(q1).join(' | ')}`); }
+  // Eje curvo: tablero en arco de radio 60 m y 80 m de largo (giro 76°) con terreno 8 m abajo; el recorrido mide largo y giro
+  { const Q = [], R = 60, L = 80; for (let s0 = -L / 2 - 10; s0 <= L / 2 + 10; s0 += .3) for (let t = -4; t <= 4; t += .4) { const a = s0 / R, x = (R - t) * Math.sin(a), y = R - (R - t) * Math.cos(a), dentro = Math.abs(s0) <= L / 2;
+        Q.push(x, y, dentro ? 0 : 0); if (dentro) Q.push(x, y, -8); }
+    const Oq = OPC.orient({ xyz: Float32Array.from(Q), offset: [0, 0, 0] }, 'z', 1), E = OPC.ejeCurvo(Oq, 0);
+    ok('Eje curvo: recorre un tablero en arco (radio 60 m) y mide su largo y su giro', E && Math.abs(E.largo - L) < 12 && Math.abs(Math.abs(E.giro) - L / R * 180 / Math.PI) < 15, E ? `largo ${E.largo.toFixed(1)} m (80) · giro ${Math.abs(E.giro).toFixed(0)}° (76)` : 'sin eje'); }
   ok('Eje: planta cuadrada marcada como dudosa; tramo recortado queda en x', Oq.ejeRatio < 3 && Ox.snap === 0, `cociente ${Oq.ejeRatio.toFixed(2)} · recortado: eje ${Ox.snap === 0 ? 'x' : '?'}`); }
 
 // 15. Campaña de registros: los modos que se repiten se separan del ruido que aparece y desaparece, y se estima el efecto de la temperatura

@@ -389,6 +389,7 @@ function suggestType(O, deckTop, ground, sup, band, minPts, ends) {
   let SS = []; try { SS = superestructura(O, deckTop, ground); } catch (e) { SS = []; }
   const pil = [].concat(...SS.filter(x => x.tipo === 'atirantado').map(x => x.pilonos)).sort((a, b) => a.s - b.s), arS = SS.filter(x => x.tipo === 'arco_superior' && x.L >= 30).sort((a, b) => b.L - a.L)[0], trS = SS.find(x => x.tipo === 'armadura' && x.L >= 30);
   const extra = { superestructura: SS }; tower = 0; why.length = 0;
+  try { const C = composicion(SS, sup); if (C.length >= 2 && new Set(C.map(t => t.tipo)).size >= 2) extra.composicion = C; } catch (e) {}
   if (pil.length) { extra.pilonos = pil.map(p => p.s); if (pil.length >= 2) extra.vanoPrincipal = +(pil[pil.length - 1].s - pil[0].s).toFixed(1); why.push(`pilonos con cables rectos en ${pil.map(p => p.s.toFixed(1).replace('.', ',') + ' m').join(' y ')}${extra.vanoPrincipal ? ', vano principal ≈ ' + extra.vanoPrincipal.toFixed(1).replace('.', ',') + ' m' : ''}`); tower = 1; }
   if (arcoOk) return Object.assign({ tipo: 'arco', atirantado: tower > .01, why: ['los puntos bajo el tablero forman arcos'].concat(why) }, extra);
   // armadura: dos planos de barras, uno en cada borde del tablero, entre 3 y 9 m sobre la rodadura y en ≥ 70 % del largo entre apoyos extremos.
@@ -1434,9 +1435,10 @@ function supra(O, dk, W = {}, disp = null) {
       for (const d of [-1, 1]) { const xs = [], ys = []; for (let j = 1; j <= 3 * dh; j++) { const k = k0 + d * j; if (k < 0 || k >= nb) break; if (E[k] >= 1.5) { xs.push(j * W.bw); ys.push(E[k]); } }
         if (xs.length < 4) continue; let sxy = 0, sxx = 0; for (let i = 0; i < xs.length; i++) { sxy += xs[i] * (ys[i] - m.h); sxx += xs[i] * xs[i]; } const sl = sxy / sxx; if (sl >= 0) continue;
         const R = -m.h / sl; let r = 0, n = 0; for (let i = 0; i < xs.length; i++) if (xs[i] <= R) { r += (m.h + sl * xs[i] - ys[i]) ** 2; n++; } const rms = Math.sqrt(r / Math.max(1, n)), cob = n / Math.max(1, Math.floor(R / W.bw));
+        (m.alcance = m.alcance || [null, null])[d < 0 ? 0 : 1] = +Math.min(R, 6 * m.h).toFixed(1); // hasta dónde llegan los cables de ese lado
         if (R >= 1.5 * m.h && rms <= .15 * m.h && cob >= .6) lados++; }
       return lados === 2; };
-    const McC = Mh.filter(conCables);
+    const McC = Mh.filter(conCables); for (const m of Mh) if (!m.alcance) m.alcance = [null, null];
     if (!estructura && !McC.length) tipo = 'otro';
     else if (estructura && a2 < 0 && rp <= Math.max(.8, .06 * top) && top / L >= .08 && top >= 6) {
       // un arco es un miembro fino (los puntos se concentran bajo la envolvente) y simétrico
@@ -1532,7 +1534,7 @@ function calidadNube(O, dk, gr, supports = [], W = {}) {
   for (const a of apoyos) if (a.tipo === 'pilar' && a.frac < .5) { avisos.push({ nivel: 'warn', txt: `${a.tipo === 'pilar' ? 'Pilar' : 'Estribo'} ${a.i} (en ${f1(a.s)} m): solo se ve el ${pc(a.frac)} de su altura.` }); rec.push(`Escanear el apoyo ${a.i} de costado, desde una posición con vista hasta su base.`); }
   for (const v of vanos) if (v.tablero < .8 && !huecos.some(h => h.a >= v.a - 1 && h.b <= v.b + 1)) avisos.push({ nivel: 'warn', txt: `Vano ${v.i}: la calzada está cubierta solo en el ${pc(v.tablero)} de su largo.` });
   if (esp != null && esp > .1) avisos.push({ nivel: 'info', txt: `Espaciado típico de puntos en la calzada ≈ ${Math.round(100 * esp)} cm: suficiente para la geometría general, no para medir fisuras ni secciones finas.` });
-  return { s0, bw, deck: Array.from(deck), top: Array.from(top), bajo: Array.from(bajo), alto: Array.from(alto), thr, thrB, extension: [+(s0 + e0 * bw).toFixed(1), +(s0 + (e1 + 1) * bw).toFixed(1)], largo: L, ancho: +ancho.toFixed(1), desvioEje: +desvio.toFixed(1), anchoLocal: anchoLocal && +anchoLocal.toFixed(1), fracTablero: +fracTop.toFixed(2), fracBajo: +fracBajo.toFixed(2), espaciado: esp && +esp.toFixed(3), origen, huecos, cortes, apoyos, vanos, avisos, recomendaciones: rec };
+  return { s0, bw, deck: Array.from(deck), top: Array.from(top), bajo: Array.from(bajo), alto: Array.from(alto), thr, thrB, extension: [+(s0 + e0 * bw).toFixed(1), +(s0 + (e1 + 1) * bw).toFixed(1)], largo: L, ancho: +ancho.toFixed(1), noRecto: !!(anchoLocal && (tb1 - tb0) > 4 * anchoLocal + 4), desvioEje: +desvio.toFixed(1), anchoLocal: anchoLocal && +anchoLocal.toFixed(1), fracTablero: +fracTop.toFixed(2), fracBajo: +fracBajo.toFixed(2), espaciado: esp && +esp.toFixed(3), origen, huecos, cortes, apoyos, vanos, avisos, recomendaciones: rec };
 }
 
 // Superestructura sobre el tablero con la dispersión local de los puntos (miembros lineales frente a follaje)
@@ -1542,6 +1544,149 @@ function superestructura(O, dk, gr) {
   for (const g of seg) if (g.tipo === 'arco_superior' && g.luzArco) { const ap = apoyosArco(O, dk, gr, g.luzArco); if (ap) g.luzArco.apoyos = ap; }
   return seg;
 }
+/* ---------- Eje curvo: se recorre la calzada en planta y se «desenrolla» el puente ----------
+   Para puentes curvos, quebrados o con rampas. Parte de la zona más poblada a la altura del tablero y avanza en pasos de 2 m:
+   en cada paso prueba direcciones (giro máximo 45° por paso), elige la que tiene más calzada a la altura esperada (pendiente ≤ 15 %),
+   recentra el eje en la calzada y sigue la altura. Luego cada punto se proyecta sobre esa línea: s = largo sobre el eje, t = distancia al eje. */
+function ejeCurvo(O, dk, W = {}) {
+  W = Object.assign({ paso: 2, celda: 1, dz: .5, giro: 45, pend: .15, hueco: 8, R: 40 }, W);
+  const c = W.celda, key = (a, b) => (a + 50000) * 100000 + (b + 50000), G = new Map();
+  for (let i = 0; i < O.n; i++) { const k = key(Math.floor(O.s[i] / c), Math.floor(O.t[i] / c)); let v = G.get(k); if (!v) G.set(k, v = []); v.push(i); }
+  // puntos de calzada cerca de (x, y) a la altura h: [n, mediana z]
+  const disco = (x, y, r, h, dz) => { let n = 0; const zs = []; const a0 = Math.floor((x - r) / c), a1 = Math.floor((x + r) / c), b0 = Math.floor((y - r) / c), b1 = Math.floor((y + r) / c);
+    for (let a = a0; a <= a1; a++) for (let b = b0; b <= b1; b++) { const v = G.get(key(a, b)); if (!v) continue; for (const i of v) { const dx = O.s[i] - x, dy = O.t[i] - y; if (dx * dx + dy * dy > r * r || Math.abs(O.z[i] - h) > dz) continue; n++; if (zs.length < 300) zs.push(O.z[i]); } }
+    zs.sort((p, q) => p - q); return [n, zs.length ? zs[zs.length >> 1] : h]; };
+  // ¿hay espacio libre bajo la calzada aquí? (puntos 2 m o más abajo, en un círculo de radio r)
+  const libreBajo = (x, y, r, h) => { const a0 = Math.floor((x - r) / c), a1 = Math.floor((x + r) / c), b0 = Math.floor((y - r) / c), b1 = Math.floor((y + r) / c); let n = 0;
+    for (let a = a0; a <= a1; a++) for (let b = b0; b <= b1; b++) { const v = G.get(key(a, b)); if (!v) continue; for (const i of v) { const dx = O.s[i] - x, dy = O.t[i] - y; if (dx * dx + dy * dy <= r * r && O.z[i] < h - 2) n++; } } return n >= 3; };
+  // corte transversal en (x, y) con dirección d: centro y ancho de la calzada
+  const corte = (x, y, d, h, wmax) => { const ts = []; const r = wmax; const a0 = Math.floor((x - r) / c), a1 = Math.floor((x + r) / c), b0 = Math.floor((y - r) / c), b1 = Math.floor((y + r) / c);
+    for (let a = a0; a <= a1; a++) for (let b = b0; b <= b1; b++) { const v = G.get(key(a, b)); if (!v) continue; for (const i of v) { const dx = O.s[i] - x, dy = O.t[i] - y, al = dx * d[0] + dy * d[1], ac = -dx * d[1] + dy * d[0]; if (Math.abs(al) > W.paso / 2 || Math.abs(ac) > wmax || Math.abs(O.z[i] - h) > .8) continue; ts.push(ac); } }
+    if (ts.length < 10) return null; ts.sort((p, q) => p - q); return { off: ts[ts.length >> 1], w: ts[Math.floor(ts.length * .9)] - ts[Math.floor(ts.length * .1)], n: ts.length }; };
+  // altura de la calzada: la franja horizontal de 0,2 m más poblada de la mitad superior (como al orientar); dk solo si no hay otra
+  { const zs = []; for (let i = 0; i < O.n; i += Math.max(1, Math.floor(O.n / 200000))) zs.push(O.z[i]); zs.sort((a, b) => a - b); const zlo = zs[0], zmed = zs[zs.length >> 1], H = new Map();
+    for (const z of zs) { if (z < zmed) continue; const k = Math.floor((z - zlo) / .2); H.set(k, (H.get(k) || 0) + 1); } let bk = null, bv = 0; for (const [k, v] of H) { const t = v + (H.get(k - 1) || 0) + (H.get(k + 1) || 0); if (t > bv) { bv = t; bk = k; } } if (bk != null) dk = zlo + (bk + .5) * .2; }
+  // semilla: celda con más puntos a la altura de la calzada
+  // semilla: entre las celdas de calzada con espacio libre debajo (puntos 2 m o más abajo en la misma celda), la que tiene el tramo recto
+  // de calzada continua más largo (una plaza o un terraplén son cortos; un puente es largo)
+  const cand = []; for (const [k, v] of G) { let n = 0, bajo = 0; for (const i of v) { const h = O.z[i] - dk; if (Math.abs(h) < .3) n++; else if (h < -2) bajo++; } if (n >= 3) cand.push({ sc: n * (bajo >= 3 ? 1 : .05), libre: bajo >= 3, i: v.find(i => Math.abs(O.z[i] - dk) < .3) }); }
+  if (!cand.length) return null; cand.sort((a, b) => b.sc - a.sc);
+  const rayo = (p, h) => { let d = [1, 0], lmax = -1; for (let g = 0; g < 180; g += 5) { const r = g * Math.PI / 180, dd = [Math.cos(r), Math.sin(r)]; let L = 0;
+      for (const sg of [-1, 1]) { let miss = 0; for (let k = 1; k < 200; k++) { const q = [p[0] + sg * k * dd[0], p[1] + sg * k * dd[1]]; if (disco(q[0], q[1], .75, h, .3 + .05 * k)[0] >= 2) { L++; miss = 0; } else if (++miss > 3) break; } }
+      if (L > lmax) { lmax = L; d = dd; } } return { d, lmax }; };
+  let p0, h0, d0, lmax = -1, libre0 = false; const usados = [];
+  for (const c0 of cand) { if (usados.length >= 12) break; const p = [O.s[c0.i], O.t[c0.i]]; if (usados.some(u => Math.hypot(u[0] - p[0], u[1] - p[1]) < 10)) continue; usados.push(p);
+    const h = disco(p[0], p[1], 3, dk, .3)[1], r = rayo(p, h); if (r.lmax > lmax) { lmax = r.lmax; p0 = p; h0 = h; d0 = r.d; libre0 = c0.libre; } }
+  const cs = corte(p0[0], p0[1], d0, h0, 20); if (cs) p0 = [p0[0] - cs.off * d0[1], p0[1] + cs.off * d0[0]]; const ws = [-6, -3, 0, 3, 6].map(k => corte(p0[0] + k * d0[0], p0[1] + k * d0[1], d0, h0, 20)).filter(Boolean).map(c => c.w).sort((a, b) => a - b); const wd = ws.length ? Math.max(1.5, ws[ws.length >> 1]) : 4, wTope = 1.6 * wd + 2; // si la calzada se ensancha mucho, se salió del puente (terreno a nivel)
+    let xs0 = 1e9, xs1 = -1e9, ys0 = 1e9, ys1 = -1e9; for (let i = 0; i < O.n; i++) { if (O.s[i] < xs0) xs0 = O.s[i]; if (O.s[i] > xs1) xs1 = O.s[i]; if (O.t[i] < ys0) ys0 = O.t[i]; if (O.t[i] > ys1) ys1 = O.t[i]; }
+  const maxIt = Math.ceil(1.5 * Math.hypot(xs1 - xs0, ys1 - ys0) / W.paso), visto = new Set(), vk = (x, y) => key(Math.floor(x / W.paso), Math.floor(y / W.paso));
+  const andar = sg => { const L = []; let p = p0.slice(), d = [sg * d0[0], sg * d0[1]], h = h0, sl = 0, miss = 0, w = wd, ancho = 0, sinLibre = 0;
+    for (let it = 0; it < maxIt; it++) { let mejor = null;
+      for (let g = -W.giro; g <= W.giro; g += 7.5) { const r = g * Math.PI / 180, dd = [d[0] * Math.cos(r) - d[1] * Math.sin(r), d[0] * Math.sin(r) + d[1] * Math.cos(r)], q = [p[0] + W.paso * dd[0], p[1] + W.paso * dd[1]];
+        const [n, zm] = disco(q[0], q[1], Math.max(1.5, w / 2), h + sl * W.paso, Math.max(W.dz, W.pend * W.paso)), sc = n * Math.exp(-((g / 15) ** 2)); if (n >= 5 && (!mejor || sc > mejor.sc)) mejor = { sc, dd, q, zm, n }; }
+      if (!mejor) { if (++miss * W.paso > W.hueco) { break; } p = [p[0] + W.paso * d[0], p[1] + W.paso * d[1]]; L.push({ x: p[0], y: p[1], h, hueco: true }); continue; }
+      miss = 0; let q = mejor.q; const cx = corte(q[0], q[1], mejor.dd, mejor.zm, Math.max(3, 1.5 * w));
+      // fin del puente: con espacio libre debajo en la semilla (escáner terrestre o dron), cuando deja de haberlo 8 m seguidos (ahí está el estribo);
+      // sin él (LiDAR aéreo), cuando la calzada se ensancha mucho (terreno a nivel)
+      if (libre0) { if (!libreBajo(q[0], q[1], Math.max(2, w / 2), mejor.zm)) { if (++sinLibre * W.paso >= 8) { L.splice(Math.max(0, L.length - sinLibre + 1)); break; } } else sinLibre = 0; }
+      else if (cx && cx.w > wTope) { if (++ancho >= 4) { L.splice(L.length - 3, 3); break; } } else ancho = 0;
+      if (cx && cx.w <= wTope) { const off = Math.max(-.5 * w, Math.min(.5 * w, cx.off)); /* recentrado completo: manda el centro de la calzada */ q = [q[0] - off * mejor.dd[1], q[1] + off * mejor.dd[0]]; w = Math.min(25, .8 * w + .2 * Math.max(1.5, cx.w)); }
+      const pr = L.length >= 4 ? [L[L.length - 4].x, L[L.length - 4].y] : p, nd = [q[0] - pr[0], q[1] - pr[1]], nn = Math.hypot(nd[0], nd[1]) || 1; // dirección: cuerda de los últimos 8 m (suave aunque el centro salte)
+      d = [nd[0] / nn, nd[1] / nn];
+      sl = Math.max(-W.pend, Math.min(W.pend, .7 * sl + .3 * (mejor.zm - h) / W.paso)); h = mejor.zm; p = q;
+      const vv = vk(p[0], p[1]); if (visto.has(vv) && L.length > 3) { break; } // no volver sobre lo recorrido
+      if (L.length > 2) visto.add(vk(L[L.length - 3].x, L[L.length - 3].y)); L.push({ x: p[0], y: p[1], h, w }); }
+    while (L.length && L[L.length - 1].hueco) L.pop(); return L; };
+  const A = andar(-1).reverse(), B = andar(1); const P = [...A, { x: p0[0], y: p0[1], h: h0, w: wd }, ...B];
+  if (P.length < 5) return null;
+  // suavizado (media de 5) y largo acumulado
+  const S = P.map((_, i) => { let x = 0, y = 0, n = 0; for (let j = Math.max(0, i - 2); j <= Math.min(P.length - 1, i + 2); j++) { x += P[j].x; y += P[j].y; n++; } return { x: x / n, y: y / n, h: P[i].h, w: P[i].w }; });
+  return desenrollar(O, S, wd);
+}
+/* Proyecta cada punto sobre la polilínea S (eje en planta): s = largo sobre el eje, t = distancia al eje; recorta la franja del puente. */
+function desenrollar(O, S, wd, W = { R: 40 }) {
+  const key = (a, b) => (a + 50000) * 100000 + (b + 50000);
+  const cum = [0]; for (let i = 1; i < S.length; i++) cum.push(cum[i - 1] + Math.hypot(S[i].x - S[i - 1].x, S[i].y - S[i - 1].y));
+  // proyección de cada punto sobre la polilínea (índice de segmentos en celdas de 5 m)
+  const C = 5, SG = new Map(); for (let i = 0; i + 1 < S.length; i++) { const a0 = Math.floor(Math.min(S[i].x, S[i + 1].x) / C), a1 = Math.floor(Math.max(S[i].x, S[i + 1].x) / C), b0 = Math.floor(Math.min(S[i].y, S[i + 1].y) / C), b1 = Math.floor(Math.max(S[i].y, S[i + 1].y) / C);
+    for (let a = a0; a <= a1; a++) for (let b = b0; b <= b1; b++) { const k = key(a, b); let v = SG.get(k); if (!v) SG.set(k, v = []); v.push(i); } }
+  const s = new Float32Array(O.n), t = new Float32Array(O.n), z = new Float32Array(O.n), dentro = new Uint8Array(O.n); let fuera = 0;
+  const proj = (x, y, i) => { const ax = S[i].x, ay = S[i].y, bx = S[i + 1].x, by = S[i + 1].y, vx = bx - ax, vy = by - ay, L2 = vx * vx + vy * vy || 1e-9; let u = ((x - ax) * vx + (y - ay) * vy) / L2; const ue = u; u = Math.max(0, Math.min(1, u)); const px = ax + u * vx, py = ay + u * vy, L = Math.sqrt(L2);
+    return { d2: (x - px) ** 2 + (y - py) ** 2, s: cum[i] + u * L + (i === 0 && ue < 0 ? ue * L : 0) + (i === S.length - 2 && ue > 1 ? (ue - 1) * L : 0), t: ((x - ax) * (-vy) + (y - ay) * vx) / L * -1, i }; };
+  for (let k = 0; k < O.n; k++) { const x = O.s[k], y = O.t[k], a = Math.floor(x / C), b = Math.floor(y / C); let m = null;
+    for (let r = 0; r <= Math.ceil(W.R / C) && !m; r++) { for (let da = -r; da <= r; da++) for (let db = -r; db <= r; db++) { if (Math.max(Math.abs(da), Math.abs(db)) !== r) continue; const v = SG.get(key(a + da, b + db)); if (!v) continue; for (const i of v) { const q = proj(x, y, i); if (!m || q.d2 < m.d2) m = q; } } if (m && r >= 1) break; }
+    if (!m) { m = proj(x, y, 0); const q = proj(x, y, S.length - 2); if (q.d2 < m.d2) m = q; fuera++; } else dentro[k] = 1;
+    s[k] = m.s; t[k] = m.t; z[k] = O.z[k]; }
+  // giro total del eje (grados) y radio mínimo aproximado
+  let giro = 0, rmin = Infinity; for (let i = 2; i < S.length; i++) { const a1 = Math.atan2(S[i - 1].y - S[i - 2].y, S[i - 1].x - S[i - 2].x), a2 = Math.atan2(S[i].y - S[i - 1].y, S[i].x - S[i - 1].x); let da = a2 - a1; while (da > Math.PI) da -= 2 * Math.PI; while (da < -Math.PI) da += 2 * Math.PI; giro += da;
+    if (i >= 6) { const b1 = Math.atan2(S[i - 4].y - S[i - 6].y, S[i - 4].x - S[i - 6].x); let db = a2 - b1; while (db > Math.PI) db -= 2 * Math.PI; while (db < -Math.PI) db += 2 * Math.PI; const ds = cum[i] - cum[i - 5]; if (Math.abs(db) > 1e-3) rmin = Math.min(rmin, ds / Math.abs(db)); } }
+  // franja del puente: solo los puntos a menos de máx(3 anchos, ancho + 10 m) del eje y hasta 30 m más allá de sus extremos
+  // (otras ramas, rampas o calles que cruzan quedan fuera; se analizan recortándolas aparte)
+  const wm = S.map(p => p.w).filter(v => v > 0).sort((a, b) => a - b), wq = wm.length ? wm[wm.length >> 1] : wd, lim = Math.max(3 * wq, wq + 10), Lt = cum[cum.length - 1];
+  let m = 0; for (let k = 0; k < O.n; k++) if (Math.abs(t[k]) <= lim && s[k] >= -30 && s[k] <= Lt + 30) m++;
+  const s2 = new Float32Array(m), t2 = new Float32Array(m), z2 = new Float32Array(m); let j = 0; for (let k = 0; k < O.n; k++) if (Math.abs(t[k]) <= lim && s[k] >= -30 && s[k] <= Lt + 30) { s2[j] = s[k]; t2[j] = t[k]; z2[j] = z[k]; j++; }
+  return { O: { s: s2, t: t2, z: z2, n: m, snap: null, angleDeg: O.angleDeg, ejeRatio: Infinity, curvo: true }, franja: +lim.toFixed(1), descartados: O.n - m, eje: S.map((p, i) => ({ x: +p.x.toFixed(2), y: +p.y.toFixed(2), h: +p.h.toFixed(2), s: +cum[i].toFixed(2) })), largo: cum[cum.length - 1], giro: giro * 180 / Math.PI, radioMin: rmin, fuera };
+}
+
+/* Eje curvo por ajuste: para curvas suaves (el eje sigue siendo función del largo recto). Centro de la calzada por celda de 2 m
+   (puntos a ±0,4 m de la calzada local) y polinomio robusto de grado 3. */
+function ejePoli(O, dk) {
+  const q = calidadNube(O, dk, groundLevel(O), []); if (!q) return null;
+  const bw = 2, nb = Math.ceil(q.deck.length * q.bw / bw), T = Array.from({ length: nb }, () => []);
+  for (let i = 0; i < O.n; i++) { const k = Math.floor((O.s[i] - q.s0) / q.bw); if (k < 0 || k >= q.deck.length) continue; if (Math.abs(O.z[i] - q.deck[k]) > .4) continue; const b = Math.floor((O.s[i] - q.s0) / bw); if (T[b].length < 3000) T[b].push(O.t[i]); }
+  let X = [], Y = []; for (let b = 0; b < nb; b++) { const v = T[b]; if (v.length < 10) continue; v.sort((a, c) => a - c); X.push(q.s0 + (b + .5) * bw); Y.push((v[Math.floor(v.length * .1)] + v[Math.floor(v.length * .9)]) / 2); }
+  if (X.length < 8) return null; const xm = X.reduce((a, c) => a + c) / X.length, xs = Math.max(1, Math.max(...X.map(x => Math.abs(x - xm))));
+  const fit = (X, Y) => { const n = 4, A = Array.from({ length: n }, () => new Float64Array(n + 1)); for (let i = 0; i < X.length; i++) { const u = (X[i] - xm) / xs, p = [1, u, u * u, u * u * u]; for (let r = 0; r < n; r++) { for (let c = 0; c < n; c++) A[r][c] += p[r] * p[c]; A[r][n] += p[r] * Y[i]; } }
+    for (let c = 0; c < n; c++) { let m = c; for (let r = c + 1; r < n; r++) if (Math.abs(A[r][c]) > Math.abs(A[m][c])) m = r; [A[c], A[m]] = [A[m], A[c]]; for (let r = 0; r < n; r++) if (r !== c) { const f = A[r][c] / A[c][c]; for (let k = c; k <= n; k++) A[r][k] -= f * A[c][k]; } }
+    const co = A.map((r, i) => r[n] / r[i]); return x => { const u = (x - xm) / xs; return co[0] + co[1] * u + co[2] * u * u + co[3] * u * u * u; }; };
+  let f = fit(X, Y); for (let it = 0; it < 3; it++) { const r = X.map((x, i) => Math.abs(Y[i] - f(x))), m = r.slice().sort((a, c) => a - c)[r.length >> 1] || .1, k = X.map((_, i) => r[i] <= Math.max(1, 3 * m)); const X2 = X.filter((_, i) => k[i]), Y2 = Y.filter((_, i) => k[i]); if (X2.length < 8) break; f = fit(X2, Y2); }
+  // fuera de los datos, el eje sigue recto con la tangente del extremo (un polinomio extrapolado se dispara)
+  const x0 = X[0], x1 = X[X.length - 1], d0 = (f(x0 + 1) - f(x0)), d1 = (f(x1) - f(x1 - 1)), g = x => x < x0 ? f(x0) + d0 * (x - x0) : x > x1 ? f(x1) + d1 * (x - x1) : f(x);
+  const S = []; for (let x = x0 - 30; x <= x1 + 30; x += 1) S.push({ x, y: g(x), h: dk, w: q.ancho });
+  // flecha del eje en planta: separación máxima entre la curva ajustada y la recta que une sus extremos
+  let sag = 0; const y0 = f(x0), y1 = f(x1); for (let x = x0; x <= x1; x += 1) { const yl = y0 + (y1 - y0) * (x - x0) / Math.max(1e-6, x1 - x0); sag = Math.max(sag, Math.abs(f(x) - yl) / Math.hypot(1, (y1 - y0) / Math.max(1e-6, x1 - x0))); }
+  S.sagita = sag; S.largoDatos = x1 - x0; S.ancho = q.anchoLocal || q.ancho;
+  return S;
+}
+/* Elección automática: se prueban el ajuste suave y el recorrido; gana el que deja el puente más «derecho»
+   (franja ocupada por la calzada más cercana a su ancho por metro, medida con la misma calidad de la nube). */
+function ejeAuto(O, dk, forzar = false) {
+  // ¿hace falta? flecha del eje en planta mayor que máx(2 m, 1/4 del ancho de la calzada)
+  const S0 = ejePoli(O, dk); if (!S0) return null; const umbral = Math.max(2, .25 * (S0.ancho || 4));
+  if (!forzar && S0.sagita <= umbral) return { innecesario: true, sagita: S0.sagita };
+  const C = [];
+  try { const E = desenrollar(O, S0, 4); E.metodo = 'ajuste suave'; C.push(E); } catch (e) {}
+  try { const E = ejeCurvo(O, dk); if (E) { E.metodo = 'recorrido de la calzada'; C.push(E); } } catch (e) {}
+  // gana el que deja el eje más recto (menor flecha remanente medida con el mismo ajuste)
+  let best = null; for (const E of C) { let r = Infinity; try { const S1 = ejePoli(E.O, deckLevel(E.O)); if (S1) r = S1.sagita; } catch (e) {} E.resto = r; if (!best || r < best.resto) best = E; }
+  if (best) { best.sagita = S0.sagita; if (!(best.resto < S0.sagita)) return { innecesario: true, sagita: S0.sagita }; }
+  return best;
+}
+
+// Puente combinado: tramos con distinto sistema a lo largo del eje (atirantado, arco sobre el tablero, armadura, tramos apoyados en pilares).
+// Cada sistema ocupa lo que alcanzan sus elementos (cables de cada pilono, raíces o pilas del arco, cordones de la armadura); el resto del tablero
+// entre los apoyos extremos son tramos apoyados, con los vanos que marcan los apoyos.
+function composicion(SS, supports) {
+  const sp = (supports || []).slice().sort((p, q) => p.a - q.a), T = [], mid = p => (p.a + p.b) / 2;
+  for (const g of SS || []) {
+    if (g.tipo === 'atirantado') for (const m of g.pilonos) { const al = m.alcance || [], a = m.s - (al[0] || .75 * m.h * 2), b = m.s + (al[1] || .75 * m.h * 2); T.push({ a, b, tipo: 'atirantado', pilonos: [m.s] }); }
+    else if (g.tipo === 'arco_superior') { const la = g.luzArco, ap = la && la.apoyos; T.push({ a: ap ? ap.a : la ? la.a : g.a, b: ap ? ap.b : la ? la.b : g.b, tipo: 'arco_superior' }); }
+    else if (g.tipo === 'armadura') T.push({ a: g.a, b: g.b, tipo: 'armadura' }); }
+  T.sort((p, q) => p.a - q.a); const M = []; for (const t of T) { const q = M[M.length - 1];
+    // dos pilonos seguidos forman un solo atirantado si el hueco entre lo que alcanzan sus cables es menor que la mitad de la distancia entre ellos
+    // (desde el aire los cables del centro del vano principal se ven poco)
+    const mismo = q && q.tipo === t.tipo && (t.a <= q.b + 5 || (t.tipo === 'atirantado' && t.a - q.b < .5 * (t.pilonos[0] - q.pilonos[q.pilonos.length - 1])));
+    if (mismo) { q.b = Math.max(q.b, t.b); if (t.pilonos) q.pilonos = (q.pilonos || []).concat(t.pilonos); } else M.push({ ...t }); }
+  if (!sp.length) return M.map(t => ({ ...t, a: +t.a.toFixed(1), b: +t.b.toFixed(1) }));
+  const A = sp[0].a, B = sp[sp.length - 1].b, out = []; let cur = A;
+  const apoyado = (a, b) => { if (b - a < 3) return; const den = sp.filter(p => mid(p) > a + 1 && mid(p) < b - 1 && p.tipo === 'pilar'); out.push({ a, b, tipo: 'apoyado', pilares: den.length, vanos: den.length + 1 }); };
+  for (const t of M) { const a = Math.max(A, t.a), b = Math.min(B, t.b); if (b <= a) continue; if (a > cur) apoyado(cur, a); out.push({ ...t, a, b }); cur = Math.max(cur, b); }
+  if (B > cur) apoyado(cur, B);
+  // un «tramo apoyado» de menos de 8 m entre el estribo y un sistema es el apoyo de ese sistema: se une a su vecino
+  for (let i = out.length - 1; i >= 0; i--) if (out[i].tipo === 'apoyado' && out[i].b - out[i].a < 8 && out.length > 1) { const o = out[i]; out.splice(i, 1); if (i > 0 && (i >= out.length || out[i - 1].b >= o.a - .1)) out[i - 1].b = o.b; else if (out[i]) out[i].a = o.a; }
+  return out.map(t => ({ ...t, a: +t.a.toFixed(1), b: +t.b.toFixed(1) }));
+}
+
 // Pilas donde arranca un arco superior: en LiDAR aéreo el tablero tapa casi todo, pero bajo la calzada, cerca de cada raíz de la parábola,
 // aparece un grupo angosto de puntos que baja hasta el terreno (la pila o el pilono). Se toma el centroide de ese grupo.
 function apoyosArco(O, dk, gr, la, W = { R: 15, BW: 2, NB: 10, NMIN: 150, VERT: .5, ANCHO: 28 }) {
@@ -1556,7 +1701,7 @@ function apoyosArco(O, dk, gr, la, W = { R: 15, BW: 2, NB: 10, NMIN: 150, VERT: 
   const a = uno(la.a), b = uno(la.b); return a != null && b != null ? { a: +a.toFixed(1), b: +b.toFixed(1), L: +(b - a).toFixed(1) } : null;
 }
 
-return { calidadNube, supra, superestructura, apoyosArco, gapProfile, gapEnds, estribosHueco, GAP_W, hipotesis, clearanceProfile, iaEstribos, HIP_W, EST_W, iaFeatures, iaPredict, iaClusters, iaRefine, IA_NAMES, IA_REGLA, fftInPlace, detrend, csdMatrix, fdd, efdd, fddModes, pickPeaks, staticPrep, fiberStress, influence, HL93, hl93Extremes, liveLoad, CS_WF, pTrans, markovStep, elemHI, bridgeHI, calibrateAlpha, maintenancePlan, Dxf, bridgePlans, sensorsOf, readAccel, sdof, spectrum, seismic, freqCampaign, setConcMin, suggestType, applySkew, coherence, f1Band, geomSigmas, perturbGeom, archRise, peakCampaign, csdAverage, calibrateModel, nelderMead, trainFreqIA, trainVecIA, trainModalIA, modalFeat, modalMeasFeat, modalMeasFeatBase, freqPredict, build, modal, archAll, parseCloud, orient, bounds, deckLevel, groundLevel, detectSupports, spansOf, envelope, fitParabola, polyval, archGeometry, spanCoverage, MATERIALS,
+return { ejeCurvo, ejePoli, desenrollar, ejeAuto, composicion, calidadNube, supra, superestructura, apoyosArco, gapProfile, gapEnds, estribosHueco, GAP_W, hipotesis, clearanceProfile, iaEstribos, HIP_W, EST_W, iaFeatures, iaPredict, iaClusters, iaRefine, IA_NAMES, IA_REGLA, fftInPlace, detrend, csdMatrix, fdd, efdd, fddModes, pickPeaks, staticPrep, fiberStress, influence, HL93, hl93Extremes, liveLoad, CS_WF, pTrans, markovStep, elemHI, bridgeHI, calibrateAlpha, maintenancePlan, Dxf, bridgePlans, sensorsOf, readAccel, sdof, spectrum, seismic, freqCampaign, setConcMin, suggestType, applySkew, coherence, f1Band, geomSigmas, perturbGeom, archRise, peakCampaign, csdAverage, calibrateModel, nelderMead, trainFreqIA, trainVecIA, trainModalIA, modalFeat, modalMeasFeat, modalMeasFeatBase, freqPredict, build, modal, archAll, parseCloud, orient, bounds, deckLevel, groundLevel, detectSupports, spansOf, envelope, fitParabola, polyval, archGeometry, spanCoverage, MATERIALS,
   build, sensorsOf, modal, signConvention, features, campaign, trainIA, forestPredict, LEVELS, noisy, mulberry, gaussR, quantile, median };
 })();
 if (typeof module !== 'undefined') module.exports = OPC;
