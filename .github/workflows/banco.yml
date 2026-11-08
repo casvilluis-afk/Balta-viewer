@@ -62,7 +62,12 @@ jobs:
                               q = next((q.name for q in e.properties if any(t in q.name.lower() for t in ('label', 'class', 'semantic'))), e.properties[0].name); L = np.asarray(e[q]); lab = e.name + '.' + q; break
                   return np.vstack([v['x'], v['y'], v['z']]).T.astype(np.float64), L, {'propiedades': props, 'etiqueta': lab, 'elementos': els}
               if p.endswith('.las') or p.endswith('.laz'):
-                  import laspy; f = laspy.read(path); return np.vstack([f.x, f.y, f.z]).T, np.asarray(f.classification), {'formato': 'las'}
+                  import laspy; f = laspy.read(path); dims = list(f.point_format.dimension_names); L = None; lab = None
+                  for nm in [d for d in dims if any(t in d.lower() for t in ('label', 'semantic'))] + ['classification', 'user_data', 'point_source_id']:
+                      if nm in dims:
+                          a = np.asarray(f[nm])
+                          if len(np.unique(a[:200000])) > 1: L = a; lab = nm; break
+                  return np.vstack([f.x, f.y, f.z]).T, L, {'formato': 'las', 'dimensiones': dims, 'etiqueta': lab}
               if p.endswith('.e57'):
                   import pye57; e = pye57.E57(path); xs = []
                   for k in range(e.scan_count):
