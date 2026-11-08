@@ -62,23 +62,24 @@ async function opIARev(after) {
   const O = OP.O, sup0 = OP.supports; OP.iaBusy = true; const st = $('#opIAst'); if (st) st.textContent = 'La IA está revisando los apoyos…';
   try {
     await new Promise(r => setTimeout(r, 30));
-    OP.iaModel = OP.iaModel || await fetch('data/ia_apoyos.json?v=2.6.0').then(r => { if (!r.ok) throw new Error('sin modelo'); return r.json(); });
+    OP.iaModel = OP.iaModel || await fetch('data/ia_apoyos.json?v=2.6.1').then(r => { if (!r.ok) throw new Error('sin modelo'); return r.json(); });
     if (OP.O !== O || OP.supports !== sup0) return;
     const t0 = performance.now(), R = OPC.iaRefine(OP.O, OP.deckTop, OP.ground, OP.supports, OP.iaModel), f = q => ((q.a + q.b) / 2).toFixed(1).replace('.', ',');
-    OP.iaRev = { usado: R.usado, motivo: R.motivo || '', veto: R.veto.map(f), rescate: R.rescate.map(f), aEstribo: R.aEstribo.map(f), seg: +((performance.now() - t0) / 1000).toFixed(1) };
-    OP.hipRev = null;
+    const rev = { usado: R.usado, motivo: R.motivo || '', veto: R.veto.map(f), rescate: R.rescate.map(f), aEstribo: R.aEstribo.map(f) }; let hip = null;
     if (R.usado) {
       // IA de estribos: cara del estribo más allá del último pilar (solo en el mismo rango de gálibo que la IA de apoyos)
       let sup = R.supports;
-      try { OP.iaModelE = OP.iaModelE || await fetch('data/ia_estribos.json?v=2.6.0').then(r => { if (!r.ok) throw new Error('sin modelo'); return r.json(); });
+      try { OP.iaModelE = OP.iaModelE || await fetch('data/ia_estribos.json?v=2.6.1').then(r => { if (!r.ok) throw new Error('sin modelo'); return r.json(); });
         const Pe = OPC.iaPredict(OP.iaModelE, R.R.F, R.R.nf, R.R.nv), E = OPC.iaEstribos(R.R, Pe, OP.deckTop, sup); sup = E.supports;
-        OP.iaRev.estribos = E.cambios.map(c => ({ lado: c.lado, de: c.de == null ? null : c.de.toFixed(1).replace('.', ','), a: c.a.toFixed(1).replace('.', ',') }));
-      } catch (e) { OP.iaRev.estribos = []; OP.iaRev.motivoE = 'no se pudo cargar el modelo de estribos'; }
+        rev.estribos = E.cambios.map(c => ({ lado: c.lado, de: c.de == null ? null : c.de.toFixed(1).replace('.', ','), a: c.a.toFixed(1).replace('.', ',') }));
+      } catch (e) { rev.estribos = []; rev.motivoE = 'no se pudo cargar el modelo de estribos'; }
+      if (OP.O !== O || OP.supports !== sup0) return;
       OP.supports = sup; const sp = OP.supports; OP.ends = { left: sp.length && sp[0].tipo === 'estribo' ? 'none' : 'simetria', right: sp.length && sp[sp.length - 1].tipo === 'estribo' ? 'none' : 'simetria' }; OP.geo = null;
       // interpretación del puente completo: se ofrece, no se aplica sola
       const Hp = OPC.hipotesis(OP.O, OP.deckTop, OP.ground, sup0, Object.assign({}, R, { supports: sup }));
-      if (Hp.usado && (Hp.cambios.quitados.length || Hp.cambios.agregados.length)) OP.hipRev = { supports: Hp.supports, cambios: Hp.cambios, vanos: Hp.vanos };
+      if (Hp.usado && (Hp.cambios.quitados.length || Hp.cambios.agregados.length)) hip = { supports: Hp.supports, cambios: Hp.cambios, vanos: Hp.vanos };
     }
+    rev.seg = +((performance.now() - t0) / 1000).toFixed(1); OP.hipRev = hip; OP.iaRev = rev;
   } catch (e) { OP.iaRev = { usado: false, motivo: 'no se pudo cargar el modelo de IA (' + e.message + ')', veto: [], rescate: [], aEstribo: [] }; }
   finally { OP.iaBusy = false; }
   if (after) after(); else vTu();
