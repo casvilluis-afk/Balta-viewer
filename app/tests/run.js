@@ -113,6 +113,16 @@ ok('Modelo C: 20 zonas de daño (15 de arcos, 3 de tablero y 2 de pilares por so
     for (const c of [13, 27]) for (const tc of [-2.5, 2.5]) for (let a = 0; a < 6.28; a += .15) for (let z = -6; z <= -.8; z += .1) Q.push(c + .4 * Math.cos(a), tc + .4 * Math.sin(a), z);
     const Oc = OPC.orient({ xyz: Float32Array.from(Q), offset: [0, 0, 0], eje: 'x' }, 'z', 1), Rc = OPC.iaRefine(Oc, 0, -6, [{ a: 0, b: 0, tipo: 'estribo' }, { a: 12.6, b: 13.4, tipo: 'pilar' }, { a: 19.6, b: 20.4, tipo: 'pilar' }, { a: 40, b: 40, tipo: 'estribo' }], M), pc = Rc.supports.filter(p => p.tipo === 'pilar').map(p => (p.a + p.b) / 2);
     ok('IA de apoyos: quita el pilar sin columna (20 m) y propone el que faltaba (27 m)', Rc.veto.length === 1 && Rc.rescate.length === 1 && pc.length === 2 && Math.abs(pc[0] - 13) < .6 && Math.abs(pc[1] - 27) < .6, `pilares ${pc.map(v => v.toFixed(1)).join(', ')}`); }
+  // IA de estribos e interpretación del puente completo: en el Balta no cambian nada; en un puente sintético regular la interpretación coincide con la regla
+  { const M = JSON.parse(fs.readFileSync(path.join(P, 'data', 'ia_apoyos.json'))), ME = JSON.parse(fs.readFileSync(path.join(P, 'data', 'ia_estribos.json'))), Rb = OPC.iaRefine(O, dk, gr, S, M);
+    const Pe = OPC.iaPredict(ME, Rb.R.F, Rb.R.nf, Rb.R.nv), E = OPC.iaEstribos(Rb.R, Pe, dk, Rb.supports), Hb = OPC.hipotesis(O, dk, gr, S, Object.assign({}, Rb, { supports: E.supports }));
+    ok('IA de estribos e interpretación del puente completo: el Balta queda igual', !E.cambios.length && !Hb.cambios.quitados.length && !Hb.cambios.agregados.length, `${E.supports.map(p => p.tipo[0] + ((p.a + p.b) / 2).toFixed(1)).join(' ')}`);
+    const Q = []; for (let s0 = -6; s0 <= 46; s0 += .2) for (let t = -4; t <= 4; t += .2) { Q.push(s0, t, 0); if (s0 > 0 && s0 < 40) Q.push(s0, t, -6); else Q.push(s0, t, -.2); }
+    for (const c of [13, 27]) for (const tc of [-2.5, 2.5]) for (let a = 0; a < 6.28; a += .15) for (let z = -6; z <= -.8; z += .1) Q.push(c + .4 * Math.cos(a), tc + .4 * Math.sin(a), z);
+    for (const c of [0, 40]) for (let t = -4; t <= 4; t += .1) for (let z = -6; z <= -.8; z += .1) Q.push(c, t, z);
+    const Oc = OPC.orient({ xyz: Float32Array.from(Q), offset: [0, 0, 0], eje: 'x' }, 'z', 1), sc = [{ a: 0, b: 0, tipo: 'estribo' }, { a: 12.6, b: 13.4, tipo: 'pilar' }, { a: 26.6, b: 27.4, tipo: 'pilar' }, { a: 40, b: 40, tipo: 'estribo' }];
+    const Hc = OPC.hipotesis(Oc, 0, -6, sc, null), pc = Hc.supports.map(p => p.tipo[0] + Math.round((p.a + p.b) / 2)).join(' ');
+    ok('Interpretación del puente completo: puente regular de 3 vanos sin cambios', pc === 'e0 p13 p27 e40', pc); }
   ok('Eje: planta cuadrada marcada como dudosa; tramo recortado queda en x', Oq.ejeRatio < 3 && Ox.snap === 0, `cociente ${Oq.ejeRatio.toFixed(2)} · recortado: eje ${Ox.snap === 0 ? 'x' : '?'}`); }
 
 // 15. Campaña de registros: los modos que se repiten se separan del ruido que aparece y desaparece, y se estima el efecto de la temperatura

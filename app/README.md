@@ -31,16 +31,17 @@ Todo se calcula en la computadora del usuario; ningún dato sale a internet.
 
 ## Detección de geometría probada con otros puentes
 
-Mismo código que usa la app para cualquier nube, sin ajustes por puente (banco de pruebas de la versión 2.5.0). Desde la 2.5.0 una IA revisa los apoyos: un bosque aleatorio que clasifica cada vóxel de 0,15 m en fondo, tablero o apoyo, entrenado con los 6 puentes coreanos etiquetados (validación dejando un puente fuera: IoU 0,91 / 0,81 / 0,48). Quita un pilar intermedio si no ve ninguna columna y propone uno nuevo si ve una columna clara que llega al terreno; ambos quedan marcados «confirme». No se usa si el gálibo supera unos 10 m (fuera del rango de entrenamiento):
+Mismo código que usa la app para cualquier nube, sin ajustes por puente (banco de pruebas de la versión 2.6.0, 52 nubes, 49 con etiquetas por punto). La detección tiene cuatro etapas: regla geométrica → IA de apoyos (quita pilares sin columna, propone columnas que faltan) → IA de estribos (cara del muro más allá del último pilar) → interpretación del puente completo (se ofrece al inspector, no se aplica sola).
 
 | Nubes | Fuente | Resultado |
 |---|---|---|
-| 6 puentes de vigas, Corea (UAV LiDAR, etiquetados) | Zenodo 18531104, CC BY 4.0 | Esviaje a 0–3° del real (4 oblicuos, hasta 44°); pilares 8/8 en el eje del tablero; 1 apoyo de más, marcado «confirme» (4 sin la IA; la IA de cada puente se entrenó con los otros 5); estribos 12/12 a menos de 3 m; tipología viga en los 6 |
-| 20 pasos superiores y pasarelas, Reino Unido y Alemania (láser terrestre) | Zenodo 18738225, CC BY 4.0; vanos según la tabla 3 de arXiv 2512.15369 | Número de vanos correcto en 19/20 sin intervención (18/20 sin la IA, 12/20 en la 2.3.0); tipología viga en los 20, sin torres ni arcos falsos. Los umbrales de la revisión con IA se eligieron mirando estas nubes |
-| Armadura de acero, tranvía de Schipluiden (láser terrestre, nube limpia) | TU Delft, doi 10.4121/13626368, CC BY-NC 4.0 | Tipología armadura; tablero inferior reconocido; estribos en los extremos (59,9 m) |
-| Puente Balta (muestra TLS) | Primera parte de la tesis | Tipología arco; P1, P2 y estribo derecho; la IA coincide |
+| 6 puentes de vigas, Corea (UAV LiDAR, etiquetados) | Lee (2026), Zenodo 18531104, CC BY 4.0 | Esviaje a 0–3° del real; pilares 8/8 con 1 de más (marcado); extremos del tablero 11/12 a menos de 3 m; la IA de apoyos de cada puente se entrenó sin él |
+| 20 pasos superiores y pasarelas, Reino Unido y Alemania (láser terrestre, etiquetados) | Zenodo 18738225, CC BY 4.0; vanos según la tabla 3 de arXiv 2512.15369 | Pilares 32/33 con 2 de más; caras de estribo 32/40 a menos de 3 m (23/40 sin la IA de estribos, evaluada en 5 grupos de puentes que no vio); vanos 19/20 |
+| 23 puentes sintéticos (escaneo virtual, etiquetados) | Kellner, Zenodo 18593422, CC BY-NC 1.0 | Prueba final, nada se ajustó con ellos: pilares 17/25 con 9 de más; estribos 22/46; 5/23 puentes sin error (4/23 solo con la regla). Con la interpretación del puente completo: 15/25, 6 de más, 24/46, 6/23 |
+| Armadura de acero, tranvía de Schipluiden (láser terrestre) | TU Delft, doi 10.4121/13626368, CC BY-NC 4.0 | Tipología armadura; estribos en los extremos (59,9 m) |
+| Puente Balta (muestra TLS) | Primera parte de la tesis | Tipología arco; P1, P2 y estribo derecho; las IA y la interpretación coinciden |
 
-La IA encontró las columnas delgadas de bridge_10 y los pilares reales de bridge_18 y bridge_19. Sigue un pilar de más en el talud con vegetación de bridge_19; en bridge_1 el número de vanos coincide pero un pilar queda mal ubicado. Por eso el paso 2 siempre pide revisar los apoyos.
+Los umbrales de la IA de apoyos se eligieron mirando los 20 puentes TLS. La prueba sintética muestra que la app todavía no reconoce sola cualquier puente: por eso el paso 2 siempre pide revisar los apoyos. Aprender de más puentes ayuda: agregando los 20 TLS al entrenamiento de la IA de apoyos, el IoU de apoyo sube de 0,56 a 0,65 (TLS, 5 pliegues) y de 0,48 a 0,52 (Corea).
 
 ## Limitaciones conocidas
 

@@ -6,7 +6,7 @@
    Web: los proyectos se guardan en IndexedDB de este navegador. Escritorio: además se abren y guardan como archivos .puente. */
 const PB = { active: 'balta', list: [], ready: false, confirmDel: null };
 const PB_OP0 = JSON.parse(JSON.stringify(OP));
-const PB_EST = ['step', 'deckTop', 'deckThick', 'ground', 'zSlab', 'supports', 'ends', 'type', 'band', 'minPts', 'geo', 'mat', 'P', 'Pedit', 'Psrc', 'nz', 'dx', 'camp', 'ia', 'geomOpt', 'geomUsed', 'name', 'up', 'unit', 'skew', 'sinTerreno', 'iaRev', 'iaOn'];
+const PB_EST = ['step', 'deckTop', 'deckThick', 'ground', 'zSlab', 'supports', 'ends', 'type', 'band', 'minPts', 'geo', 'mat', 'P', 'Pedit', 'Psrc', 'nz', 'dx', 'camp', 'ia', 'geomOpt', 'geomUsed', 'name', 'up', 'unit', 'skew', 'sinTerreno', 'iaRev', 'iaOn', 'hipRev'];
 const PB_MAXP = 500000;
 const pbPlain = (k, v) => ArrayBuffer.isView(v) ? Array.from(v) : v;
 const pbB64 = u8 => { let s = ''; for (let i = 0; i < u8.length; i += 0x8000) s += String.fromCharCode.apply(null, u8.subarray(i, i + 0x8000)); return btoa(s); };

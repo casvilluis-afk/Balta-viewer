@@ -18,3 +18,12 @@ Zenodo, registro 18531104, licencia CC BY 4.0 (https://zenodo.org/records/185311
 Artículo asociado: *UAV LiDAR bridge point cloud dataset and hybrid deep learning framework for robust semantic segmentation*,
 Automation in Construction 188, 107045 (2026), doi 10.1016/j.autcon.2026.107045.
 El modelo se distribuye bajo CC BY 4.0 con esta atribución. No contiene puntos de las nubes originales, solo los umbrales y proporciones de los árboles.
+
+## Modelo de IA de estribos (`data/ia_estribos.json`)
+
+Bosque aleatorio entrenado con los estribos etiquetados (clase 3, «abutment») de los 20 puentes TLS de
+*Real 3D point clouds of bridges*, Zenodo, registro 18738225, licencia CC BY 4.0 (https://zenodo.org/records/18738225);
+clases según github.com/mvg-inatech/3d_bridge_segmentation; artículo asociado arXiv 2512.15369.
+El modelo se distribuye bajo CC BY 4.0 con esta atribución. No contiene puntos de las nubes originales.
+
+Los 23 puentes sintéticos de Kellner (Zenodo 18593422, CC BY-NC 1.0) solo se usaron como prueba; no entrenan ningún modelo.

@@ -1218,7 +1218,7 @@ function iaClusters(R, P, dk, gr) {
 const IA_REGLA = { HMAX: 10, VETO: .15, DV: 1.5, PICO: .6, NMIN: 300, NUC: 1.5, TECHO: 1.8, FONDO: 1.5, WK: 1.2, WA: .5, REFP: .6 };
 function iaRefine(O, dk, gr, supports, model, U = IA_REGLA) {
   const R = iaFeatures(O, dk, gr), P = iaPredict(model, R.F, R.nf, R.nv), C = iaClusters(R, P, dk, gr);
-  const H = C.reduce((m, c) => Math.max(m, c.altura), 0), out = { supports: supports.map(p => ({ ...p })), veto: [], rescate: [], aEstribo: [], clusters: C, usado: false };
+  const H = C.reduce((m, c) => Math.max(m, c.altura), 0), out = { supports: supports.map(p => ({ ...p })), veto: [], rescate: [], aEstribo: [], clusters: C, usado: false, R };
   if (!C.length) { out.motivo = 'la IA no encontró columnas bajo el tablero'; return out; }
   if (H > U.HMAX) { out.motivo = `gálibo de ${H.toFixed(0)} m, fuera del rango con que se entrenó la IA (hasta unos 8 m)`; return out; }
   out.usado = true;
@@ -1240,7 +1240,89 @@ function iaRefine(O, dk, gr, supports, model, U = IA_REGLA) {
   out.supports = S.sort((p, q) => p.a - q.a);
   return out;
 }
-return { iaFeatures, iaPredict, iaClusters, iaRefine, IA_NAMES, IA_REGLA, fftInPlace, detrend, csdMatrix, fdd, efdd, fddModes, pickPeaks, staticPrep, fiberStress, influence, HL93, hl93Extremes, liveLoad, CS_WF, pTrans, markovStep, elemHI, bridgeHI, calibrateAlpha, maintenancePlan, Dxf, bridgePlans, sensorsOf, readAccel, sdof, spectrum, seismic, freqCampaign, setConcMin, suggestType, applySkew, coherence, f1Band, geomSigmas, perturbGeom, archRise, peakCampaign, csdAverage, calibrateModel, nelderMead, trainFreqIA, trainVecIA, trainModalIA, modalFeat, modalMeasFeat, modalMeasFeatBase, freqPredict, build, modal, archAll, parseCloud, orient, bounds, deckLevel, groundLevel, detectSupports, spansOf, envelope, fitParabola, polyval, archGeometry, spanCoverage, MATERIALS,
+/* ---------- Hipótesis de puente completo ----------
+   Arma las interpretaciones posibles (estribo izquierdo, pilares, estribo derecho) y elige la más creíble:
+   evidencia de la nube (regla geométrica + IA de apoyos) + restricciones físicas + conocimiento de diseño
+   (vanos regulares, vanos extremos de 0,6 a 1,05 veces los interiores, simetría). */
+const HIP_W = { G: .7, GD: .6, RV: .3, K: .6, CLIP: 3, PCLR: 2, SPCLR: 1.5, SPFR: .75, MINS: 4, BETA: 1, GAMMA: .5, OPEN: .4, BON: 1, BTER: .5, BEXT: .3, BWALL: .5, ABCLR: 4.5, ALFA: .5, CAB: 1.5 };
+function clearanceProfile(O, dk, bw = .5) {
+  const tt = []; for (let i = 0; i < O.n; i++) if (Math.abs(O.z[i] - dk) < .3) tt.push(O.t[i]); tt.sort((a, b) => a - b);
+  const tm = tt.length ? tt[tt.length >> 1] : 0, hw = tt.length ? (tt[Math.floor(tt.length * .95)] - tt[Math.floor(tt.length * .05)]) / 2 : 5;
+  let s0 = 1e9, s1 = -1e9; for (let i = 0; i < O.n; i++) { if (O.s[i] < s0) s0 = O.s[i]; if (O.s[i] > s1) s1 = O.s[i]; }
+  const nb = Math.ceil((s1 - s0) / bw) + 1, g = new Float32Array(nb).fill(NaN);
+  for (let i = 0; i < O.n; i++) { if (Math.abs(O.t[i] - tm) > .7 * hw || O.z[i] > dk - .3) continue; const b = Math.floor((O.s[i] - s0) / bw); if (!(g[b] <= O.z[i])) g[b] = O.z[i]; }
+  const prof = Array.from(g, v => v === v ? dk - v : null);
+  const clr = s => { const b = Math.floor((s - s0) / bw); let v = null; for (let k = b - 1; k <= b + 1; k++) if (k >= 0 && k < nb && prof[k] != null) v = v == null ? prof[k] : Math.min(v, prof[k]); return v; };
+  const ss = []; for (let i = 0; i < O.n; i++) if (Math.abs(O.z[i] - dk) < .3) ss.push(O.s[i]); ss.sort((a, b) => a - b);
+  return { prof, s0, bw, clr, d0: ss[Math.floor(ss.length * .01)], d1: ss[Math.floor(ss.length * .99)] };
+}
+function hipotesis(O, dk, gr, geo, ia, W = HIP_W) {
+  const CP = clearanceProfile(O, dk), mid = p => (p.a + p.b) / 2, antes = (ia && ia.usado ? ia.supports : geo).slice().sort((p, q) => p.a - q.a);
+  // candidatos a pilar
+  const C = [], add = (s, e, src, ref) => { const q = C.find(x => Math.abs(x.s - s) <= 2); if (q) { q.e = Math.max(q.e, e); q.src += src; if (ref && !q.ref) q.ref = ref; } else C.push({ s, e, src, ref }); };
+  for (const p of antes) if (p.tipo === 'pilar') add(mid(p), p.duda ? W.GD : W.G, 'p', p);
+  if (ia && ia.usado) {
+    for (const k of ia.clusters) if (k.pico >= .25 && k.n >= 150) add(k.s, W.K * k.pico, 'c', { a: +k.a.toFixed(2), b: +k.b.toFixed(2), tipo: 'pilar', auto: 'hipotesis' });
+    for (const p of ia.veto) add(mid(p), W.RV, 'v', p);
+  }
+  for (const q of C) { const e = Math.min(Math.max(q.e, 1e-3), 1 - 1e-3); q.llr = Math.max(-W.CLIP, Math.min(W.CLIP, Math.log(e / (1 - e)))); q.clr = CP.clr(q.s); }
+  const P0 = C.filter(q => q.clr == null || q.clr > W.PCLR).sort((p, q) => p.s - q.s);
+  // candidatos a estribo
+  const BON = { '': W.BON, iaface: W.BON, terreno: W.BTER, extremo: W.BEXT, ia: W.BEXT }, AB = [];
+  for (const p of antes) if (p.tipo === 'estribo') AB.push({ s: mid(p), bon: BON[p.auto || ''] ?? W.BEXT, clr: null, ref: p });
+  const addA = (s, bon, ref) => { if (s < CP.d0 - 2 || s > CP.d1 + 2 || AB.some(b => Math.abs(b.s - s) < 1.5)) return; AB.push({ s, bon, clr: CP.clr(s), ref }); };
+  for (const p of geo) if (p.tipo === 'pilar') { const c = CP.clr(mid(p)); if (c != null && c <= W.ABCLR) addA(mid(p), W.BWALL, p); }
+  for (let b = 1; b < CP.prof.length; b++) { const u = CP.prof[b - 1], v = CP.prof[b]; if (u != null && v != null && (u - 2) * (v - 2) < 0) addA(CP.s0 + b * CP.bw, 0); }
+  addA(CP.d0, 0); addA(CP.d1, 0);
+  const abSc = a => !a ? 0 : a.bon ? a.bon : -W.ALFA * (a.clr != null ? Math.max(0, a.clr - W.CAB) : 1);
+  const fr = (a, b) => { const v = []; for (let k = Math.max(0, Math.floor((a - CP.s0) / CP.bw)); k <= Math.floor((b - CP.s0) / CP.bw) && k < CP.prof.length; k++) if (CP.prof[k] != null) v.push(CP.prof[k]); return v.length >= 4 ? v.filter(x => x >= W.SPCLR).length / v.length : 1; };
+  const prior = L => { const n = L.length, m = L.slice().sort((x, y) => x - y)[n >> 1]; let p = 0;
+    L.forEach((l, i) => { const r = Math.log(l / m); if (i === 0 || i === n - 1) { if (n > 1) p += Math.max(0, Math.log(.6) - r, r - Math.log(1.05)); } else p += Math.abs(r); });
+    let sy = 0; for (let i = 0; i < n; i++) sy += Math.abs(L[i] - L[n - 1 - i]); const mean = L.reduce((a, b) => a + b) / n; return -W.BETA * p - W.GAMMA * sy / mean / n; };
+  let best = null;
+  for (const AL of [null, ...AB]) for (const AR of [null, ...AB]) {
+    if (AL && AR && AR.s - AL.s < W.MINS) continue;
+    const lo = AL ? AL.s : -1e9, hi = AR ? AR.s : 1e9, cand = P0.filter(q => q.s > lo + 2 && q.s < hi - 2); if (cand.length > 14) continue;
+    for (let mask = 0; mask < (1 << cand.length); mask++) {
+      const P = cand.filter((_, i) => mask >> i & 1); if ((!AL || !AR) && !P.length) continue;
+      const pos = [...(AL ? [AL.s] : []), ...P.map(q => q.s), ...(AR ? [AR.s] : [])], L = []; for (let i = 1; i < pos.length; i++) L.push(pos[i] - pos[i - 1]);
+      if (L.some(l => l < W.MINS)) continue; let ok = true; for (let i = 1; i < pos.length && ok; i++) if (fr(pos[i - 1], pos[i]) < W.SPFR) ok = false; if (!ok) continue;
+      const Lf = [...(AL ? [] : [L[0] || 1]), ...L, ...(AR ? [] : [L[L.length - 1] || 1])];
+      const sc = P.reduce((s, q) => s + q.llr, 0) + abSc(AL) + abSc(AR) + prior(Lf) - (AL ? 0 : W.OPEN) - (AR ? 0 : W.OPEN);
+      if (!best || sc > best.sc) best = { sc, AL, AR, P, Lf };
+    }
+  }
+  if (!best) return { supports: antes.map(p => ({ ...p })), cambios: [], usado: false };
+  const asE = a => a.ref ? { ...a.ref, tipo: 'estribo', ...(a.ref.tipo === 'pilar' ? { auto: 'hipotesis', duda: 'La interpretación del puente completo tomó este muro como estribo. Confirme.' } : {}) } : { a: +a.s.toFixed(2), b: +a.s.toFixed(2), tipo: 'estribo', auto: 'hipotesis', duda: 'Estribo puesto por la interpretación del puente completo, donde el terreno llega al tablero. Confirme.' };
+  const out = [...(best.AL ? [asE(best.AL)] : []), ...best.P.map(q => q.ref.tipo === 'pilar' && q.ref.auto !== 'hipotesis' && !q.src.startsWith('v') ? { ...q.ref } : { ...q.ref, tipo: 'pilar', auto: 'hipotesis', duda: 'Pilar propuesto por la interpretación del puente completo (vanos regulares). Confirme.' }), ...(best.AR ? [asE(best.AR)] : [])].sort((p, q) => p.a - q.a);
+  const key = p => p.tipo[0] + Math.round(mid(p)), k0 = new Set(antes.map(key)), k1 = new Set(out.map(key));
+  const cambios = { quitados: antes.filter(p => !k1.has(key(p))).map(p => ({ tipo: p.tipo, s: +mid(p).toFixed(1) })), agregados: out.filter(p => !k0.has(key(p))).map(p => ({ tipo: p.tipo, s: +mid(p).toFixed(1) })) };
+  return { supports: out, cambios, usado: true, vanos: best.Lf.length, abiertos: [!best.AL, !best.AR], puntaje: best.sc };
+}
+
+/* ---------- IA de estribos: cara del estribo ----------
+   Bosque aleatorio entrenado con los estribos etiquetados de 20 puentes escaneados con láser terrestre
+   (Zenodo 18738225, CC BY 4.0). La cara se busca solo más allá del último pilar: dentro del puente la IA confunde pilares con estribos. */
+const EST_W = { P: .5, DEJE: 1.2, NMIN: 200, FR: .45, Q: .9, MINS: 4, DMAX: 6, DPIL: 4 };
+function iaEstribos(R, Pe, dk, supports, W = EST_W) {
+  const nf = R.nf, ss = []; for (let j = 0; j < R.nv; j++) if (Math.abs(R.Z[j] - dk) < .3) ss.push(R.X[j]); ss.sort((a, b) => a - b);
+  const out = supports.map(p => ({ ...p })).sort((p, q) => p.a - q.a), cambios = [];
+  if (ss.length < 100) return { supports: out, cambios };
+  const d0 = ss[Math.floor(ss.length * .01)], d1 = ss[Math.floor(ss.length * .99)], mid = p => (p.a + p.b) / 2, pil = out.filter(p => p.tipo === 'pilar').map(mid);
+  const lo = pil.length ? Math.min(...pil) - 2 : d0 + W.FR * (d1 - d0), hi = pil.length ? Math.max(...pil) + 2 : d1 - W.FR * (d1 - d0);
+  const L = [], Rr = []; for (let j = 0; j < R.nv; j++) { if (Pe[j * 2 + 1] <= W.P || R.Z[j] >= dk - .5 || R.F[j * nf + 25] >= W.DEJE) continue; if (R.X[j] < lo) L.push(R.X[j]); else if (R.X[j] > hi) Rr.push(R.X[j]); }
+  L.sort((a, b) => a - b); Rr.sort((a, b) => a - b);
+  const msg = 'Cara del estribo ubicada por la IA de estribos. Confirme.';
+  if (L.length >= W.NMIN) { const f = +L[Math.floor(L.length * W.Q)].toFixed(2), e = out[0];
+    if (pil.length && Math.min(...pil) - f < W.DPIL) {} else if (e && e.tipo === 'estribo') { if (Math.abs(mid(e) - f) > W.DMAX) {} else { if (Math.abs(mid(e) - f) > .3) cambios.push({ lado: 'izquierdo', de: +mid(e).toFixed(1), a: f }); Object.assign(e, { a: f, b: f, auto: 'iaface', duda: msg }); } }
+    else if (!e || mid(e) - f >= W.MINS) { out.unshift({ a: f, b: f, tipo: 'estribo', auto: 'iaface', duda: msg }); cambios.push({ lado: 'izquierdo', de: null, a: f }); } }
+  if (Rr.length >= W.NMIN) { const f = +Rr[Math.floor(Rr.length * (1 - W.Q))].toFixed(2), e = out[out.length - 1];
+    if (pil.length && f - Math.max(...pil) < W.DPIL) {} else if (e && e.tipo === 'estribo') { if (Math.abs(mid(e) - f) > W.DMAX) {} else { if (Math.abs(mid(e) - f) > .3) cambios.push({ lado: 'derecho', de: +mid(e).toFixed(1), a: f }); Object.assign(e, { a: f, b: f, auto: 'iaface', duda: msg }); } }
+    else if (!e || f - mid(e) >= W.MINS) { out.push({ a: f, b: f, tipo: 'estribo', auto: 'iaface', duda: msg }); cambios.push({ lado: 'derecho', de: null, a: f }); } }
+  return { supports: out, cambios };
+}
+
+return { hipotesis, clearanceProfile, iaEstribos, HIP_W, EST_W, iaFeatures, iaPredict, iaClusters, iaRefine, IA_NAMES, IA_REGLA, fftInPlace, detrend, csdMatrix, fdd, efdd, fddModes, pickPeaks, staticPrep, fiberStress, influence, HL93, hl93Extremes, liveLoad, CS_WF, pTrans, markovStep, elemHI, bridgeHI, calibrateAlpha, maintenancePlan, Dxf, bridgePlans, sensorsOf, readAccel, sdof, spectrum, seismic, freqCampaign, setConcMin, suggestType, applySkew, coherence, f1Band, geomSigmas, perturbGeom, archRise, peakCampaign, csdAverage, calibrateModel, nelderMead, trainFreqIA, trainVecIA, trainModalIA, modalFeat, modalMeasFeat, modalMeasFeatBase, freqPredict, build, modal, archAll, parseCloud, orient, bounds, deckLevel, groundLevel, detectSupports, spansOf, envelope, fitParabola, polyval, archGeometry, spanCoverage, MATERIALS,
   build, sensorsOf, modal, signConvention, features, campaign, trainIA, forestPredict, LEVELS, noisy, mulberry, gaussR, quantile, median };
 })();
 if (typeof module !== 'undefined') module.exports = OPC;
