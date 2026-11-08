@@ -8,7 +8,7 @@ on:
   workflow_dispatch:
     inputs:
       modo:
-        description: 'explorar | coreanos | extraer | listar | zipurl | zipcada | url'
+        description: 'explorar | coreanos | extraer | listar | zipurl | zipcada | url | leer | ahn'
         default: 'explorar'
       archivos:
         description: 'coreanos: nombres separados por ; · extraer: zip|miembro;zip|miembro'
@@ -22,7 +22,7 @@ jobs:
     steps:
       - uses: actions/setup-python@v5
         with: { python-version: '3.12' }
-      - run: pip install numpy plyfile matplotlib remotezip laspy lazrs pye57 pandas
+      - run: pip install numpy plyfile matplotlib remotezip laspy lazrs pye57 pandas pyproj
       - name: Procesar
         env: { MODO: '${{ github.event.inputs.modo }}', ARCH: '${{ github.event.inputs.archivos }}' }
         run: |
@@ -141,6 +141,25 @@ jobs:
                               z.extract(q, 'tmpz'); xyz, lab, ex = leer(os.path.join('tmpz', q)); ex['miembro'] = q; os.remove(os.path.join('tmpz', q))
                               guardar(os.path.splitext(os.path.basename(q))[0], xyz, lab, ex)
                           except Exception as e: info['errores'].append([q, repr(e), traceback.format_exc()])
+              elif modo == 'leer':
+                  # descarga páginas o índices (texto) para consultarlos: URL;URL;...
+                  for k, u in enumerate([x.strip() for x in os.environ['ARCH'].split(';') if x.strip()]):
+                      try:
+                          req = urllib.request.Request(u, headers={'User-Agent': 'PuenteGemelo-banco'}); data = urllib.request.urlopen(req, timeout=120).read()
+                          open(f'out/leer_{k}.txt', 'wb').write(data); info['items'][u] = len(data)
+                      except Exception as e: info['errores'].append([u, repr(e)])
+              elif modo == 'ahn':
+                  # recorte de AHN4 (dominio público) alrededor de un punto: nombre|lat|lon|radio_m|subhojas (p. ej. 39CZ1_07,39CZ1_08)
+                  import pyproj; tr = pyproj.Transformer.from_crs(4326, 28992, always_xy=True)
+                  for it in [x.strip() for x in os.environ['ARCH'].split(';') if x.strip()]:
+                      try:
+                          nm, lat, lon, rad, tiles = it.split('|'); x0, y0 = tr.transform(float(lon), float(lat)); rad = float(rad); xs = []; ls = []
+                          for t in tiles.split(','):
+                              u = f'https://geotiles.citg.tudelft.nl/AHN4_T/{t.strip()}.LAZ'; print('Descargando', u, flush=True); urllib.request.urlretrieve(u, 'tile.laz')
+                              import laspy; f = laspy.read('tile.laz'); X = np.vstack([f.x, f.y, f.z]).T; m = (np.abs(X[:, 0] - x0) <= rad) & (np.abs(X[:, 1] - y0) <= rad)
+                              xs.append(X[m]); ls.append(np.asarray(f.classification)[m]); info['items'][nm + '_' + t] = {'puntos_hoja': int(len(X)), 'en_recorte': int(m.sum()), 'x_rango': [float(X[:, 0].min()), float(X[:, 0].max())], 'y_rango': [float(X[:, 1].min()), float(X[:, 1].max())]}
+                          X = np.vstack(xs); L = np.concatenate(ls); guardar(nm, X, L, {'fuente': 'AHN4 (dominio público) vía geotiles.citg.tudelft.nl', 'centro_rd': [x0, y0], 'radio_m': rad})
+                      except Exception as e: info['errores'].append([it, repr(e), traceback.format_exc()[-1500:]])
               elif modo == 'url':
                   for it in [p.strip() for p in os.environ['ARCH'].split(';') if p.strip()]:
                       try:
