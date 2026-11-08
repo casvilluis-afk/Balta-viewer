@@ -1487,6 +1487,12 @@ function calidadNube(O, dk, gr, supports = [], W = {}) {
     if (Math.abs(h) < W.TOP) top[b]++; else if (h <= -.8 && O.z[i] > gr + .5) bajo[b]++; }
   // cara inferior vista: puntos dentro del ancho del tablero, más de 0,8 m bajo la calzada y sobre el terreno
   const ancho = Math.max(tb1 - tb0, .5);
+  // eje en planta: centro de la calzada por celda (mediana de t); si se desplaza mucho, el puente no es recto (curvo, quebrado o con rampas)
+  const tc = Array.from({ length: nb }, () => []); for (let i = 0; i < O.n; i++) { const b = bin(O.s[i]); if (O.t[i] >= tb0 && O.t[i] <= tb1 && Math.abs(O.z[i] - deck[b]) < W.TOP) tc[b].push(O.t[i]); }
+  const spE = supports.slice().sort((p, q) => p.a - q.a), dA = spE.length >= 2 ? bin(spE[0].b) : 0, dB = spE.length >= 2 ? bin(spE[spE.length - 1].a) : nb - 1; // solo entre los apoyos extremos (los accesos a nivel del terreno ensanchan la calzada)
+  // ancho local de la calzada en cada celda (p10–p90 de t) frente al ancho de toda la banda: en un puente recto son parecidos; si el eje se quiebra, la banda es mucho más ancha que la calzada
+  const wl = tc.map((v, b) => { if (b < dA || b > dB || v.length < 10) return null; v.sort((x, y) => x - y); return v[Math.floor(v.length * .9)] - v[Math.floor(v.length * .1)]; }).filter(v => v != null).sort((x, y) => x - y);
+  const anchoLocal = wl.length >= 10 ? wl[wl.length >> 1] : null, desvio = anchoLocal ? (tb1 - tb0) - anchoLocal : 0;
   const nz = Array.from(top).filter(v => v > 0).sort((a, b) => a - b), med = nz.length ? nz[nz.length >> 1] : 0;
   const thr = Math.max(3, .15 * med), thrB = Math.max(2, .03 * med), cov = Array.from(top, v => v >= thr), vacio = Array.from(top, v => v < Math.max(2, .03 * med));
   let e0 = cov.indexOf(true), e1 = cov.lastIndexOf(true); if (e0 < 0) return null;
@@ -1514,6 +1520,7 @@ function calidadNube(O, dk, gr, supports = [], W = {}) {
   const origen = fracBajo < .2 && fracTop > .6 ? 'desde arriba' : fracBajo >= .5 ? 'desde abajo o los costados' : 'mixta';
   // avisos y recomendaciones (texto para el inspector)
   const f1 = v => v.toFixed(1).replace('.', ','), pc = v => Math.round(100 * v) + ' %', avisos = [], rec = [];
+  if (anchoLocal && (tb1 - tb0) > 4 * anchoLocal + 4) { avisos.push({ nivel: 'crit', txt: `El tablero no sigue un eje recto en planta: en cada metro la calzada mide unos ${f1(anchoLocal)} m de ancho, pero a lo largo de la nube ocupa una franja de ${f1(tb1 - tb0)} m. Parece un puente curvo, quebrado o con rampas; la app mide sobre un eje recto, así que los huecos, vanos y apoyos de esta nube no son confiables.` }); rec.push('Recortar en el paso 1 cada tramo recto del puente y analizarlo por separado.'); }
   for (const h of huecos) { avisos.push({ nivel: 'crit', txt: `Hueco en el tablero entre ${f1(h.a)} y ${f1(h.b)} m (${f1(h.b - h.a)} m sin puntos de calzada)${h.conAlto ? '; sobre él sí hay estructura alta' : ''}. Las medidas de ese tramo no son confiables.` }); rec.push(`Completar la nube entre ${f1(h.a)} y ${f1(h.b)} m (otra posición del escáner o otra pasada).`); }
   const estCerca = (x) => sp.some(p => p.tipo === 'estribo' && Math.abs((p.a + p.b) / 2 - x) < 6); if (cortes.izq && estCerca(s0 + e0 * bw)) cortes.izq = false; if (cortes.der && estCerca(s0 + (e1 + 1) * bw)) cortes.der = false;
   if (cortes.izq || cortes.der) avisos.push({ nivel: 'warn', txt: `La nube corta el tablero en el extremo ${cortes.izq && cortes.der ? 'izquierdo y derecho' : cortes.izq ? 'izquierdo' : 'derecho'}: el puente puede seguir fuera de la nube y faltar un estribo.` });
@@ -1525,7 +1532,7 @@ function calidadNube(O, dk, gr, supports = [], W = {}) {
   for (const a of apoyos) if (a.tipo === 'pilar' && a.frac < .5) { avisos.push({ nivel: 'warn', txt: `${a.tipo === 'pilar' ? 'Pilar' : 'Estribo'} ${a.i} (en ${f1(a.s)} m): solo se ve el ${pc(a.frac)} de su altura.` }); rec.push(`Escanear el apoyo ${a.i} de costado, desde una posición con vista hasta su base.`); }
   for (const v of vanos) if (v.tablero < .8 && !huecos.some(h => h.a >= v.a - 1 && h.b <= v.b + 1)) avisos.push({ nivel: 'warn', txt: `Vano ${v.i}: la calzada está cubierta solo en el ${pc(v.tablero)} de su largo.` });
   if (esp != null && esp > .1) avisos.push({ nivel: 'info', txt: `Espaciado típico de puntos en la calzada ≈ ${Math.round(100 * esp)} cm: suficiente para la geometría general, no para medir fisuras ni secciones finas.` });
-  return { s0, bw, deck: Array.from(deck), top: Array.from(top), bajo: Array.from(bajo), alto: Array.from(alto), thr, thrB, extension: [+(s0 + e0 * bw).toFixed(1), +(s0 + (e1 + 1) * bw).toFixed(1)], largo: L, ancho: +ancho.toFixed(1), fracTablero: +fracTop.toFixed(2), fracBajo: +fracBajo.toFixed(2), espaciado: esp && +esp.toFixed(3), origen, huecos, cortes, apoyos, vanos, avisos, recomendaciones: rec };
+  return { s0, bw, deck: Array.from(deck), top: Array.from(top), bajo: Array.from(bajo), alto: Array.from(alto), thr, thrB, extension: [+(s0 + e0 * bw).toFixed(1), +(s0 + (e1 + 1) * bw).toFixed(1)], largo: L, ancho: +ancho.toFixed(1), desvioEje: +desvio.toFixed(1), anchoLocal: anchoLocal && +anchoLocal.toFixed(1), fracTablero: +fracTop.toFixed(2), fracBajo: +fracBajo.toFixed(2), espaciado: esp && +esp.toFixed(3), origen, huecos, cortes, apoyos, vanos, avisos, recomendaciones: rec };
 }
 
 // Superestructura sobre el tablero con la dispersión local de los puntos (miembros lineales frente a follaje)
