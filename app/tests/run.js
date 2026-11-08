@@ -137,6 +137,12 @@ ok('Modelo C: 20 zonas de daño (15 de arcos, 3 de tablero y 2 de pilares por so
     const ra = G(OPC)(A), rc = G(OPC)(C), r0 = G(OPC)(base());
     ok('Superestructura: arco sobre el tablero, pilonos con cables y tablero solo', ra.some(x => x.tipo === 'arco_superior' && Math.abs(x.altura - 30) < 2) && rc.filter(x => x.tipo === 'atirantado').length === 2 && !r0.length,
       `arco: ${ra.map(x => x.tipo + ' ' + x.altura).join(', ')} · atirantado: ${rc.map(x => x.tipo + ' ' + x.pilonos.map(p => p.s).join('/')).join(', ')}`); }
+  // Pilono único inclinado (como el Erasmusbrug): la continuidad del mástil se busca en una ventana proporcional a su altura
+  { const Q = []; for (let s0 = 0; s0 <= 400; s0 += .5) for (let t = -6; t <= 6; t += 1) { Q.push(s0, t, 0); Q.push(s0, t, -12); }
+    for (let z = 0; z <= 120; z += .2) for (let d = -.5; d <= .5; d += .25) Q.push(250 + 22 * z / 120 + d, 0, z);
+    for (let k = 1; k <= 10; k++) { const zt = 60 + 6 * k, st = 250 + 22 * zt / 120; for (let u = 0; u <= 1; u += .05) { Q.push(st - 20 * k * u, 0, zt * (1 - u) + 1e-3); Q.push(st + 6 * k * u, 0, zt * (1 - u) + 1e-3); } }
+    const Oq = OPC.orient({ xyz: Float32Array.from(Q), offset: [0, 0, 0], eje: 'x' }, 'z', 1), r = OPC.superestructura(Oq, 0, -12), at = r.filter(x => x.tipo === 'atirantado');
+    ok('Superestructura: pilono único inclinado reconocido como atirantado', at.length === 1 && at[0].pilonos.length === 1, r.map(x => x.tipo + ' ' + x.pilonos.map(p => p.s + '/' + p.h).join(',')).join('; ')); }
   ok('Eje: planta cuadrada marcada como dudosa; tramo recortado queda en x', Oq.ejeRatio < 3 && Ox.snap === 0, `cociente ${Oq.ejeRatio.toFixed(2)} · recortado: eje ${Ox.snap === 0 ? 'x' : '?'}`); }
 
 // 15. Campaña de registros: los modos que se repiten se separan del ruido que aparece y desaparece, y se estima el efecto de la temperatura

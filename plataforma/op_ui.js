@@ -66,7 +66,7 @@ async function opIARev(after) {
   OP.iaBusy = true; const st = $('#opIAst'); if (st) st.textContent = 'La IA está revisando los apoyos…';
   try {
     await new Promise(r => setTimeout(r, 30));
-    OP.iaModel = OP.iaModel || await fetch('data/ia_apoyos.json?v=2.8.0').then(r => { if (!r.ok) throw new Error('sin modelo'); return r.json(); });
+    OP.iaModel = OP.iaModel || await fetch('data/ia_apoyos.json?v=2.8.1').then(r => { if (!r.ok) throw new Error('sin modelo'); return r.json(); });
     if (OP.O !== O || OP.supports !== sup0) return;
     const t0 = performance.now(), R = OPC.iaRefine(OP.O, OP.deckTop, OP.ground, OP.supports, OP.iaModel);
     const rev = { usado: R.usado, motivo: R.motivo || '', veto: R.veto.map(f), rescate: R.rescate.map(f), aEstribo: R.aEstribo.map(f) };
@@ -205,7 +205,7 @@ function opSupTable() {
 function opGeometria() {
   // la app propone el tipo de puente a partir de la nube (una vez por nube); el usuario puede cambiarlo
   if (!OP.sug) { try { OP.sug = OPC.suggestType(OP.O, OP.deckTop, OP.ground, OP.supports.slice().sort((p, q) => p.a - q.a), OP.band, OP.minPts, OP.ends); if (!OP.geo) OP.type = OP.sug.tipo; } catch (e) { OP.sug = { tipo: OP.type, why: [] }; } }
-  const sg = OP.sug, sgMsg = sg && sg.why.length ? `<div class="msg ${sg.atirantado || sg.arcoSuperior ? 'warn' : ''}">${sg.arcoSuperior ? `<b>Parece un puente de arco con tablero inferior o arco atirantado</b> (${sg.why.join('; ')}). La app modela arcos bajo el tablero; aquí el modelo representará solo el tablero sobre sus apoyos, sin el arco. La luz medida es al nivel de la calzada: si el arco nace más abajo, en las pilas, la luz real es mayor.` : sg.atirantado ? `<b>Parece un puente atirantado o colgante</b> (${sg.why.join('; ')}). La app no modela cables ni torres: el resultado solo representará los tramos apoyados en pilares. Si la nube trae varios tramos, recorte en el paso 1 el que quiera analizar.` : `Según la nube parece un puente de <b>${OP_TYPES[sg.tipo].toLowerCase()}</b> (${sg.why.join('; ')}). Cámbielo si no es así.`}</div>` : '';
+  const sg = OP.sug, sgMsg = sg && sg.why.length ? `<div class="msg ${sg.atirantado || sg.arcoSuperior ? 'warn' : ''}">${sg.arcoSuperior ? `<b>Parece un puente de arco con tablero inferior o arco atirantado</b> (${sg.why.join('; ')}). La app modela arcos bajo el tablero; aquí el modelo representará solo el tablero sobre sus apoyos, sin el arco. La luz se mide donde la parábola del arco corta la calzada; si el arco nace más abajo, en las pilas, la luz real es mayor (se informa entre pilas cuando se ven bajo la calzada). En arcos de patas empinadas o que continúan sobre los accesos, la parábola puede sobrestimar la luz: revísela.` : sg.atirantado ? `<b>Parece un puente atirantado o colgante</b> (${sg.why.join('; ')}). La app no modela cables ni torres: el resultado solo representará los tramos apoyados en pilares. Si la nube trae varios tramos, recorte en el paso 1 el que quiera analizar.` : `Según la nube parece un puente de <b>${OP_TYPES[sg.tipo].toLowerCase()}</b> (${sg.why.join('; ')}). Cámbielo si no es así.`}</div>` : '';
   $('#canvas').innerHTML = `<div class="doc"><h2>3 · Geometría</h2>${sgMsg}
    <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:end"><label class="f" style="width:260px">Tipo de puente<select id="opType">${Object.entries(OP_TYPES).map(([k, l]) => `<option value="${k}" ${k === OP.type ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
     <button class="btn pri" id="opGo">Calcular geometría</button></div>

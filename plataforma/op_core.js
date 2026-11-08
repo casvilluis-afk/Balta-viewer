@@ -397,7 +397,9 @@ function suggestType(O, deckTop, ground, sup, band, minPts, ends) {
     for (let i = 0; i < O.n; i++) { const dz = O.z[i] - deckTop; if (dz < 3 || dz >= 9) continue; const t = O.t[i], k = Math.floor(O.s[i] - s0); if (Math.abs(t - e0) <= 1.5) L[k]++; else if (Math.abs(t - e1) <= 1.5) R[k]++; }
     let cl = 0, cr = 0; for (let k = a; k < b; k++) { if (L[k] >= 5) cl++; if (R[k] >= 5) cr++; } chord = Math.min(cl, cr) / Math.max(1, b - a); }
   if (chord >= .7 && !pil.length) return Object.assign({ tipo: 'armadura', atirantado: false, why: ['hay barras continuas sobre el tablero, en ambos bordes y a lo largo de casi todo el puente'].concat(arS ? ['el cordón superior es curvo'] : []) }, extra);
-  if (arS && !pil.length) { extra.arcoSuperior = { a: arS.a, b: arS.b, L: arS.L, flecha: arS.altura }; return Object.assign({ tipo: 'viga', arcoSuperior: true, atirantado: false, why: [`hay un arco sobre el tablero (tablero inferior o arco atirantado) de unos ${arS.L.toFixed(0)} m de luz y ${arS.altura.toFixed(1).replace('.', ',')} m de flecha sobre la calzada`] }, extra); }
+  if (arS && !pil.length) { const la = arS.luzArco, ap = la && la.apoyos, Lc = la ? la.L : arS.L;
+    extra.arcoSuperior = { a: la ? la.a : arS.a, b: la ? la.b : arS.b, L: Lc, flecha: arS.altura, parteAlta: arS.L, ...(ap ? { apoyos: ap } : {}) };
+    return Object.assign({ tipo: 'viga', arcoSuperior: true, atirantado: false, why: [`hay un arco sobre el tablero (tablero inferior o arco atirantado) de ${arS.altura.toFixed(1).replace('.', ',')} m de flecha sobre la calzada; la parábola del arco corta la calzada con unos ${Lc.toFixed(0)} m de luz` + (ap ? ` y bajo la calzada hay pilas en ${ap.a.toFixed(0)} m y ${ap.b.toFixed(0)} m (≈ ${ap.L.toFixed(0)} m entre pilas, donde el arco arranca)` : '')] }, extra); }
   if (chord >= .7 && !tower) return Object.assign({ tipo: 'armadura', atirantado: false, why: ['hay barras continuas sobre el tablero, en ambos bordes y a lo largo de casi todo el puente'] }, extra);
   return Object.assign({ tipo: 'viga', atirantado: tower > .01, why: ['bajo el tablero no hay arcos'].concat(why) }, extra);
 }
@@ -1411,10 +1413,10 @@ function supra(O, dk, W = {}, disp = null) {
     // dentro del segmento puede haber varios vértices (dos pilonos): se buscan máximos locales con mástil
     const bins = []; for (let k = b; k <= e; k++) if (hi[k]) bins.push(k);
     const xs = bins.map(sAt), ys = bins.map(k => E[k]);
-    const masts = []; for (let k = b; k <= e; k++) { const top = E[k]; if (top < 15) continue; const lev = Math.floor(top / 2); let n = 0; for (let j = 1; j < lev; j++) if (occ[k].has(j) || (occ[k - 1] && occ[k - 1].has(j)) || (occ[k + 1] && occ[k + 1].has(j))) n++; const cont = n / Math.max(1, lev - 1);
+    const masts = []; for (let k = b; k <= e; k++) { const top = E[k]; if (top < 15) continue; const lev = Math.floor(top / 2), wn = Math.max(1, Math.round(.08 * top / W.bw)); let n = 0; for (let j = 1; j < lev; j++) { let ok = false; for (let d = -wn; d <= wn && !ok; d++) if (occ[k + d] && occ[k + d].has(j)) ok = true; if (ok) n++; } const cont = n / Math.max(1, lev - 1); // pilono inclinado: ventana proporcional a la altura
       const isMax = E[k] >= Math.max(E[k - 1] || 0, E[k + 1] || 0, E[k - 2] || 0, E[k + 2] || 0); if (cont >= .8 && isMax) masts.push({ s: +sAt(k).toFixed(1), h: +top.toFixed(1), cont: +cont.toFixed(2) }); }
     // fusionar mástiles a < 10 m
-    const M = []; for (const m of masts) { const q = M[M.length - 1]; if (q && m.s - q.s < 10) { if (m.h > q.h) M[M.length - 1] = m; } else M.push(m); }
+    const M = []; for (const m of masts) { const q = M[M.length - 1]; if (q && m.s - q.s < Math.max(10, .25 * Math.max(m.h, q.h))) { if (m.h > q.h) M[M.length - 1] = m; } else M.push(m); }
     // parábola en la envolvente
     const xm = xs.reduce((a, c) => a + c) / xs.length; let S = [0, 0, 0, 0, 0], T = [0, 0, 0];
     for (let j = 0; j < xs.length; j++) { const x = xs[j] - xm, z = ys[j]; S[0]++; S[1] += x; S[2] += x * x; S[3] += x ** 3; S[4] += x ** 4; T[0] += z; T[1] += x * z; T[2] += x * x * z; }
@@ -1447,10 +1449,25 @@ function supra(O, dk, W = {}, disp = null) {
 // Superestructura sobre el tablero con la dispersión local de los puntos (miembros lineales frente a follaje)
 function superestructura(O, dk, gr) {
   const F = iaFeatures(O, dk, gr), disp = (a, b) => { let n = 0, e = 0; for (let j = 0; j < F.nv; j++) { if (F.X[j] < a || F.X[j] > b || F.Z[j] < dk + 2) continue; n++; e += F.F[j * F.nf + 8]; } return { n, esf: n ? e / n : 1 }; };
-  return supra(O, dk, {}, disp).segmentos;
+  const seg = supra(O, dk, {}, disp).segmentos;
+  for (const g of seg) if (g.tipo === 'arco_superior' && g.luzArco) { const ap = apoyosArco(O, dk, gr, g.luzArco); if (ap) g.luzArco.apoyos = ap; }
+  return seg;
+}
+// Pilas donde arranca un arco superior: en LiDAR aéreo el tablero tapa casi todo, pero bajo la calzada, cerca de cada raíz de la parábola,
+// aparece un grupo angosto de puntos que baja hasta el terreno (la pila o el pilono). Se toma el centroide de ese grupo.
+function apoyosArco(O, dk, gr, la, W = { R: 15, BW: 2, NB: 10, NMIN: 150, VERT: .5, ANCHO: 28 }) {
+  const tt = []; for (let i = 0; i < O.n; i++) if (Math.abs(O.z[i] - dk) < 1) tt.push(O.t[i]); tt.sort((a, b) => a - b); if (tt.length < 100) return null;
+  const t0 = tt[Math.floor(tt.length * .03)] - 2, t1 = tt[Math.floor(tt.length * .97)] + 2, clr = dk - gr; if (clr < 6) return null;
+  const uno = r => { const nb = Math.ceil(2 * W.R / W.BW), cnt = new Int32Array(nb), zl = new Float32Array(nb).fill(1e9), zh = new Float32Array(nb).fill(-1e9), ws = new Float64Array(nb);
+    for (let i = 0; i < O.n; i++) { const k = Math.floor((O.s[i] - r + W.R) / W.BW); if (k < 0 || k >= nb || O.t[i] < t0 || O.t[i] > t1) continue; const z = O.z[i]; if (z > dk - 2.5 || z < gr + 1.5) continue; cnt[k]++; ws[k] += O.s[i]; if (z < zl[k]) zl[k] = z; if (z > zh[k]) zh[k] = z; }
+    let best = null; for (let k = 0; k < nb;) { if (cnt[k] < W.NB) { k++; continue; } let e = k; while (e + 1 < nb && (cnt[e + 1] >= W.NB || (e + 2 < nb && cnt[e + 2] >= W.NB))) e++;
+      let n = 0, sw = 0, lo = 1e9, hi = -1e9; for (let j = k; j <= e; j++) { n += cnt[j]; sw += ws[j]; if (cnt[j]) { lo = Math.min(lo, zl[j]); hi = Math.max(hi, zh[j]); } }
+      const c = sw / n; if (n >= W.NMIN && (e - k + 1) * W.BW <= W.ANCHO && (hi - lo) / clr >= W.VERT && (!best || Math.abs(c - r) < Math.abs(best - r))) best = c; k = e + 1; }
+    return best; };
+  const a = uno(la.a), b = uno(la.b); return a != null && b != null ? { a: +a.toFixed(1), b: +b.toFixed(1), L: +(b - a).toFixed(1) } : null;
 }
 
-return { supra, superestructura, gapProfile, gapEnds, estribosHueco, GAP_W, hipotesis, clearanceProfile, iaEstribos, HIP_W, EST_W, iaFeatures, iaPredict, iaClusters, iaRefine, IA_NAMES, IA_REGLA, fftInPlace, detrend, csdMatrix, fdd, efdd, fddModes, pickPeaks, staticPrep, fiberStress, influence, HL93, hl93Extremes, liveLoad, CS_WF, pTrans, markovStep, elemHI, bridgeHI, calibrateAlpha, maintenancePlan, Dxf, bridgePlans, sensorsOf, readAccel, sdof, spectrum, seismic, freqCampaign, setConcMin, suggestType, applySkew, coherence, f1Band, geomSigmas, perturbGeom, archRise, peakCampaign, csdAverage, calibrateModel, nelderMead, trainFreqIA, trainVecIA, trainModalIA, modalFeat, modalMeasFeat, modalMeasFeatBase, freqPredict, build, modal, archAll, parseCloud, orient, bounds, deckLevel, groundLevel, detectSupports, spansOf, envelope, fitParabola, polyval, archGeometry, spanCoverage, MATERIALS,
+return { supra, superestructura, apoyosArco, gapProfile, gapEnds, estribosHueco, GAP_W, hipotesis, clearanceProfile, iaEstribos, HIP_W, EST_W, iaFeatures, iaPredict, iaClusters, iaRefine, IA_NAMES, IA_REGLA, fftInPlace, detrend, csdMatrix, fdd, efdd, fddModes, pickPeaks, staticPrep, fiberStress, influence, HL93, hl93Extremes, liveLoad, CS_WF, pTrans, markovStep, elemHI, bridgeHI, calibrateAlpha, maintenancePlan, Dxf, bridgePlans, sensorsOf, readAccel, sdof, spectrum, seismic, freqCampaign, setConcMin, suggestType, applySkew, coherence, f1Band, geomSigmas, perturbGeom, archRise, peakCampaign, csdAverage, calibrateModel, nelderMead, trainFreqIA, trainVecIA, trainModalIA, modalFeat, modalMeasFeat, modalMeasFeatBase, freqPredict, build, modal, archAll, parseCloud, orient, bounds, deckLevel, groundLevel, detectSupports, spansOf, envelope, fitParabola, polyval, archGeometry, spanCoverage, MATERIALS,
   build, sensorsOf, modal, signConvention, features, campaign, trainIA, forestPredict, LEVELS, noisy, mulberry, gaussR, quantile, median };
 })();
 if (typeof module !== 'undefined') module.exports = OPC;
