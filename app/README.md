@@ -31,17 +31,17 @@ Todo se calcula en la computadora del usuario; ningún dato sale a internet.
 
 ## Detección de geometría probada con otros puentes
 
-Mismo código que usa la app para cualquier nube, sin ajustes por puente (banco de pruebas de la versión 2.7.0, 52 nubes, 49 con etiquetas por punto). Etapas: regla geométrica → IA de apoyos (quita pilares sin columna, propone columnas que faltan) → estribos donde termina el espacio libre bajo el tablero (teoría: ahí se apoya la superestructura) → interpretación del puente completo con conocimiento de diseño (se ofrece al inspector, no se aplica sola).
+Mismo código que usa la app para cualquier nube, sin ajustes por puente (banco de pruebas de la versión 2.7.1, 52 nubes, 49 con etiquetas por punto). Etapas: regla geométrica → IA de apoyos (quita pilares sin columna, propone columnas que faltan) → estribos donde termina el espacio libre bajo el tablero (teoría: ahí se apoya la superestructura) → interpretación del puente completo con conocimiento de diseño (se ofrece al inspector, no se aplica sola).
 
 | Nubes | Fuente | Resultado |
 |---|---|---|
 | 6 puentes de vigas, Corea (UAV LiDAR, etiquetados) | Lee (2026), Zenodo 18531104, CC BY 4.0 | Esviaje a 0–3° del real; pilares 8/8 con 1 de más (marcado); estribos 10/12 a menos de 3 m del extremo del tablero; la IA de apoyos de cada puente se entrenó sin él |
-| 20 pasos superiores y pasarelas, Reino Unido y Alemania (láser terrestre, etiquetados) | Zenodo 18738225, CC BY 4.0; vanos según la tabla 3 de arXiv 2512.15369 | Vanos 20/20; pilares 32/33 con 1 de más; caras de estribo 29/40 (23/40 antes); 12/20 puentes sin error |
-| 23 puentes sintéticos (escaneo virtual, etiquetados) | Kellner, Zenodo 18593422, CC BY-NC 1.0 | Separados al azar: 12 para estudiar fallas, 11 de prueba final. En los 11 de prueba: estribos 21/22 (11/22 antes), 0 pilares de más, 8/11 sin error (3/11 antes) |
+| 20 pasos superiores y pasarelas, Reino Unido y Alemania (láser terrestre, etiquetados) | Zenodo 18738225, CC BY 4.0; vanos según la tabla 3 de arXiv 2512.15369 | Vanos 19/20; pilares 32/33 con 2 de más; caras de estribo 29/40 (23/40 antes); 12/20 puentes sin error |
+| 23 puentes sintéticos (escaneo virtual, etiquetados) | Kellner, Zenodo 18593422, CC BY-NC 1.0 | Separados al azar: 12 para estudiar fallas, 11 de prueba final. En los 11 de prueba (2.7.0): estribos 21/22 (11/22 antes), 0 pilares de más, 8/11 sin error (3/11 antes); 2.7.1 (segunda vez que se miran): 22/22 y 9/11 |
 | Armadura de acero, tranvía de Schipluiden (láser terrestre) | TU Delft, doi 10.4121/13626368, CC BY-NC 4.0 | Tipología armadura; estribos en los extremos (59,9 m) |
 | Puente Balta (muestra TLS) | Primera parte de la tesis | Tipología arco; P1, P2 y estribo derecho; sin cambios con las etapas nuevas |
 
-Los umbrales de la IA de apoyos se eligieron mirando los 20 puentes TLS. La IA de estribos de la 2.6 se retiró (empeoraba Corea y los sintéticos); su código y modelo quedan en `op_core.js` (`iaEstribos`) y `data/ia_estribos.json` para reproducir el estudio. El paso 2 siempre pide revisar los apoyos.
+Los umbrales de la IA de apoyos se eligieron mirando los 20 puentes TLS. La IA de estribos de la 2.6 se retiró (empeoraba Corea y los sintéticos); su código y modelo quedan en `op_core.js` (`iaEstribos`) y `data/ia_estribos.json` para reproducir el estudio. El paso 2 siempre pide revisar los apoyos. Probado y descartado en 2.7.1: pilas por cortes del hueco o por «camino de carga» (tantas falsas como verdaderas) y aprender solo de lo que confirma el inspector sin etiquetar puntos (empeora la IA).
 
 ## Limitaciones conocidas
 

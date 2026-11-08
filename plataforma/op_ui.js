@@ -66,7 +66,7 @@ async function opIARev(after) {
   OP.iaBusy = true; const st = $('#opIAst'); if (st) st.textContent = 'La IA está revisando los apoyos…';
   try {
     await new Promise(r => setTimeout(r, 30));
-    OP.iaModel = OP.iaModel || await fetch('data/ia_apoyos.json?v=2.7.0').then(r => { if (!r.ok) throw new Error('sin modelo'); return r.json(); });
+    OP.iaModel = OP.iaModel || await fetch('data/ia_apoyos.json?v=2.7.1').then(r => { if (!r.ok) throw new Error('sin modelo'); return r.json(); });
     if (OP.O !== O || OP.supports !== sup0) return;
     const t0 = performance.now(), R = OPC.iaRefine(OP.O, OP.deckTop, OP.ground, OP.supports, OP.iaModel);
     const rev = { usado: R.usado, motivo: R.motivo || '', veto: R.veto.map(f), rescate: R.rescate.map(f), aEstribo: R.aEstribo.map(f) };
@@ -80,7 +80,7 @@ async function opIARev(after) {
   fin();
 }
 function opIAText() { const r = OP.iaRev; if (!r) return '';
-  const hz = (r.hueco || []).map(c => c.tipo === 'movido' ? `movió el estribo ${c.lado} de ${c.de} m a ${c.a} m` : c.tipo === 'a_estribo' ? `tomó como estribo ${c.lado} el apoyo en ${c.de} m (queda en ${c.a} m)` : c.tipo === 'agregado' ? `agregó el estribo ${c.lado} en ${c.a} m` : `quitó el pilar en ${c.s} m, fuera del puente`);
+  const hz = (r.hueco || []).map(c => c.tipo === 'movido' ? `movió el estribo ${c.lado} de ${c.de} m a ${c.a} m` : c.tipo === 'a_estribo' ? `tomó como estribo ${c.lado} el apoyo en ${c.de} m (queda en ${c.a} m)` : c.tipo === 'agregado' ? `agregó el estribo ${c.lado} en ${c.a} m` : c.tipo === 'a_pilar' ? `tomó como pilar el apoyo en ${c.de} m porque el espacio libre sigue más allá, y puso el estribo ${c.lado} en ${c.a} m` : `quitó el pilar en ${c.s} m, fuera del puente`);
   const hzt = hz.length ? ` Estribos: donde termina el espacio libre bajo el tablero, la app ${hz.join('; ')}.` : '';
   if (!r.usado) return (r.motivo === 'desactivada' ? 'La IA de apoyos está desactivada.' : `La IA de apoyos no se usó: ${r.motivo}.`) + hzt;
   const m = [], ls = a => (a.length > 1 ? a.slice(0, -1).join(' m, ') + ' m y ' + a[a.length - 1] : a[0]) + ' m';

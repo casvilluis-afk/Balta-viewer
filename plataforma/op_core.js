@@ -1348,17 +1348,24 @@ function gapEnds(G, W = GAP_W) {
   return { L: s0 + b[0] * bw, R: s0 + (b[1] + 1) * bw, abiertoL: b[0] * bw < 1.5, abiertoR: (nb - 1 - b[1]) * bw < 1.5 };
 }
 function estribosHueco(O, dk, gr, supports, W = GAP_W) {
-  const E = gapEnds(gapProfile(O, dk, gr, W), W), m = p => (p.a + p.b) / 2, cambios = [];
+  const GP = gapProfile(O, dk, gr, W), E = gapEnds(GP, W), m = p => (p.a + p.b) / 2, cambios = [];
+  // mediana del hueco entre dos posiciones (para saber si «más allá» sigue habiendo un vano de verdad)
+  const medGap = (x0, x1) => { if (!GP) return 0; const v = []; for (let b = Math.max(0, Math.floor((Math.min(x0, x1) - GP.s0) / GP.bw)); b <= Math.min(GP.nb - 1, Math.floor((Math.max(x0, x1) - GP.s0) / GP.bw)); b++) if (GP.gap[b] != null && GP.gap[b] > 0) v.push(GP.gap[b]); v.sort((a, c) => a - c); return v.length ? v[v.length >> 1] : 0; };
   let S = supports.map(p => ({ ...p })).sort((p, q) => p.a - q.a); if (!E) return { supports: S, cambios };
   const msg = 'Estribo donde termina el espacio libre bajo el tablero (ahí se apoya la superestructura). Confirme.';
-  const fuera = S.filter(p => p.tipo === 'pilar' && ((!E.abiertoL && m(p) < E.L - 1) || (!E.abiertoR && m(p) > E.R + 1)));
-  for (const p of fuera) cambios.push({ tipo: 'quitado', s: +m(p).toFixed(1) });
-  S = S.filter(p => !fuera.includes(p));
   const lado = (end, isL) => { if (isL ? E.abiertoL : E.abiertoR) return; end = +end.toFixed(2); const i = isL ? 0 : S.length - 1, p = S[i], nm = isL ? 'izquierdo' : 'derecho';
     if (p && p.tipo === 'pilar' && Math.abs(m(p) - end) <= W.CONV) { cambios.push({ tipo: 'a_estribo', lado: nm, de: +m(p).toFixed(1), a: end }); S[i] = { a: end, b: end, tipo: 'estribo', auto: 'hueco', duda: msg }; return; }
+    if (p && p.tipo === 'estribo' && (isL ? m(p) - end : end - m(p)) > 4 && medGap(m(p), end) >= .5 * medGap(E.L, E.R)) { // el hueco sigue más allá del «estribo»: era una pila
+      cambios.push({ tipo: 'a_pilar', lado: nm, de: +m(p).toFixed(1), a: end }); S[i] = { ...p, tipo: 'pilar', auto: 'hueco', duda: 'El espacio libre bajo el tablero continúa más allá: se tomó como pilar. Confirme.' };
+      const q = { a: end, b: end, tipo: 'estribo', auto: 'hueco', duda: msg }; isL ? S.unshift(q) : S.push(q); return; }
     if (p && p.tipo === 'estribo') { if (Math.abs(m(p) - end) <= W.DMAX && Math.abs(m(p) - end) > .3) { cambios.push({ tipo: 'movido', lado: nm, de: +m(p).toFixed(1), a: end }); S[i] = { ...p, a: end, b: end, auto: 'hueco', duda: msg }; } return; }
     if (!p || (isL ? m(p) - end : end - m(p)) >= 4) { cambios.push({ tipo: 'agregado', lado: nm, a: end }); const q = { a: end, b: end, tipo: 'estribo', auto: 'hueco', duda: msg }; isL ? S.unshift(q) : S.push(q); } };
   lado(E.L, true); lado(E.R, false);
+  // pilares fuera del puente (sobre el terraplén), después de convertir los extremos
+  const fuera = S.filter(p => p.tipo === 'pilar' && ((!E.abiertoL && m(p) < E.L - W.CONV) || (!E.abiertoR && m(p) > E.R + W.CONV)));
+  for (const p of fuera) cambios.push({ tipo: 'quitado', s: +m(p).toFixed(1) });
+  S = S.filter(p => !fuera.includes(p));
+  if (fuera.length) { if (S.length && S[0].tipo !== 'estribo') lado(E.L, true); if (S.length && S[S.length - 1].tipo !== 'estribo') lado(E.R, false); }
   return { supports: S, cambios, extremos: E };
 }
 
