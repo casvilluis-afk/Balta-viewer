@@ -1429,11 +1429,26 @@ function gapEnds(G, W = GAP_W) {
   const b = M.reduce((x, y) => y[1] - y[0] > x[1] - x[0] ? y : x);
   return { L: s0 + b[0] * bw, R: s0 + (b[1] + 1) * bw, abiertoL: b[0] * bw < 1.5, abiertoR: (nb - 1 - b[1]) * bw < 1.5 };
 }
+/* Puentes de arco: un montante o la zona de arranque, con nube densa, pasa las pruebas de «pilar». Si el intradós a ambos lados de un apoyo
+   intermedio es un mismo arco (la parábola del tramo unido ajusta tan bien como las de cada lado y es un arco de verdad: flecha ≥ 6 % de la luz),
+   ese apoyo no es un pilar y se quita. En los extremos, si el arco sigue más allá del estribo, el estribo se lleva al arranque simétrico. */
+function arcoContinuo(O, dk, gr, S, cambios) { const zmin = gr + .2 * (dk - gr), zmax = dk - .38, mp = Math.max(3, Math.round(15 * Math.min(1, O.n / 601243)));
+  const G = (a, b) => b - a > 3 ? archGeometry(O, { a, b }, zmin, zmax, mp) : { ok: false }, bueno = (g, L) => g.ok && g.rise >= .06 * L;
+  for (let it = 0; it < 6; it++) { let quitado = false;
+    for (let k = 1; k < S.length - 1; k++) { const p = S[k]; if (p.tipo !== 'pilar') continue; const a = S[k - 1].b, b = S[k + 1].a, L = G(a, p.a), R = G(p.b, b), M = G(a, b);
+      /* un lado muy corto (< 6 m, junto a un estribo) no alcanza para su propia parábola: basta que el arco unido ajuste bien */
+      const corto = (!L.ok && p.a - a < 6) || (!R.ok && b - p.b < 6); if ((!L.ok || !R.ok) && !corto || !bueno(M, b - a)) continue; const yv = -M.coef[1] / (2 * M.coef[0]); if (yv < a + .2 * (b - a) || yv > b - .2 * (b - a)) continue;
+      if (M.rms <= (corto ? .02 : Math.max(.02, 1.5 * Math.max(L.rms || 0, R.rms || 0)))) { cambios.push({ tipo: 'montante', s: +((p.a + p.b) / 2).toFixed(1) }); S.splice(k, 1); quitado = true; break; } }
+    if (!quitado) break; }
+  for (const [i, j, dir] of [[0, 1, -1], [S.length - 1, S.length - 2, 1]]) { const e = S[i], n = S[j]; if (!e || !n || e.tipo !== 'estribo') continue;
+    const a = dir < 0 ? e.b : n.b, b = dir < 0 ? n.a : e.a, g = G(a, b); if (!bueno(g, b - a)) continue; const yv = -g.coef[1] / (2 * g.coef[0]), sym = 2 * yv - (dir < 0 ? b : a);
+    if ((dir < 0 ? e.a - sym : sym - e.b) < 2) continue; const g2 = dir < 0 ? G(sym, b) : G(a, sym);
+    if (g2.ok && g2.rms <= 1.5 * g.rms + .005 && g2.E && g2.E.yc.length >= 1.1 * g.E.yc.length) { cambios.push({ tipo: 'movido', lado: dir < 0 ? 'izquierdo' : 'derecho', de: +((e.a + e.b) / 2).toFixed(1), a: +sym.toFixed(1), motivo: 'arco' }); S[i] = { ...e, a: +sym.toFixed(2), b: +sym.toFixed(2), auto: 'arco', duda: 'El arco sigue más allá: el estribo se puso en el arranque simétrico del arco. Confirme.' }; } } }
 function estribosHueco(O, dk, gr, supports, W = GAP_W) {
   const GP = gapProfile(O, dk, gr, W), E = gapEnds(GP, W), m = p => (p.a + p.b) / 2, cambios = [];
   // mediana del hueco entre dos posiciones (para saber si «más allá» sigue habiendo un vano de verdad)
   const medGap = (x0, x1) => { if (!GP) return 0; const v = []; for (let b = Math.max(0, Math.floor((Math.min(x0, x1) - GP.s0) / GP.bw)); b <= Math.min(GP.nb - 1, Math.floor((Math.max(x0, x1) - GP.s0) / GP.bw)); b++) if (GP.gap[b] != null && GP.gap[b] > 0) v.push(GP.gap[b]); v.sort((a, c) => a - c); return v.length ? v[v.length >> 1] : 0; };
-  let S = supports.map(p => ({ ...p })).sort((p, q) => p.a - q.a); if (!E) return { supports: S, cambios };
+  let S = supports.map(p => ({ ...p })).sort((p, q) => p.a - q.a); if (!E) { arcoContinuo(O, dk, gr, S, cambios); return { supports: S, cambios }; }
   const msg = 'Estribo donde termina el espacio libre bajo el tablero (ahí se apoya la superestructura). Confirme.';
   const lado = (end, isL) => { if (isL ? E.abiertoL : E.abiertoR) return; end = +end.toFixed(2); const i = isL ? 0 : S.length - 1, p = S[i], nm = isL ? 'izquierdo' : 'derecho';
     if (p && p.tipo === 'pilar' && Math.abs(m(p) - end) <= W.CONV) { cambios.push({ tipo: 'a_estribo', lado: nm, de: +m(p).toFixed(1), a: end }); S[i] = { a: end, b: end, tipo: 'estribo', auto: 'hueco', duda: msg }; return; }
@@ -1450,6 +1465,7 @@ function estribosHueco(O, dk, gr, supports, W = GAP_W) {
   for (const p of fuera) cambios.push({ tipo: 'quitado', s: +m(p).toFixed(1) });
   S = S.filter(p => !fuera.includes(p));
   if (fuera.length) { if (S.length && S[0].tipo !== 'estribo') lado(E.L, true); if (S.length && S[S.length - 1].tipo !== 'estribo') lado(E.R, false); }
+  arcoContinuo(O, dk, gr, S, cambios);
   return { supports: S, cambios, extremos: E };
 }
 
@@ -2032,6 +2048,105 @@ function elementos(O, dk, gr, supports, opt = {}) {
   return { elementos: E, marco: { t0: r2(t0), t1: r2(t1), ancho: r2(B) }, calzada: { s0: q.s0, bw: q.bw, z: zcal.map(v => v == null ? null : r2(v)) } };
 }
 
+/* ---------- Mapa de desviaciones: dónde la superficie medida se aparta de la forma ideal del elemento ----------
+   Para cada superficie se arma un campo en una grilla (celda ≈ 2 veces la separación entre puntos): calzada z(s,t), intradós del arco z(s,t)
+   (lo más bajo del nervio), caras de pilares s(t,z), borde superior y línea de cada baranda. A cada campo se le quita su forma ideal (polinomio
+   de la calzada con bombeo y contraflecha, parábola de cada franja del arco, plano de la cara del pilar, recta de la baranda) y luego la mediana
+   local de 2 m (lo que queda es lo local: abolladuras, hundimientos, desprendimientos, golpes). Umbral = máx(3,5 σ del ruido, 1,5 cm);
+   las celdas fuera del umbral se agrupan y se informan las zonas de al menos 0,1 m² (o 4 celdas). No hay calificación: son zonas para revisar. */
+function desviaciones(O, R, opt = {}) {
+  if (!R || !R.elementos || !R.calzada) return null; const E = R.elementos, Z = R.calzada, m = R.marco, tm = (m.t0 + m.t1) / 2;
+  const r4 = v => +(+v).toFixed(4), esp = opt.espaciado || .05, cel = Math.max(.1, Math.min(1, 2 * esp)), r2 = v => +(+v).toFixed(2), c1 = v => String(+(+v).toFixed(1)).replace('.', ',');
+  const top = s => { const k = Math.max(0, Math.min(Z.z.length - 1, Math.floor((s - Z.s0) / Z.bw))); for (let d = 0; d < Z.z.length; d++) { if (Z.z[k - d] != null) return Z.z[k - d]; if (Z.z[k + d] != null) return Z.z[k + d]; } return 0; };
+  const med = a => { if (!a.length) return null; const b = Float64Array.from(a).sort(); return b[b.length >> 1]; };
+  // campo: grilla nu × nv con la mediana (o el mínimo) de los puntos de cada celda
+  const grilla = (u0, u1, v0, v1) => { const nu = Math.max(1, Math.ceil((u1 - u0) / cel)), nv = Math.max(1, Math.ceil((v1 - v0) / cel)); return { u0, v0, nu, nv, b: Array.from({ length: nu * nv }, () => []) }; };
+  const meter = (G, u, v, w) => { const i = Math.floor((u - G.u0) / cel), j = Math.floor((v - G.v0) / cel); if (i < 0 || j < 0 || i >= G.nu || j >= G.nv) return; G.b[i * G.nv + j].push(w); };
+  const valor = (G, f) => Float64Array.from(G.b, a => a.length >= 2 ? f(a) : NaN);
+  // mediana local en ventana (2 m) ignorando celdas vacías
+  /* soloU: la ventana corre solo a lo largo del eje (calzada, intradós): cordones, veredas y bordes que siguen el eje no se toman por defecto */
+  const mediana2D = (G, F, W, soloU, soloV) => { const h0 = Math.max(1, Math.round(W / 2 / cel)), h = soloV ? 0 : h0, hv = soloU ? 0 : h0, out = new Float64Array(F.length).fill(NaN);
+    for (let i = 0; i < G.nu; i++) for (let j = 0; j < G.nv; j++) { if (isNaN(F[i * G.nv + j])) continue; const w = []; for (let a = Math.max(0, i - h); a <= Math.min(G.nu - 1, i + h); a += h > 6 && !soloU ? 2 : 1) for (let b = Math.max(0, j - hv); b <= Math.min(G.nv - 1, j + hv); b += hv > 6 ? 2 : 1) { const x = F[a * G.nv + b]; if (!isNaN(x)) w.push(x); } out[i * G.nv + j] = w.length >= 5 ? med(w) : NaN; } return out; };
+  // ajuste por mínimos cuadrados robusto (3 vueltas descartando > 3 MAD) de un modelo lineal en parámetros
+  const ajusta = (X, y) => { let use = y.map(() => true), b = null; for (let it = 0; it < 3; it++) { const k = X[0].length, A = Array.from({ length: k }, () => new Float64Array(k)), r = new Float64Array(k);
+      X.forEach((x, n) => { if (!use[n]) return; for (let a = 0; a < k; a++) { r[a] += x[a] * y[n]; for (let c = 0; c < k; c++) A[a][c] += x[a] * x[c]; } });
+      for (let a = 0; a < k; a++) A[a][a] += 1e-9; b = resolver(A, r); if (!b) return null; const e = X.map((x, n) => Math.abs(y[n] - x.reduce((s, v, a) => s + v * b[a], 0))), md = med(e.filter((_, n) => use[n])) || .01; use = e.map(v => v <= Math.max(.02, 4.5 * md)); } return b; };
+  const resolver = (A, r) => { const n = r.length, M = A.map((row, i) => [...row, r[i]]); for (let i = 0; i < n; i++) { let p = i; for (let k = i + 1; k < n; k++) if (Math.abs(M[k][i]) > Math.abs(M[p][i])) p = k; [M[i], M[p]] = [M[p], M[i]]; if (Math.abs(M[i][i]) < 1e-12) return null; for (let k = i + 1; k < n; k++) { const f = M[k][i] / M[i][i]; for (let c = i; c <= n; c++) M[k][c] -= f * M[i][c]; } }
+    const x = new Float64Array(n); for (let i = n - 1; i >= 0; i--) { let s = M[i][n]; for (let c = i + 1; c < n; c++) s -= M[i][c] * x[c]; x[i] = s / M[i][i]; } return x; };
+  const zonas = [], ruidos = [], campos = []; let descartadas = 0;
+  // analiza un campo: quita la forma ideal (base), la mediana local y agrupa lo que queda fuera del umbral
+  const erosion = (G, F, soloU) => F.map((v, k) => { if (isNaN(v)) return NaN; const i = Math.floor(k / G.nv), j = k % G.nv; for (const [a, b] of soloU ? [[1, 0], [-1, 0]] : [[1, 0], [-1, 0], [0, 1], [0, -1]]) { const ii = i + a, jj = j + b; if (ii < 0 || jj < 0 || ii >= G.nu || jj >= G.nv || isNaN(F[ii * G.nv + jj])) return NaN; } return v; });
+  const analizar = (G, F0, base, info) => { const F = erosion(G, F0, info.angosto); /* sin el borde de cada zona medida: sombras de vehículos, peatones y bordes del levantamiento */ const r0 = F.map((v, k) => isNaN(v) ? NaN : v - base(k)), ref = mediana2D(G, r0, 2, info.soloU, info.soloV), d = r0.map((v, k) => isNaN(v) || isNaN(ref[k]) ? NaN : v - ref[k]);
+    let ab = [...d].filter(v => !isNaN(v)).map(Math.abs); if (ab.length < 20) return null; let sig = 1.4826 * med(ab), thr = Math.max(3.5 * sig, .015);
+    /* miembros angostos (nervios del arco): las filas del borde mezclan intradós y costado; una fila con > 25 % de celdas fuera del umbral no es confiable y se quita */
+    if (info.angosto) { for (let j = 0; j < G.nv; j++) { let n = 0, o = 0; for (let i = 0; i < G.nu; i++) { const v = d[i * G.nv + j]; if (isNaN(v)) continue; n++; if (Math.abs(v) >= thr) o++; } if (n && o > .25 * n) for (let i = 0; i < G.nu; i++) d[i * G.nv + j] = NaN; }
+      ab = [...d].filter(v => !isNaN(v)).map(Math.abs); if (ab.length < 20) return null; sig = 1.4826 * med(ab); thr = Math.max(3.5 * sig, .015); }
+    ruidos.push(sig);
+    const seen = new Uint8Array(d.length), area1 = cel * cel, minC = Math.max(4, Math.ceil(.1 / area1)), def = [];
+    for (let k = 0; k < d.length; k++) { if (seen[k] || isNaN(d[k]) || Math.abs(d[k]) < thr) continue; const sg = Math.sign(d[k]), cola = [k], cs = []; seen[k] = 1;
+      while (cola.length) { const u = cola.pop(); cs.push(u); const i = Math.floor(u / G.nv), j = u % G.nv; for (const [a, b] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) { const ii = i + a, jj = j + b; if (ii < 0 || jj < 0 || ii >= G.nu || jj >= G.nv) continue; const w = ii * G.nv + jj; if (!seen[w] && !isNaN(d[w]) && Math.abs(d[w]) >= thr && Math.sign(d[w]) === sg) { seen[w] = 1; cola.push(w); } } }
+      if (cs.length < minC) continue; let mx = 0, u0 = Infinity, u1 = -Infinity, v0 = Infinity, v1 = -Infinity; for (const u of cs) { const i = Math.floor(u / G.nv), j = u % G.nv; if (Math.abs(d[u]) > Math.abs(mx)) mx = d[u]; u0 = Math.min(u0, G.u0 + i * cel); u1 = Math.max(u1, G.u0 + (i + 1) * cel); v0 = Math.min(v0, G.v0 + j * cel); v1 = Math.max(v1, G.v0 + (j + 1) * cel); }
+      if (Math.abs(mx) > (info.maxDef || .3)) { descartadas++; continue; } /* más de 30 cm: otra pieza, borde o vehículo, no un defecto de superficie */
+      def.push({ u0, u1, v0, v1, area: cs.length * area1, max: mx }); }
+    // forma global: cuánto se aparta la mediana local de la forma ideal (deformación de conjunto, no local)
+    const glob = [...ref].filter(v => !isNaN(v)).sort((a, b) => a - b), g95 = glob.length ? Math.max(Math.abs(glob[Math.floor(glob.length * .02)]), Math.abs(glob[Math.floor(glob.length * .98)])) : null;
+    for (const z of def) zonas.push({ ...info.zona(z), elemento: info.id, parte: info.parte, area: r2(z.area), max: r4(z.max), umbral: r4(thr) });
+    if (opt.campos) campos.push({ id: info.id, parte: info.parte, u0: G.u0, v0: G.v0, nu: G.nu, nv: G.nv, cel, umbral: thr, d: Float32Array.from(d) });
+    return { id: info.id, parte: info.parte, ruido: r4(sig), umbral: r4(thr), celdas: ab.length, forma: g95 != null ? r2(g95) : null, zonas: def.length }; };
+  const res = [];
+  // 1) calzada de cada tablero: z(s,t) con la mediana de la celda; forma ideal = contraflecha (s, s²) + bombeo (t, t²) por vano
+  for (const T of E.filter(e => e.tipo === 'tablero')) { const sa = T.a + .75, sb = T.b - .75; if (sb - sa < 2) continue; /* sin las juntas de los extremos del vano */ const G = grilla(sa, sb, m.t0 + .5, m.t1 - .5);
+    for (let i = 0; i < O.n; i++) { const s = O.s[i]; if (s < sa || s >= sb) continue; const t = O.t[i]; if (t < m.t0 + .5 || t > m.t1 - .5) continue; const z = O.z[i] - top(s); if (z > -.15 && z < .25) meter(G, s, t, O.z[i]); } /* hasta 15 cm bajo la rasante: más abajo suele ser otra capa (cara inferior, losa bajo el pavimento) */
+    /* cota de la celda = percentil 90 (la cara superior): si la losa es delgada, el escáner ve también su cara inferior en la misma celda */
+    const F = valor(G, a => Float64Array.from(a).sort()[Math.floor(a.length * .9)]), X = [], y = [], sc = (T.a + T.b) / 2, L = Math.max(1, (T.b - T.a) / 2), W = Math.max(1, (m.t1 - m.t0) / 2);
+    /* solo la calzada: se descartan las franjas longitudinales (veredas, cordones, bermas) cuya cota mediana se aparta más de 6 cm de la rasante */
+    const fuera = new Set(), mos = []; for (let j = 0; j < G.nv; j++) { const o = []; for (let i = 0; i < G.nu; i++) { const v = F[i * G.nv + j]; if (!isNaN(v)) o.push(v - top(G.u0 + (i + .5) * cel)); } mos.push(o.length >= 5 ? med(o) : null); }
+    /* la cota de cada franja se compara con el bombeo ajustado a todas las franjas (recta + parábola en t), no con el eje: la calzada puede caer 10–15 cm hacia los bordes */
+    { const X = [], y = []; mos.forEach((v, j) => { if (v != null) { const t = (G.v0 + (j + .5) * cel - tm) / W; X.push([1, t, t * t]); y.push(v); } }); const bb = y.length >= 5 ? ajusta(X, y) : null;
+      mos.forEach((v, j) => { const t = (G.v0 + (j + .5) * cel - tm) / W; if (v == null || !bb || Math.abs(v - (bb[0] + bb[1] * t + bb[2] * t * t)) > .06) fuera.add(j); }); }
+    for (const j of [...fuera]) for (const jj of [j - 1, j, j + 1]) if (jj >= 0 && jj < G.nv) for (let i = 0; i < G.nu; i++) F[i * G.nv + jj] = NaN; /* y la franja vecina (borde del cordón) */
+    for (let k = 0; k < F.length; k++) if (!isNaN(F[k])) { const s = (G.u0 + (Math.floor(k / G.nv) + .5) * cel - sc) / L, t = (G.v0 + (k % G.nv + .5) * cel - tm) / W; X.push([1, s, s * s, t, t * t]); y.push(F[k]); }
+    if (y.length < 20) continue; const b = ajusta(X, y); if (!b) continue;
+    const base = k => { const s = (G.u0 + (Math.floor(k / G.nv) + .5) * cel - sc) / L, t = (G.v0 + (k % G.nv + .5) * cel - tm) / W; return b[0] + b[1] * s + b[2] * s * s + b[3] * t + b[4] * t * t; };
+    const r = analizar(G, F, base, { id: T.id, parte: 'calzada', soloU: true, zona: z => ({ a: r2(z.u0), b: r2(z.u1), t0: r2(z.v0), t1: r2(z.v1), texto: `${z.max < 0 ? 'hundimiento' : 'resalto u objeto sobre la calzada'} de ${c1(Math.abs(z.max) * 100)} cm en ${c1(z.area)} m² (de ${c1(z.u0)} a ${c1(z.u1)} m)` }) }); if (r) res.push(r); }
+  // 2) intradós de cada arco: lo más bajo del nervio en z(s,t); forma ideal = curva suave (polinomio de grado 4, admite arcos no parabólicos) de cada franja transversal de 1 m
+  for (const A of E.filter(e => e.tipo === 'arco' && e.coef)) { const za = s => A.coef[0] * s * s + A.coef[1] * s + A.coef[2], G = grilla(A.a, A.b, m.t0 - .5, m.t1 + .5);
+    for (let i = 0; i < O.n; i++) { const s = O.s[i]; if (s < A.a || s >= A.b) continue; const dz = O.z[i] - za(s); if (dz < -.4 || dz > .5) continue; meter(G, s, O.t[i], O.z[i]); }
+    const F = valor(G, a => Math.min(...a)), fr = new Map();
+    for (let k = 0; k < F.length; k++) if (!isNaN(F[k])) { const j = Math.floor((k % G.nv) * cel), s = G.u0 + (Math.floor(k / G.nv) + .5) * cel; let v = fr.get(j); if (!v) fr.set(j, v = { X: [], y: [] }); const x = (s - (A.a + A.b) / 2) / Math.max(1, A.luz / 2); v.X.push([1, x, x * x, x ** 3, x ** 4]); v.y.push(F[k]); }
+    const coefs = new Map(); for (const [j, v] of fr) if (v.y.length >= 15) { const b = ajusta(v.X, v.y); if (b) coefs.set(j, b); }
+    const base = k => { const j = Math.floor((k % G.nv) * cel), b = coefs.get(j), x = (G.u0 + (Math.floor(k / G.nv) + .5) * cel - (A.a + A.b) / 2) / Math.max(1, A.luz / 2); return b ? b[0] + b[1] * x + b[2] * x * x + b[3] * x ** 3 + b[4] * x ** 4 : NaN; };
+    const r = analizar(G, F, base, { id: A.id, parte: 'intradós', soloU: true, angosto: true, zona: z => ({ a: r2(z.u0), b: r2(z.u1), t0: r2(z.v0), t1: r2(z.v1), texto: `${z.max < 0 ? 'abultamiento hacia abajo' : 'pérdida o hueco hacia arriba'} de ${c1(Math.abs(z.max) * 100)} cm en ${c1(z.area)} m² del intradós (de ${c1(z.u0)} a ${c1(z.u1)} m)` }) }); if (r) res.push(r); }
+  // 3) caras de los pilares: para cada cara (hacia − y + del eje), posición s(t,z) del punto más afuera de la celda; forma ideal = plano (admite inclinación)
+  for (const P of E.filter(e => e.tipo === 'pilar' && e.espesor)) { /* caras: percentiles 2 y 98 de s de los puntos del fuste (el centro del apoyo puede venir corrido) */
+    const ss = []; for (let i = 0; i < O.n; i++) { const s = O.s[i]; if (Math.abs(s - P.s) > P.espesor / 2 + 1 || O.z[i] < P.zBase + .5 || O.z[i] > P.zTop - .5) continue; ss.push(s); }
+    if (ss.length < 50) continue; ss.sort((x, y) => x - y); const f0 = ss[Math.floor(ss.length * .02)], f1 = ss[Math.floor(ss.length * .98)], pc = (f0 + f1) / 2, h = (f1 - f0) / 2;
+    for (const lado of [-1, 1]) { const G = grilla(m.t0 - 1, m.t1 + 1, P.zBase + .3, P.zTop - .5); /* sin la unión con el tablero */
+      for (let i = 0; i < O.n; i++) { const ds = (O.s[i] - pc) * lado; if (ds < h - .4 || ds > h + .4) continue; meter(G, O.t[i], O.z[i], ds); }
+      const F = valor(G, a => Math.max(...a)), X = [], y = []; for (let k = 0; k < F.length; k++) if (!isNaN(F[k])) { X.push([1, G.u0 + (Math.floor(k / G.nv) + .5) * cel, G.v0 + (k % G.nv + .5) * cel]); y.push(F[k]); }
+      if (y.length < 20) continue; const b = ajusta(X, y); if (!b) continue; const base = k => b[0] + b[1] * (G.u0 + (Math.floor(k / G.nv) + .5) * cel) + b[2] * (G.v0 + (k % G.nv + .5) * cel);
+      const r = analizar(G, F, base, { id: P.id, parte: 'cara ' + (lado < 0 ? 'hacia el inicio' : 'hacia el final'), soloV: true, zona: z => ({ a: r2(pc + lado * h), b: r2(pc + lado * h), t0: r2(z.u0), t1: r2(z.u1), z0: r2(z.v0), z1: r2(z.v1), texto: `${z.max < 0 ? 'desprendimiento o pérdida de sección' : 'protuberancia o material adherido'} de ${c1(Math.abs(z.max) * 100)} cm en ${c1(z.area)} m² (cota ${c1(z.v0)} a ${c1(z.v1)} m)` }) }); if (r) res.push(r); } }
+  // 4) barandas: altura sobre la calzada y posición transversal metro a metro; forma ideal = constante (altura) y recta (línea)
+  for (const B of E.filter(e => e.tipo === 'baranda')) { const w = B.lado === 'izquierda' ? -1 : 1, n = Math.max(1, Math.ceil(B.b - B.a)), H = Array.from({ length: n }, () => []), T = Array.from({ length: n }, () => []);
+    for (let i = 0; i < O.n; i++) { const s = O.s[i]; if (s < B.a || s >= B.b) continue; const dt = (O.t[i] - B.t) * w; if (dt < -1 || dt > 1) continue; const hz = O.z[i] - top(s); if (hz < .3 || hz > 2.8) continue; const k = Math.floor(s - B.a); H[k].push(hz); T[k].push(O.t[i]); }
+    const alt = H.map(a => a.length >= 3 ? Float64Array.from(a).sort()[Math.floor(a.length * .95)] : NaN), lin = T.map(a => a.length >= 3 ? med(a) : NaN);
+    for (const [F, parte, txt] of [[alt, 'altura', d => d < 0 ? 'tramo más bajo o faltante' : 'tramo más alto (objeto o poste)'], [lin, 'alineación', d => (d * w > 0 ? 'desplazada hacia afuera' : 'desplazada hacia adentro')]]) {
+      const ok = [...F].filter(v => !isNaN(v)); if (ok.length < 10) continue; const X = [], y = []; F.forEach((v, k) => { if (!isNaN(v)) { X.push([1, k]); y.push(v); } }); const b = parte === 'altura' ? [med(ok), 0] : ajusta(X, y); if (!b) continue;
+      const dv = F.map((v, k) => isNaN(v) ? NaN : v - (b[0] + b[1] * k)), ab = dv.filter(v => !isNaN(v)).map(Math.abs), sig = 1.4826 * med(ab), thr = Math.max(4 * sig, parte === 'altura' ? .15 : .1); ruidos.push(sig); if (sig > .1) { res.push({ id: B.id, parte: 'baranda ' + parte, ruido: r4(sig), umbral: r4(thr), celdas: ok.length, forma: null, zonas: 0, nota: 'medida muy dispersa: no se analiza' }); continue; }
+      let k = 0, nz = 0; while (k < n) { if (isNaN(dv[k]) || Math.abs(dv[k]) < thr) { k++; continue; } const sg = Math.sign(dv[k]); let e = k, mx = dv[k]; while (e + 1 < n && !isNaN(dv[e + 1]) && Math.abs(dv[e + 1]) >= thr && Math.sign(dv[e + 1]) === sg) { e++; if (Math.abs(dv[e]) > Math.abs(mx)) mx = dv[e]; }
+        if (Math.abs(mx) > .5) { descartadas++; k = e + 1; continue; } /* postes de luz, carteles u otros objetos junto a la baranda */
+        if (e - k + 1 >= 2) { nz++; zonas.push({ elemento: B.id, parte: 'baranda ' + parte, a: r2(B.a + k), b: r2(B.a + e + 1), max: r4(mx), umbral: r4(thr), area: null, texto: `baranda ${B.lado}: ${txt(mx)} ${c1(Math.abs(mx) * 100)} cm entre ${c1(B.a + k)} y ${c1(B.a + e + 1)} m` }); } k = e + 1; }
+      res.push({ id: B.id, parte: 'baranda ' + parte, ruido: r4(sig), umbral: r4(thr), celdas: ok.length, forma: null, zonas: nz }); } }
+  /* rasgos de diseño, no defectos: (a) lo que aparece a la misma altura y con el mismo signo en las dos caras de un pilar (cornisas, zócalos, molduras);
+     (b) cambios de la baranda a menos de 1,5 m de un apoyo (pilastras y remates de la baranda sobre pilares y estribos) */
+  const apoyosS = E.filter(e => e.tipo === 'pilar' || e.tipo === 'estribo').map(e => e.s), quitar = new Set();
+  zonas.forEach((z, i) => { if (z.parte.startsWith('cara') && z.z0 != null) { const o = zonas.find((w, j) => j !== i && w.elemento === z.elemento && w.parte.startsWith('cara') && w.parte !== z.parte && Math.sign(w.max) === Math.sign(z.max) && Math.min(w.z1, z.z1) - Math.max(w.z0, z.z0) > .5 * Math.min(w.z1 - w.z0, z.z1 - z.z0)); if (o) quitar.add(i); }
+    if (z.parte.startsWith('baranda') && apoyosS.some(sa => sa > z.a - 1.5 && sa < z.b + 1.5)) quitar.add(i); });
+  for (const i of [...quitar].sort((a, b) => b - a)) { zonas.splice(i, 1); descartadas++; }
+  zonas.sort((x, y) => Math.abs(y.max) * (y.area || 1) - Math.abs(x.max) * (x.area || 1));
+  for (const x of res) if (!x.nota) x.zonas = zonas.filter(z => z.elemento === x.id && z.parte === x.parte).length; /* después de quitar los rasgos de diseño */
+  return { celda: r2(cel), superficies: res, zonas, descartadas, campos: opt.campos ? campos : undefined, ruidoMediano: ruidos.length ? r2(med(ruidos)) : null };
+}
 /* ---------- Evidencia de la nube por elemento (para la inspección de campo MTC) ----------
    No califica: junta para cada elemento lo que la nube dice de él (cuánto se vio, medidas incompletas, zonas anómalas por intensidad o color,
    cambios entre fechas, huecos de la nube). La calificación (escala 0–5 de la Directiva N° 01-2006-MTC/14) la pone el inspector en
@@ -2075,6 +2190,8 @@ function fichaInspeccion(O, R, ex = {}) {
   for (const an of (ex.atributos && ex.atributos.anomalias) || []) { const zt = ZT[an.zona]; let b = null; if (zt) { const cand = items.filter(it => zt[0].includes(it.tipo) && it.cajas.some(c => Math.min(an.b, c.s1) > Math.max(an.a, c.s0) - .5)); b = cand.length ? { it: cand.sort((x, y) => zt[0].indexOf(x.tipo) - zt[0].indexOf(y.tipo))[0] } : null; }
     const txt = `${an.zona} ${c1(an.a)} a ${c1(an.b)} m: ${an.atributo} ${an.signo} que su entorno (${c1(an.desvios)} desviaciones${an.cambio != null ? ', ' + (an.cambio > 0 ? '+' : '') + an.cambio + ' %' : ''}); puede ser material, humedad, suciedad, óxido, una reparación o la geometría del escaneo`;
     (b ? b.it.evid : sinElemento).push({ fuente: 'atributos', nivel: 'medio', a: an.a, b: an.b, texto: txt }); }
+  // desviaciones de la forma ideal (cada zona ya trae su elemento)
+  for (const z of (ex.desviaciones && ex.desviaciones.zonas) || []) { const it = items.find(x => x.id === z.elemento); if (!it) continue; it.evid.push({ fuente: 'forma', nivel: Math.abs(z.max) >= .05 && z.max < 0 ? 'alto' : 'medio', a: z.a, b: z.b, texto: z.texto }); }
   // cambios entre fechas
   const C = ex.comparacion; if (C) { const add = (g, tipo) => { const b = caja(g.a, g.b, g.tmin != null ? g.tmin : m.t0, g.tmax != null ? g.tmax : m.t1, g.zmin, g.zmax);
       const txt = tipo === 'cambio' ? `cambio de ${g.d > 0 ? '+' : ''}${Math.round(g.d * 100)} cm entre fechas (${c1(g.a)} a ${c1(g.b)} m, ${c1(g.area)} m²)` : tipo === 'nuevo' ? `aparece algo nuevo entre fechas (${c1(g.a)} a ${c1(g.b)} m, ${c1(g.area)} m², cota ${c1(g.zmin)} a ${c1(g.zmax)} m)` : `ya no está en la segunda fecha (${c1(g.a)} a ${c1(g.b)} m, ${c1(g.area)} m²)`;
@@ -2217,7 +2334,7 @@ function apoyosArco(O, dk, gr, la, W = { R: 15, BW: 2, NB: 10, NMIN: 150, VERT: 
   const a = uno(la.a), b = uno(la.b); return a != null && b != null ? { a: +a.toFixed(1), b: +b.toFixed(1), L: +(b - a).toFixed(1) } : null;
 }
 
-return { MTC, fichaInspeccion, alMundo, exportarIFC, elementos, compararNubes, orientarComo, atributosNube, subCloud, ATR, dimensiones, ejeCurvo, ejePoli, desenrollar, ejeAuto, composicion, calidadNube, supra, superestructura, apoyosArco, gapProfile, gapEnds, estribosHueco, GAP_W, hipotesis, clearanceProfile, iaEstribos, HIP_W, EST_W, iaFeatures, iaPredict, iaClusters, iaRefine, IA_NAMES, IA_REGLA, fftInPlace, detrend, csdMatrix, fdd, efdd, fddModes, pickPeaks, staticPrep, fiberStress, influence, HL93, hl93Extremes, liveLoad, CS_WF, pTrans, markovStep, elemHI, bridgeHI, calibrateAlpha, maintenancePlan, Dxf, bridgePlans, sensorsOf, readAccel, sdof, spectrum, seismic, freqCampaign, setConcMin, suggestType, applySkew, coherence, f1Band, geomSigmas, perturbGeom, archRise, peakCampaign, csdAverage, calibrateModel, nelderMead, trainFreqIA, trainVecIA, trainModalIA, modalFeat, modalMeasFeat, modalMeasFeatBase, freqPredict, build, modal, archAll, parseCloud, orient, bounds, deckLevel, groundLevel, detectSupports, spansOf, envelope, fitParabola, polyval, archGeometry, spanCoverage, MATERIALS,
+return { desviaciones, MTC, fichaInspeccion, alMundo, exportarIFC, elementos, compararNubes, orientarComo, atributosNube, subCloud, ATR, dimensiones, ejeCurvo, ejePoli, desenrollar, ejeAuto, composicion, calidadNube, supra, superestructura, apoyosArco, gapProfile, gapEnds, estribosHueco, GAP_W, hipotesis, clearanceProfile, iaEstribos, HIP_W, EST_W, iaFeatures, iaPredict, iaClusters, iaRefine, IA_NAMES, IA_REGLA, fftInPlace, detrend, csdMatrix, fdd, efdd, fddModes, pickPeaks, staticPrep, fiberStress, influence, HL93, hl93Extremes, liveLoad, CS_WF, pTrans, markovStep, elemHI, bridgeHI, calibrateAlpha, maintenancePlan, Dxf, bridgePlans, sensorsOf, readAccel, sdof, spectrum, seismic, freqCampaign, setConcMin, suggestType, applySkew, coherence, f1Band, geomSigmas, perturbGeom, archRise, peakCampaign, csdAverage, calibrateModel, nelderMead, trainFreqIA, trainVecIA, trainModalIA, modalFeat, modalMeasFeat, modalMeasFeatBase, freqPredict, build, modal, archAll, parseCloud, orient, bounds, deckLevel, groundLevel, detectSupports, spansOf, envelope, fitParabola, polyval, archGeometry, spanCoverage, MATERIALS,
   build, sensorsOf, modal, signConvention, features, campaign, trainIA, forestPredict, LEVELS, noisy, mulberry, gaussR, quantile, median };
 })();
 if (typeof module !== 'undefined') module.exports = OPC;

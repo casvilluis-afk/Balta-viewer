@@ -203,6 +203,20 @@ ok('Modelo C: 20 zonas de daño (15 de arcos, 3 de tablero y 2 de pilares por so
     const es = S.filter(p => p.tipo === 'estribo').map(p => (p.a + p.b) / 2), pl = S.filter(p => p.tipo === 'pilar').map(p => (p.a + p.b) / 2);
     ok('Nube aérea rala con rasante en lomo: estribos en los extremos y los dos pilares macizos', es.length === 2 && Math.abs(es[0] + 200) < 8 && Math.abs(es[1] - 200) < 8 && pl.length === 2 && pl.every(s0 => Math.abs(Math.abs(s0) - 70) < 4),
       `estribos ${es.map(v => v.toFixed(0)).join(', ')} · pilares ${pl.map(v => v.toFixed(0)).join(', ')}`); }
+  // Desviaciones de la forma ideal: tablero con contraflecha y bombeo, un pilar y barandas; en la segunda nube un bache de 5 cm (0,6 × 0,6 m),
+  // un desprendimiento de 4 cm en una cara del pilar (0,5 × 0,5 m) y la baranda derecha empujada 20 cm entre 30 y 33 m. Sin daño: ninguna zona
+  { let a0 = 3; const rnd = () => { a0 = (a0 * 1103515245 + 12345) % 2147483648; return a0 / 2147483648; }, N = () => (rnd() + rnd() + rnd() - 1.5) * .008;
+    const mk = dano => { const Q = [], put = (s0, t, z) => Q.push(s0 + N(), t + N(), z + N()), e = .05, cam = s0 => .15 * (1 - ((s0 - 20) / 20) ** 2) * (s0 >= 0 && s0 <= 40);
+      for (let s0 = -8; s0 <= 48; s0 += e) for (let t = -4; t <= 4; t += e) { let z = cam(s0) - .02 * Math.abs(t); if (dano && s0 > 12 && s0 < 12.6 && t > 0 && t < .6) z -= .05; put(s0, t, z); if (s0 >= 0 && s0 <= 40 && ((s0 * 20 | 0) % 2 === 0)) put(s0, t, -1.2); if ((s0 * 10 | 0) % 4 === 0) put(s0, t, -8); }
+      for (let s0 = 0; s0 <= 40; s0 += e) for (let z = .1; z <= 1.1; z += .05) { put(s0, -4, z + cam(s0) - .08); put(s0, 4 + (dano && s0 > 30 && s0 < 33 ? .2 : 0), z + cam(s0) - .08); }
+      for (let z = -8; z <= -1.2; z += e) for (let t = -2.5; t <= 2.5; t += e) { put(19.5 + (dano && z > -5 && z < -4.5 && t > -1 && t < -.5 ? .04 : 0), t, z); put(20.5, t, z); }
+      return { xyz: Float32Array.from(Q), offset: [0, 0, 0], eje: 'x' }; };
+    const run = dano => { const c = mk(dano), O = OPC.orient(c, 'z', 1), dk = OPC.deckLevel(O), gr = OPC.groundLevel(O), sup = OPC.estribosHueco(O, dk, gr, OPC.detectSupports(O, dk, gr).supports).supports, q = OPC.calidadNube(O, dk, gr, sup);
+      return OPC.desviaciones(O, OPC.elementos(O, dk, gr, sup, { calidad: q }), { espaciado: q.espaciado }); };
+    const D0 = run(false), D1 = run(true), z = D1.zonas, f = (p, a, b, v) => z.find(x => x.parte.startsWith(p) && x.a <= b && x.b >= a && Math.abs(Math.abs(x.max) - v) <= .015);
+    ok('Desviaciones: bache de 5 cm, desprendimiento de 4 cm en el pilar y baranda empujada 20 cm; sin daño, ninguna zona',
+      D0.zonas.length === 0 && z.length === 3 && f('calzada', 12, 12.6, .05) && f('cara', 19, 20, .04) && f('baranda alineación', 30, 33, .2),
+      `sin daño ${D0.zonas.length} zonas · con daño: ${z.map(x => x.texto.slice(0, 55)).join(' | ')}`); }
   // Atributos: un PLY binario con color e intensidad se lee con sus atributos; en la calzada, una mancha de 3 m con intensidad 40 % menor
   // se marca como zona a revisar, y un arbusto verde junto al pilar se reconoce como vegetación (la estructura gris no)
   PEND.push((async () => { const P = [], at = []; const add = (s0, t, z, I, r, g, b) => { P.push(s0, t, z); at.push([I, r, g, b]); };
