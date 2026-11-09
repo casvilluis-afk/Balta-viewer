@@ -150,9 +150,18 @@ function orient(cloud, up = 'z', scale = 1) {
     else { const da = a - mx, db = b - my; s[i] = (da * u[0] + db * u[1]) * scale; t[i] = (-da * u[1] + db * u[0]) * scale; }
     z[i] = (P[3 * i + iu] + cloud.offset[iu]) * scale;
   }
-  if (snap == null) { let m = Infinity; for (let i = 0; i < n; i++) m = Math.min(m, s[i]); for (let i = 0; i < n; i++) s[i] -= m; }
-  return { s, t, z, n, snap, angleDeg: th * 180 / Math.PI, ejeRatio };
+  let smin = 0; if (snap == null) { let m = Infinity; for (let i = 0; i < n; i++) m = Math.min(m, s[i]); for (let i = 0; i < n; i++) s[i] -= m; smin = m; }
+  // la transformación queda guardada para llevar OTRA nube (otra fecha) al mismo marco
+  return { s, t, z, n, snap, angleDeg: th * 180 / Math.PI, ejeRatio, tr: { mx, my, u, snap, scale, iu, ih, offset: cloud.offset.slice(), smin } };
 }
+// otra nube en el marco de una ya orientada (misma rotación, origen y escala); si las dos están georreferenciadas, quedan superpuestas
+function orientarComo(cloud, tr) { const P = cloud.xyz, n = P.length / 3, s = new Float32Array(n), t = new Float32Array(n), z = new Float32Array(n), d = [0, 1, 2].map(k => cloud.offset[k] - tr.offset[k]);
+  for (let i = 0; i < n; i++) { const a = P[3 * i + tr.ih[0]], b = P[3 * i + tr.ih[1]];
+    if (tr.snap === 0) { s[i] = (a + cloud.offset[tr.ih[0]]) * tr.scale; t[i] = (b + cloud.offset[tr.ih[1]]) * tr.scale; }
+    else if (tr.snap === 1) { s[i] = (b + cloud.offset[tr.ih[1]]) * tr.scale; t[i] = (a + cloud.offset[tr.ih[0]]) * tr.scale; }
+    else { const da = a + d[tr.ih[0]] - tr.mx, db = b + d[tr.ih[1]] - tr.my; s[i] = (da * tr.u[0] + db * tr.u[1]) * tr.scale - tr.smin; t[i] = (-da * tr.u[1] + db * tr.u[0]) * tr.scale; }
+    z[i] = (P[3 * i + tr.iu] + cloud.offset[tr.iu]) * tr.scale; }
+  return { s, t, z, n, snap: tr.snap, tr }; }
 function bounds(a) { let lo = Infinity, hi = -Infinity; for (let i = 0; i < a.length; i++) { const v = a[i]; if (v < lo) lo = v; if (v > hi) hi = v; } return [lo, hi]; }
 
 /* ---------- tablero y apoyos ---------- */
@@ -1819,6 +1828,97 @@ function atributosNube(O, attr, dk, gr, supports = [], q = null, canto = null) {
   return { presentes: Object.keys(attr), colorReal: color, vegetacion: { puntos: nv, fraccion: +(nv / n).toFixed(3), por }, mascaraVeg: veg, zonas, anomalias: anom.slice(0, 10), nAnomalias: nAnom, perfiles };
 }
 
+/* ---------- Comparación entre dos fechas (dos nubes del mismo puente) ----------
+   A = nube de referencia (fecha 1) y B = otra fecha, en el mismo marco (orientarComo). Si no se superponen, se alinean con ICP
+   (punto a punto, recortado al 80 % más cercano, sobre muestras de vóxel de 0,5 m).
+   Cambio en cada punto núcleo de A (vóxel de 0,5 m): se toma la normal local de A (componente menor de sus vecinos a 1 m) y,
+   dentro de un cilindro de radio 0,5 m y ±1 m a lo largo de esa normal, se comparan las posiciones medias de A y de B (como M3C2).
+   Si las dos nubes están en el mismo sistema de coordenadas (georref) no se alinean: un puente nuevo arrastraría el ajuste; el desfase vertical
+   entre campañas se estima en el suelo marcado (clase 2) y se descuenta. Si no, ICP (en un puente largo y prismático puede deslizar a lo largo del eje).
+   Nivel de detección al 95 %: 1,96·√(σA²/nA + σB²/nB) + error de registro. Sin puntos de B cerca: «no está en la otra fecha»
+   (se quitó, cambió mucho o no se escaneó); puntos de B sin A cerca: «nuevo». */
+function compararNubes(OA, OB, dk, gr, supports = [], W = {}) {
+  W = Object.assign({ vox: .5, rn: 1, rc: .5, h: 1, icp: 'auto', regErr: null, sueloA: null, georef: false }, W);
+  if (W.icp === 'auto') W.icp = W.georef ? 'no' : 'si'; // mismo sistema de coordenadas: no se alinea (un puente nuevo arrastraría el ajuste); si no, ICP
+  const key = (a, b, c) => (a + 50000) * 1e10 + (b + 50000) * 1e5 + (c + 50000);
+  const grid = (O, c, idx) => { const G = new Map(); const L = idx ? idx.length : O.n; for (let q = 0; q < L; q++) { const i = idx ? idx[q] : q; const k = key(Math.floor(O.s[i] / c), Math.floor(O.t[i] / c), Math.floor(O.z[i] / c)); let v = G.get(k); if (!v) G.set(k, v = []); v.push(i); } return G; };
+  const vecinos = (G, c, O, x, y, z, r, out) => { out.length = 0; const a0 = Math.floor((x - r) / c), a1 = Math.floor((x + r) / c), b0 = Math.floor((y - r) / c), b1 = Math.floor((y + r) / c), c0 = Math.floor((z - r) / c), c1 = Math.floor((z + r) / c);
+    for (let a = a0; a <= a1; a++) for (let b = b0; b <= b1; b++) for (let d = c0; d <= c1; d++) { const v = G.get(key(a, b, d)); if (!v) continue; for (const i of v) { const dx = O.s[i] - x, dy = O.t[i] - y, dz = O.z[i] - z; if (dx * dx + dy * dy + dz * dz <= r * r) out.push(i); } } return out; };
+  // núcleos: un punto por vóxel (el más cercano al centroide)
+  const nucleos = O => { const V = new Map(); for (let i = 0; i < O.n; i++) { const k = key(Math.floor(O.s[i] / W.vox), Math.floor(O.t[i] / W.vox), Math.floor(O.z[i] / W.vox)); if (!V.has(k)) V.set(k, i); } return [...V.values()]; };
+  // B en una copia (para moverla con el ICP sin tocar la original)
+  let Bs = Float32Array.from(OB.s), Bt = Float32Array.from(OB.t), Bz = Float32Array.from(OB.z); const B = { s: Bs, t: Bt, z: Bz, n: OB.n };
+  const CA = nucleos(OA), GA = grid(OA, 1);
+  const solape = () => { const CB = nucleos(B), m = Math.min(CB.length, 20000), st = Math.max(1, Math.floor(CB.length / m)), tmp = []; let ok = 0, tot = 0; for (let q = 0; q < CB.length; q += st) { const i = CB[q]; tot++; if (vecinos(GA, 1, OA, B.s[i], B.t[i], B.z[i], .5, tmp).length) ok++; } return ok / Math.max(1, tot); };
+  let sol0 = solape(), icp = null;
+  if (W.icp === 'si') {
+    // ICP punto a punto con rotaciones pequeñas (Kabsch), sobre muestras; correspondencias al 80 % más cercano
+    const muestra = nucleos(B).filter((_, k) => k % 3 === 0).slice(0, 30000); let R = [[1, 0, 0], [0, 1, 0], [0, 0, 1]], T = [0, 0, 0], rms = Infinity; const tmp = [];
+    for (let it = 0; it < 30; it++) { const pares = []; for (const i of muestra) { const x = R[0][0] * Bs[i] + R[0][1] * Bt[i] + R[0][2] * Bz[i] + T[0], y = R[1][0] * Bs[i] + R[1][1] * Bt[i] + R[1][2] * Bz[i] + T[1], z = R[2][0] * Bs[i] + R[2][1] * Bt[i] + R[2][2] * Bz[i] + T[2];
+        let best = -1, bd = Infinity; for (const j of vecinos(GA, 1, OA, x, y, z, it < 10 ? 3 : 1.5, tmp)) { const d = (OA.s[j] - x) ** 2 + (OA.t[j] - y) ** 2 + (OA.z[j] - z) ** 2; if (d < bd) { bd = d; best = j; } } if (best >= 0) pares.push([x, y, z, OA.s[best], OA.t[best], OA.z[best], bd, i]); }
+      if (pares.length < 100) break; pares.sort((a, b) => a[6] - b[6]); const P = pares.slice(0, Math.floor(pares.length * .8));
+      const cb = [0, 0, 0], ca = [0, 0, 0]; for (const p of P) for (let k = 0; k < 3; k++) { cb[k] += p[k]; ca[k] += p[3 + k]; } for (let k = 0; k < 3; k++) { cb[k] /= P.length; ca[k] /= P.length; }
+      const H = [[0, 0, 0], [0, 0, 0], [0, 0, 0]]; for (const p of P) for (let a = 0; a < 3; a++) for (let b = 0; b < 3; b++) H[a][b] += (p[a] - cb[a]) * (p[3 + b] - ca[b]);
+      // rotación de Kabsch por cuaternión (Horn): mayor vector propio de la matriz N de 4×4
+      const [[Sxx, Sxy, Sxz], [Syx, Syy, Syz], [Szx, Szy, Szz]] = H, N = [[Sxx + Syy + Szz, Syz - Szy, Szx - Sxz, Sxy - Syx], [Syz - Szy, Sxx - Syy - Szz, Sxy + Syx, Szx + Sxz], [Szx - Sxz, Sxy + Syx, -Sxx + Syy - Szz, Syz + Szy], [Sxy - Syx, Szx + Sxz, Syz + Szy, -Sxx - Syy + Szz]];
+      let qv = [1, 0, 0, 0]; const sh = Math.abs(N[0][0]) + Math.abs(N[1][1]) + Math.abs(N[2][2]) + Math.abs(N[3][3]) + 1; for (let k = 0; k < 60; k++) { const w = [0, 0, 0, 0]; for (let a = 0; a < 4; a++) for (let b = 0; b < 4; b++) w[a] += (N[a][b] + (a === b ? sh : 0)) * qv[b]; const nn = Math.hypot(...w); qv = w.map(x => x / nn); }
+      const [q0, q1, q2, q3] = qv, dR = [[q0 * q0 + q1 * q1 - q2 * q2 - q3 * q3, 2 * (q1 * q2 - q0 * q3), 2 * (q1 * q3 + q0 * q2)], [2 * (q1 * q2 + q0 * q3), q0 * q0 - q1 * q1 + q2 * q2 - q3 * q3, 2 * (q2 * q3 - q0 * q1)], [2 * (q1 * q3 - q0 * q2), 2 * (q2 * q3 + q0 * q1), q0 * q0 - q1 * q1 - q2 * q2 + q3 * q3]];
+      const dT = [0, 1, 2].map(a => ca[a] - (dR[a][0] * cb[0] + dR[a][1] * cb[1] + dR[a][2] * cb[2]));
+      R = dR.map((row, a) => [0, 1, 2].map(b => row[0] * R[0][b] + row[1] * R[1][b] + row[2] * R[2][b])); T = [0, 1, 2].map(a => dR[a][0] * T[0] + dR[a][1] * T[1] + dR[a][2] * T[2] + dT[a]);
+      const nr = Math.sqrt(P.reduce((x, p) => x + p[6], 0) / P.length); const mov = Math.hypot(...dT); rms = nr; if (mov < 1e-3 && it > 5) break; }
+    for (let i = 0; i < B.n; i++) { const x = Bs[i], y = Bt[i], z = Bz[i]; Bs[i] = R[0][0] * x + R[0][1] * y + R[0][2] * z + T[0]; Bt[i] = R[1][0] * x + R[1][1] * y + R[1][2] * z + T[1]; Bz[i] = R[2][0] * x + R[2][1] * y + R[2][2] * z + T[2]; }
+    icp = { traslacion: T.map(v => +v.toFixed(3)), giroGrados: +(Math.acos(Math.min(1, (R[0][0] + R[1][1] + R[2][2] - 1) / 2)) * 180 / Math.PI).toFixed(3), rms: +rms.toFixed(3), solapeAntes: +sol0.toFixed(2) }; sol0 = solape(); }
+  const GB = grid(B, 1);
+  // calidad de la zona de cada núcleo (con el tablero local de A)
+  const q = calidadNube(OA, dk, gr, supports); const deckAt = s => { if (!q) return dk; const k = Math.floor((s - q.s0) / q.bw); return q.deck[Math.max(0, Math.min(q.deck.length - 1, k))]; };
+  const tt = []; for (let i = 0; i < OA.n; i += 3) if (Math.abs(OA.z[i] - deckAt(OA.s[i])) < .4) tt.push(OA.t[i]); tt.sort((a, b) => a - b); const t0 = tt[Math.floor(tt.length * .03)], t1 = tt[Math.floor(tt.length * .97)];
+  const sp = supports.slice().sort((a, b) => a.a - b.a);
+  const zona = (s, t, z) => { const h = z - deckAt(s); if (t < t0 - 1 || t > t1 + 1) return z < gr + 1 ? 'terreno o agua' : 'fuera del tablero'; if (Math.abs(h) < .4) return 'calzada'; if (h > 2) return 'estructura sobre la calzada';
+    if (sp.some(p => p.tipo === 'pilar' && s >= p.a - .5 && s <= p.b + .5) && z > gr + .5 && h < -.4) return 'pilares'; if (h < -.4 && h > -3) return 'cara inferior y vigas'; if (z < gr + 1) return 'terreno o agua'; return 'otros'; };
+  const tmpA = [], tmpB = [], res = []; let sinB = 0;
+  for (const i of CA) { const x = OA.s[i], y = OA.t[i], z = OA.z[i], NA = vecinos(GA, 1, OA, x, y, z, W.rn, tmpA); if (NA.length < 5) continue;
+    let mx = 0, my = 0, mz = 0; for (const j of NA) { mx += OA.s[j]; my += OA.t[j]; mz += OA.z[j]; } mx /= NA.length; my /= NA.length; mz /= NA.length;
+    const C = [0, 0, 0, 0, 0, 0]; for (const j of NA) { const a = OA.s[j] - mx, b = OA.t[j] - my, c = OA.z[j] - mz; C[0] += a * a; C[1] += a * b; C[2] += a * c; C[3] += b * b; C[4] += b * c; C[5] += c * c; }
+    const e = eig3(C.map(v => v / NA.length)), nv = e.v[2], nrm = nv[2] < 0 ? nv.map(v => -v) : nv; // normal hacia arriba (o hacia +s/+t si es vertical)
+    const proy = (O, L) => { const d = []; for (const j of L) { const a = O.s[j] - x, b = O.t[j] - y, c = O.z[j] - z, p = a * nrm[0] + b * nrm[1] + c * nrm[2], lat2 = a * a + b * b + c * c - p * p; if (lat2 <= W.rc * W.rc && Math.abs(p) <= W.h) d.push(p); } return d; };
+    const dA = proy(OA, vecinos(GA, 1, OA, x, y, z, Math.hypot(W.rc, W.h), tmpA)), dB = proy(B, vecinos(GB, 1, B, x, y, z, Math.hypot(W.rc, W.h), tmpB));
+    if (dA.length < 3) continue; const zn = zona(x, y, z); if (dB.length < 3) { sinB++; res.push({ s: x, t: y, z, zona: zn, d: null }); continue; }
+    const m = v => v.reduce((a, b) => a + b, 0) / v.length, sd = (v, mu) => Math.sqrt(v.reduce((a, b) => a + (b - mu) ** 2, 0) / Math.max(1, v.length - 1));
+    const ma = m(dA), mb = m(dB), lod = 1.96 * Math.sqrt(sd(dA, ma) ** 2 / dA.length + sd(dB, mb) ** 2 / dB.length);
+    res.push({ s: x, t: y, z, zona: zn, d: mb - ma, lod, nz: Math.abs(nrm[2]), suelo: W.sueloA ? W.sueloA[i] === 1 : false }); }
+  // desfase vertical sistemático entre campañas, medido en el terreno plano: se descuenta en la componente vertical de cada cambio
+  // solo con puntos de suelo marcados en A (clase 2): el agua de un río o la vegetación cambian de nivel entre campañas y no sirven de referencia
+  let dzTerreno = 0, nSuelo = 0; if (W.sueloA) { const v = res.filter(r => r.suelo && r.d != null && r.nz > .95).map(r => r.d).sort((a, b) => a - b); nSuelo = v.length; if (v.length >= 200) { dzTerreno = v[v.length >> 1]; for (const r of res) if (r.d != null) r.d -= dzTerreno * r.nz; } }
+  // error de registro entre campañas: la dispersión del cambio en el suelo (que no cambia) o, sin suelo marcado, en toda la escena
+  // (desviación robusta). Se suma al nivel de detección: sin esto, el ruido propio de cada vuelo o escaneo parece cambio.
+  let sRef = W.regErr; if (sRef == null) { const v = (nSuelo >= 200 ? res.filter(r => r.suelo && r.d != null && r.nz > .95) : res.filter(r => r.d != null)).map(r => r.d), m = v.slice().sort((a, b) => a - b)[v.length >> 1] || 0;
+    const ad = v.map(x => Math.abs(x - m)).sort((a, b) => a - b); sRef = ad.length ? 1.4826 * ad[ad.length >> 1] : 0; if (icp) sRef = Math.max(sRef, icp.rms); }
+  for (const r of res) if (r.d != null) r.lod += 1.96 * sRef;
+  // puntos de B sin A cerca: lo nuevo
+  // «nuevo»: núcleo de B sin A a 1 m, pero con A en la misma columna de 1 m en planta (A vio ese lugar, a otra altura: algo se construyó encima);
+  // si A no tiene nada en esa columna, es una zona que A no escaneó (no se cuenta como cambio). Igual al revés para «no está en la otra fecha».
+  const colA = new Set(), colB = new Set(); for (let i = 0; i < OA.n; i++) colA.add(Math.floor(OA.s[i]) * 1e5 + Math.floor(OA.t[i])); for (let i = 0; i < B.n; i++) colB.add(Math.floor(B.s[i]) * 1e5 + Math.floor(B.t[i]));
+  const CB = nucleos(B), tmp = []; let nuevos = 0, sinA = 0; const nuevosS = []; for (const i of CB) if (!vecinos(GA, 1, OA, B.s[i], B.t[i], B.z[i], 1, tmp).length) { if (colA.has(Math.floor(B.s[i]) * 1e5 + Math.floor(B.t[i]))) { nuevos++; nuevosS.push([B.s[i], B.t[i], B.z[i]]); } else sinA++; }
+  for (const r of res) if (r.d == null && !colB.has(Math.floor(r.s) * 1e5 + Math.floor(r.t))) r.noVisto = true;
+  // resumen por zona
+  const med = v => { if (!v.length) return null; v = v.slice().sort((a, b) => a - b); return v[v.length >> 1]; }, pc = (v, p) => { v = v.slice().sort((a, b) => a - b); return v[Math.floor(p * (v.length - 1))]; };
+  const zonas = {}; for (const r of res) { const z = zonas[r.zona] || (zonas[r.zona] = { nucleos: 0, d: [], sig: 0, sinB: 0 }); z.nucleos++; if (r.d == null) { z.sinB++; continue; } z.d.push(r.d); if (Math.abs(r.d) > r.lod) z.sig++; }
+  const resumen = Object.entries(zonas).map(([nm, z]) => ({ zona: nm, nucleos: z.nucleos, mediana: z.d.length ? +med(z.d).toFixed(3) : null, p5: z.d.length ? +pc(z.d, .05).toFixed(3) : null, p95: z.d.length ? +pc(z.d, .95).toFixed(3) : null, significativos: +(z.sig / Math.max(1, z.d.length)).toFixed(2), sinOtraFecha: +(z.sinB / z.nucleos).toFixed(2) })).sort((a, b) => b.nucleos - a.nucleos);
+  // perfil del cambio vertical de la calzada a lo largo del eje (celdas de 2 m): asentamientos o flechas
+  const pf = new Map(); for (const r of res) if (r.zona === 'calzada' && r.d != null && r.nz > .8) { const k = Math.floor(r.s / 2); let v = pf.get(k); if (!v) pf.set(k, v = []); v.push(r.d); }
+  const perfil = [...pf].filter(([, v]) => v.length >= 5).sort((a, b) => a[0] - b[0]).map(([k, v]) => [k * 2 + 1, +med(v).toFixed(3)]);
+  // grupos de cambio significativo (≥ 2 m²) y de lo nuevo, en planta
+  const agrupar = (pts, c) => { const G = new Map(); for (const p of pts) { const k = Math.floor(p[0] / c) * 1e6 + Math.floor(p[1] / c); let v = G.get(k); if (!v) G.set(k, v = []); v.push(p); } const seen = new Set(), out = [];
+    for (const [k] of G) { if (seen.has(k)) continue; const cola = [k], cel = []; seen.add(k); while (cola.length) { const u = cola.pop(); cel.push(u); const a = Math.floor(u / 1e6), b = u - a * 1e6; for (let da = -1; da <= 1; da++) for (let db = -1; db <= 1; db++) { const w = (a + da) * 1e6 + (b + db); if (G.has(w) && !seen.has(w)) { seen.add(w); cola.push(w); } } }
+      const P = cel.flatMap(u => G.get(u)); if (cel.length * c * c < 2) continue; const ss = P.map(p => p[0]).sort((x, y) => x - y), zz = P.map(p => p[2]).sort((x, y) => x - y);
+      out.push({ a: +ss[0].toFixed(1), b: +ss[ss.length - 1].toFixed(1), area: +(cel.length * c * c).toFixed(1), zmin: +zz[0].toFixed(1), zmax: +zz[zz.length - 1].toFixed(1), d: P[0].length > 3 ? +med(P.map(p => p[3])).toFixed(2) : null, n: P.length }); }
+    return out.sort((x, y) => y.area - x.area); };
+  const cambios = agrupar(res.filter(r => r.d != null && Math.abs(r.d) > r.lod && Math.abs(r.d) >= .1).map(r => [r.s, r.t, r.z, r.d]), 1).slice(0, 15);
+  const nuevo = agrupar(nuevosS, 1).slice(0, 15), quitado = agrupar(res.filter(r => r.d == null && !r.noVisto).map(r => [r.s, r.t, r.z]), 1).slice(0, 15);
+  const lods = res.filter(r => r.d != null).map(r => r.lod);
+  return { solape: +sol0.toFixed(2), icp, dzTerreno: +dzTerreno.toFixed(3), nSuelo, errorRegistro: +(sRef || 0).toFixed(3), nucleos: res.length, sinOtraFecha: sinB, noVistoEnB: res.filter(r => r.noVisto).length, nuevos, noVistoEnA: sinA, lodMediano: lods.length ? +med(lods).toFixed(3) : null, resumen, perfil, cambios, nuevo, quitado, B };
+}
+
 // Puente combinado: tramos con distinto sistema a lo largo del eje (atirantado, arco sobre el tablero, armadura, tramos apoyados en pilares).
 // Cada sistema ocupa lo que alcanzan sus elementos (cables de cada pilono, raíces o pilas del arco, cordones de la armadura); el resto del tablero
 // entre los apoyos extremos son tramos apoyados, con los vanos que marcan los apoyos.
@@ -1857,7 +1957,7 @@ function apoyosArco(O, dk, gr, la, W = { R: 15, BW: 2, NB: 10, NMIN: 150, VERT: 
   const a = uno(la.a), b = uno(la.b); return a != null && b != null ? { a: +a.toFixed(1), b: +b.toFixed(1), L: +(b - a).toFixed(1) } : null;
 }
 
-return { atributosNube, subCloud, ATR, dimensiones, ejeCurvo, ejePoli, desenrollar, ejeAuto, composicion, calidadNube, supra, superestructura, apoyosArco, gapProfile, gapEnds, estribosHueco, GAP_W, hipotesis, clearanceProfile, iaEstribos, HIP_W, EST_W, iaFeatures, iaPredict, iaClusters, iaRefine, IA_NAMES, IA_REGLA, fftInPlace, detrend, csdMatrix, fdd, efdd, fddModes, pickPeaks, staticPrep, fiberStress, influence, HL93, hl93Extremes, liveLoad, CS_WF, pTrans, markovStep, elemHI, bridgeHI, calibrateAlpha, maintenancePlan, Dxf, bridgePlans, sensorsOf, readAccel, sdof, spectrum, seismic, freqCampaign, setConcMin, suggestType, applySkew, coherence, f1Band, geomSigmas, perturbGeom, archRise, peakCampaign, csdAverage, calibrateModel, nelderMead, trainFreqIA, trainVecIA, trainModalIA, modalFeat, modalMeasFeat, modalMeasFeatBase, freqPredict, build, modal, archAll, parseCloud, orient, bounds, deckLevel, groundLevel, detectSupports, spansOf, envelope, fitParabola, polyval, archGeometry, spanCoverage, MATERIALS,
+return { compararNubes, orientarComo, atributosNube, subCloud, ATR, dimensiones, ejeCurvo, ejePoli, desenrollar, ejeAuto, composicion, calidadNube, supra, superestructura, apoyosArco, gapProfile, gapEnds, estribosHueco, GAP_W, hipotesis, clearanceProfile, iaEstribos, HIP_W, EST_W, iaFeatures, iaPredict, iaClusters, iaRefine, IA_NAMES, IA_REGLA, fftInPlace, detrend, csdMatrix, fdd, efdd, fddModes, pickPeaks, staticPrep, fiberStress, influence, HL93, hl93Extremes, liveLoad, CS_WF, pTrans, markovStep, elemHI, bridgeHI, calibrateAlpha, maintenancePlan, Dxf, bridgePlans, sensorsOf, readAccel, sdof, spectrum, seismic, freqCampaign, setConcMin, suggestType, applySkew, coherence, f1Band, geomSigmas, perturbGeom, archRise, peakCampaign, csdAverage, calibrateModel, nelderMead, trainFreqIA, trainVecIA, trainModalIA, modalFeat, modalMeasFeat, modalMeasFeatBase, freqPredict, build, modal, archAll, parseCloud, orient, bounds, deckLevel, groundLevel, detectSupports, spansOf, envelope, fitParabola, polyval, archGeometry, spanCoverage, MATERIALS,
   build, sensorsOf, modal, signConvention, features, campaign, trainIA, forestPredict, LEVELS, noisy, mulberry, gaussR, quantile, median };
 })();
 if (typeof module !== 'undefined') module.exports = OPC;

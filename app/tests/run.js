@@ -179,6 +179,14 @@ ok('Modelo C: 20 zonas de daño (15 de arcos, 3 de tablero y 2 de pilares por so
     const sup = [{ a: -.5, b: .5, tipo: 'estribo' }, { a: 24.5, b: 25.5, tipo: 'pilar' }, { a: 49.5, b: 50.5, tipo: 'estribo' }], r = OPC.atributosNube(Oa, c.attr, 0, -8, sup);
     const an = r && r.anomalias.find(x => x.zona === 'calzada' && x.signo === 'menor' && x.a >= 29 && x.b <= 34);
     ok('Atributos: PLY con color e intensidad; mancha de 3 m en la calzada y arbusto verde detectados', c.attr && 'intensidad' in c.attr && 'verde' in c.attr && an && r.vegetacion.por.color >= 2500 && r.vegetacion.por.color <= 3200, r ? `atributos ${Object.keys(c.attr).join(',')} · anomalía ${an ? an.a + '–' + an.b + ' m' : 'no'} · vegetación ${r.vegetacion.puntos}` : 'sin análisis'); })());
+  // Comparación entre fechas: la segunda nube tiene la calzada 15 cm más baja al centro (flecha senoidal) y un objeto nuevo de 3 × 2 m bajo el tablero;
+  // en el mismo sistema de coordenadas, el perfil de la calzada debe mostrar la flecha y el objeto debe salir como «nuevo»
+  { let a0 = 7; const rnd = () => { a0 = (a0 * 1103515245 + 12345) % 2147483648; return a0 / 2147483648; }, N = () => (rnd() + rnd() + rnd() - 1.5) * .02;
+    const P = (sag, extra) => { const Q = []; for (let s0 = -10; s0 <= 60; s0 += .25) for (let t = -4; t <= 4; t += .25) { const ds = s0 >= 0 && s0 <= 50 ? -sag * Math.sin(Math.PI * s0 / 50) : 0; Q.push(s0 + N(), t + N(), ds + N()); if (s0 >= 0 && s0 <= 50) Q.push(s0 + N(), t + N(), -1.2 + ds + N()); Q.push(s0 + N(), t + N(), -8 + N()); }
+      if (extra) for (let x = 40; x <= 43; x += .1) for (let y = -1; y <= 1; y += .1) Q.push(x, y, -6 + N()); return { xyz: Float32Array.from(Q), offset: [0, 0, 0], eje: 'x' }; };
+    const OA = OPC.orient(P(0, false), 'z', 1), OB = OPC.orientarComo(P(.15, true), OA.tr), r = OPC.compararNubes(OA, OB, 0, -8, [], { georef: true });
+    const mid = r.perfil.filter(p => p[0] > 18 && p[0] < 32 && p[0] !== 25).map(p => p[1]), mm = mid.reduce((x, y) => x + y, 0) / mid.length, nv = r.nuevo.find(g => g.a >= 39 && g.b <= 44);
+    ok('Comparación entre fechas: flecha de 15 cm en la calzada y objeto nuevo detectados', Math.abs(mm + .15) < .03 && nv && Math.abs(nv.area - 6) < 4, `flecha media ${(100 * mm).toFixed(1)} cm · nuevo ${nv ? nv.a + '–' + nv.b + ' m, ' + nv.area + ' m²' : 'no'} · detección ±${(100 * r.lodMediano).toFixed(1)} cm`); }
   ok('Eje: planta cuadrada marcada como dudosa; tramo recortado queda en x', Oq.ejeRatio < 3 && Ox.snap === 0, `cociente ${Oq.ejeRatio.toFixed(2)} · recortado: eje ${Ox.snap === 0 ? 'x' : '?'}`); }
 
 // 15. Campaña de registros: los modos que se repiten se separan del ruido que aparece y desaparece, y se estima el efecto de la temperatura
