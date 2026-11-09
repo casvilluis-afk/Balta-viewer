@@ -194,6 +194,15 @@ ok('Modelo C: 20 zonas de daño (15 de arcos, 3 de tablero y 2 de pilares por so
     ok('Ficha de inspección: golpe en la baranda derecha y pérdida en el pilar asignados a su elemento; calificación MTC en el IFC',
       ev(bd).some(e => e.a <= 34 && e.b >= 30) && ev(pl).length >= 1 && /'CondicionMTC',\$,IFCINTEGER\(3\)/.test(ifc) && (ifc.match(/Pset_PuenteGemelo_InspeccionMTC/g) || []).length === 2,
       `baranda derecha: ${ev(bd).map(e => e.texto.slice(0, 60)).join(' | ') || 'nada'} · pilar: ${ev(pl).map(e => e.texto.slice(0, 60)).join(' | ') || 'nada'} · sin elemento ${F.sinElemento.length}`); }
+  // Nube aérea rala (0,5 m entre puntos) de un puente largo en «lomo» (rasante +8 m al centro, 400 m) con dos pilares macizos de 5 m vistos de lado:
+  // los estribos deben quedar en los extremos del tablero (no donde la recta de la rasante se separa de la calzada) y los dos pilares deben aparecer
+  { let a0 = 5; const rnd = () => { a0 = (a0 * 1103515245 + 12345) % 2147483648; return a0 / 2147483648; }, Q = [], zr = s0 => 8 * (1 - (s0 / 200) ** 2);
+    for (let s0 = -230; s0 <= 230; s0 += .5) for (let t = -10; t <= 10; t += .5) { const enP = Math.abs(s0) <= 200; if (enP) Q.push(s0, t, zr(s0)); Q.push(s0, t, enP ? -15 : zr(200) - .3); }
+    for (const c of [-70, 70]) for (let z = -15; z < zr(c) - 1.5; z += .5) for (let t = -10; t <= 10; t += 1) if (rnd() < .5) { Q.push(c - 2.5, t, z); Q.push(c + 2.5, t, z); }
+    const Oq = OPC.orient({ xyz: Float32Array.from(Q), offset: [0, 0, 0], eje: 'x' }, 'z', 1), dkq = OPC.deckLevel(Oq), grq = OPC.groundLevel(Oq), S = OPC.estribosHueco(Oq, dkq, grq, OPC.detectSupports(Oq, dkq, grq).supports).supports;
+    const es = S.filter(p => p.tipo === 'estribo').map(p => (p.a + p.b) / 2), pl = S.filter(p => p.tipo === 'pilar').map(p => (p.a + p.b) / 2);
+    ok('Nube aérea rala con rasante en lomo: estribos en los extremos y los dos pilares macizos', es.length === 2 && Math.abs(es[0] + 200) < 8 && Math.abs(es[1] - 200) < 8 && pl.length === 2 && pl.every(s0 => Math.abs(Math.abs(s0) - 70) < 4),
+      `estribos ${es.map(v => v.toFixed(0)).join(', ')} · pilares ${pl.map(v => v.toFixed(0)).join(', ')}`); }
   // Atributos: un PLY binario con color e intensidad se lee con sus atributos; en la calzada, una mancha de 3 m con intensidad 40 % menor
   // se marca como zona a revisar, y un arbusto verde junto al pilar se reconoce como vegetación (la estructura gris no)
   PEND.push((async () => { const P = [], at = []; const add = (s0, t, z, I, r, g, b) => { P.push(s0, t, z); at.push([I, r, g, b]); };

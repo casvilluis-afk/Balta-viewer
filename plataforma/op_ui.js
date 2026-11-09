@@ -76,7 +76,7 @@ async function opIARev(after) {
   OP.iaBusy = true; const st = $('#opIAst'); if (st) st.textContent = 'La IA está revisando los apoyos…';
   try {
     await new Promise(r => setTimeout(r, 30));
-    OP.iaModel = OP.iaModel || await fetch('data/ia_apoyos.json?v=2.15.0').then(r => { if (!r.ok) throw new Error('sin modelo'); return r.json(); });
+    OP.iaModel = OP.iaModel || await fetch('data/ia_apoyos.json?v=2.15.1').then(r => { if (!r.ok) throw new Error('sin modelo'); return r.json(); });
     if (OP.O !== O || OP.supports !== sup0) return;
     const t0 = performance.now(), R = OPC.iaRefine(OP.O, OP.deckTop, OP.ground, OP.supports, OP.iaModel);
     const rev = { usado: R.usado, motivo: R.motivo || '', veto: R.veto.map(f), rescate: R.rescate.map(f), aEstribo: R.aEstribo.map(f) };
