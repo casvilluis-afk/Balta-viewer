@@ -179,6 +179,21 @@ ok('Modelo C: 20 zonas de daño (15 de arcos, 3 de tablero y 2 de pilares por so
     ok('Elementos: pilar, dos tableros y dos barandas de 1,1 m; IFC4X3 con puente, pilar y barandas; vuelta exacta a coordenadas UTM',
       pi && E.filter(e => e.tipo === 'tablero').length === 2 && br.length === 2 && br.every(b => Math.abs(b.altura - 1.1) <= .1) && /FILE_SCHEMA\(\('IFC4X3_ADD2'\)\)/.test(ifc) && /IFCBRIDGE\(/.test(ifc) && /IFCCOLUMN\(/.test(ifc) && (ifc.match(/IFCRAILING\(/g) || []).length === 2 && err < .01,
       `${E.map(e => e.tipo).join(', ')} · barandas ${br.map(b => b.altura).join(' y ')} m · IFC ${(ifc.length / 1024).toFixed(0)} kB · error de vuelta ${(err * 1000).toFixed(1)} mm`); }
+  // Ficha de inspección: dos fechas del mismo puente; en la segunda, la baranda derecha está empujada 30 cm hacia afuera entre 30 y 34 m (golpe) y falta un
+  // bloque de la parte baja del pilar. Los cambios deben quedar asignados a la baranda derecha y al pilar; la calificación pasa al IFC
+  { let a0 = 11; const rnd = () => { a0 = (a0 * 1103515245 + 12345) % 2147483648; return a0 / 2147483648; }, N = () => (rnd() + rnd() + rnd() - 1.5) * .02;
+    const mk = dano => { const Q = [], put = (s0, t, z) => Q.push(s0 + N(), t + N(), z + N());
+      for (let s0 = -10; s0 <= 60; s0 += .2) for (let t = -5; t <= 5; t += .25) { put(s0, t, 0); if (s0 >= 0 && s0 <= 50) put(s0, t, -1.2); put(s0, t, -8); }
+      for (let s0 = 0; s0 <= 50; s0 += .1) for (let z = .1; z <= 1.1; z += .05) { put(s0, -5, z); put(s0, 5 + (dano && s0 >= 30 && s0 <= 34 ? .3 : 0), z); }
+      for (let z = -8; z <= -1.2; z += .1) { if (dano && z < -5) continue; for (let t = -2.5; t <= 2.5; t += .1) { put(24.5, t, z); put(25.5, t, z); } for (let s0 = 24.5; s0 <= 25.5; s0 += .1) { put(s0, -2.5, z); put(s0, 2.5, z); } }
+      return { xyz: Float32Array.from(Q), offset: [0, 0, 0], eje: 'x' }; };
+    const cA = mk(false), OA = OPC.orient(cA, 'z', 1), dk = OPC.deckLevel(OA), gr = OPC.groundLevel(OA), sup = OPC.detectSupports(OA, dk, gr).supports, R = OPC.elementos(OA, dk, gr, sup);
+    const C = OPC.compararNubes(OA, OPC.orientarComo(mk(true), OA.tr), dk, gr, sup, { georef: true }), F = OPC.fichaInspeccion(OA, R, { comparacion: C });
+    const bd = F.elementos.find(e => e.tipo === 'baranda' && e.medidas.lado === 'derecha'), pl = F.elementos.find(e => e.tipo === 'pilar'), ev = it => it ? it.evid.filter(e => e.fuente === 'comparación') : [];
+    const ifc = OPC.exportarIFC(R, OA, { nombre: 'ficha', inspeccion: { calif: { [bd ? bd.id : 'x']: { condicion: 3, material: 'acero', danos: ['daño por colisión'] } }, meta: { fecha: '2026-11-08' }, global: 3 } });
+    ok('Ficha de inspección: golpe en la baranda derecha y pérdida en el pilar asignados a su elemento; calificación MTC en el IFC',
+      ev(bd).some(e => e.a <= 34 && e.b >= 30) && ev(pl).length >= 1 && /'CondicionMTC',\$,IFCINTEGER\(3\)/.test(ifc) && (ifc.match(/Pset_PuenteGemelo_InspeccionMTC/g) || []).length === 2,
+      `baranda derecha: ${ev(bd).map(e => e.texto.slice(0, 60)).join(' | ') || 'nada'} · pilar: ${ev(pl).map(e => e.texto.slice(0, 60)).join(' | ') || 'nada'} · sin elemento ${F.sinElemento.length}`); }
   // Atributos: un PLY binario con color e intensidad se lee con sus atributos; en la calzada, una mancha de 3 m con intensidad 40 % menor
   // se marca como zona a revisar, y un arbusto verde junto al pilar se reconoce como vegetación (la estructura gris no)
   PEND.push((async () => { const P = [], at = []; const add = (s0, t, z, I, r, g, b) => { P.push(s0, t, z); at.push([I, r, g, b]); };

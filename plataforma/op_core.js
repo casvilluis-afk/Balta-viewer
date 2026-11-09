@@ -1911,7 +1911,7 @@ function compararNubes(OA, OB, dk, gr, supports = [], W = {}) {
   const agrupar = (pts, c) => { const G = new Map(); for (const p of pts) { const k = Math.floor(p[0] / c) * 1e6 + Math.floor(p[1] / c); let v = G.get(k); if (!v) G.set(k, v = []); v.push(p); } const seen = new Set(), out = [];
     for (const [k] of G) { if (seen.has(k)) continue; const cola = [k], cel = []; seen.add(k); while (cola.length) { const u = cola.pop(); cel.push(u); const a = Math.floor(u / 1e6), b = u - a * 1e6; for (let da = -1; da <= 1; da++) for (let db = -1; db <= 1; db++) { const w = (a + da) * 1e6 + (b + db); if (G.has(w) && !seen.has(w)) { seen.add(w); cola.push(w); } } }
       const P = cel.flatMap(u => G.get(u)); if (cel.length * c * c < 2) continue; const ss = P.map(p => p[0]).sort((x, y) => x - y), zz = P.map(p => p[2]).sort((x, y) => x - y);
-      out.push({ a: +ss[0].toFixed(1), b: +ss[ss.length - 1].toFixed(1), area: +(cel.length * c * c).toFixed(1), zmin: +zz[0].toFixed(1), zmax: +zz[zz.length - 1].toFixed(1), d: P[0].length > 3 ? +med(P.map(p => p[3])).toFixed(2) : null, n: P.length }); }
+      const tt2 = P.map(p => p[1]).sort((x, y) => x - y); out.push({ a: +ss[0].toFixed(1), b: +ss[ss.length - 1].toFixed(1), tmin: +tt2[0].toFixed(1), tmax: +tt2[tt2.length - 1].toFixed(1), area: +(cel.length * c * c).toFixed(1), zmin: +zz[0].toFixed(1), zmax: +zz[zz.length - 1].toFixed(1), d: P[0].length > 3 ? +med(P.map(p => p[3])).toFixed(2) : null, n: P.length }); }
     return out.sort((x, y) => y.area - x.area); };
   const cambios = agrupar(res.filter(r => r.d != null && Math.abs(r.d) > r.lod && Math.abs(r.d) >= .1).map(r => [r.s, r.t, r.z, r.d]), 1).slice(0, 15);
   const nuevo = agrupar(nuevosS, 1).slice(0, 15), quitado = agrupar(res.filter(r => r.d == null && !r.noVisto).map(r => [r.s, r.t, r.z]), 1).slice(0, 15);
@@ -1995,6 +1995,72 @@ function elementos(O, dk, gr, supports, opt = {}) {
   return { elementos: E, marco: { t0: r2(t0), t1: r2(t1), ancho: r2(B) }, calzada: { s0: q.s0, bw: q.bw, z: zcal.map(v => v == null ? null : r2(v)) } };
 }
 
+/* ---------- Ficha de inspección por elemento (Directiva N° 001-2006-MTC/14, Guía para inspección de puentes) ----------
+   Escala de condición de la directiva: 0 muy bueno … 5 pésimo. La app no califica: junta para cada elemento lo que la nube dice de él
+   (cuánto se vio, medidas, zonas anómalas por intensidad o color, cambios entre fechas, huecos de la nube) para que el inspector califique.
+   Se agregan los componentes de la directiva que una nube no mide (juntas, apoyos, rodadura, cauce…) para inspección visual. */
+const MTC = {
+  escala: [[0, 'Muy bueno', 'No se observa problemas'], [1, 'Bueno', 'Hay problemas menores. Algunos elementos muestran deterioro sin importancia'], [2, 'Regular', 'Los elementos primarios están en buen estado, pero algunos secundarios muestran deterioro'],
+    [3, 'Malo', 'La pérdida de sección, deterioro o socavación afectan seriamente a los elementos estructurales primarios'], [4, 'Muy malo', 'Avanzado deterioro de los elementos estructurales primarios'], [5, 'Pésimo', 'Gran deterioro o pérdida de sección presente en elementos estructurales críticos']],
+  danos: { concreto: ['agrietamiento', 'escamas', 'delaminación', 'descascaramiento (spalling)', 'afloramientos (eflorescencia)', 'desgaste o abrasión', 'daño por colisión', 'pulido', 'sobrecarga', 'corrosión del refuerzo'],
+    acero: ['corrosión', 'agrietamiento (fatiga, en conexiones o soldaduras)', 'daño por colisión', 'sobreesfuerzo (deformación)'],
+    madera: ['pudrición por hongos y humedad', 'parásitos e insectos', 'ataque químico', 'fuego', 'impactos', 'abrasión', 'sobreesfuerzos', 'intemperie', 'flexiones (combaduras o pandeos)', 'rajaduras', 'aplastamiento'],
+    mamposteria: ['grietas', 'pérdida de mortero en juntas', 'piezas sueltas o faltantes', 'eflorescencia', 'vegetación', 'socavación de la base'] },
+  danosNota: { mamposteria: 'la directiva no trae una lista para mampostería de piedra: lista propia de la app' },
+  noMedibles: [['juntas', 'Juntas de expansión'], ['apoyos', 'Aparatos de apoyo'], ['rodadura', 'Superficie de rodadura'], ['aceras', 'Aceras'], ['senal', 'Señalización'], ['accesos', 'Accesos'], ['taludes', 'Taludes'], ['defensas', 'Defensas'], ['cauce', 'Cauce']],
+  primarios: ['tablero', 'pilar', 'estribo', 'arco', 'arco_superior', 'pilono', 'tirantes']
+};
+function fichaInspeccion(O, R, ex = {}) {
+  if (!R || !R.elementos) return null; const Z = R.calzada, m = R.marco, tm = (m.t0 + m.t1) / 2, r1 = v => +(+v).toFixed(1);
+  const top = s => { if (!Z) return 0; const k = Math.max(0, Math.min(Z.z.length - 1, Math.floor((s - Z.s0) / Z.bw))); for (let d = 0; d < Z.z.length; d++) { if (Z.z[k - d] != null) return Z.z[k - d]; if (Z.z[k + d] != null) return Z.z[k + d]; } return 0; };
+  const rng = (a, b, f) => { let lo = Infinity, hi = -Infinity; for (let s = a; s <= b + 1e-6; s += Math.max(.5, (b - a) / 30)) { const v = f(s); lo = Math.min(lo, v); hi = Math.max(hi, v); } return [lo, hi]; };
+  const NOM = { tablero: 'Tablero', pilar: 'Pilar', estribo: 'Estribo', arco: 'Arco', arco_superior: 'Arco superior', pilono: 'Pilono', tirantes: 'Tirantes', baranda: 'Baranda' };
+  const items = [];
+  for (const e of R.elementos) { const it = { id: e.id, tipo: e.tipo, nombre: NOM[e.tipo] + ' ' + e.id + (e.lado ? ' (' + e.lado + ')' : ''), cajas: [], evid: [], medidas: e };
+    if (e.tipo === 'tablero') { const [lo, hi] = rng(e.a, e.b, top), c = e.canto || 1.5; it.cajas.push({ parte: 'calzada', s0: e.a, s1: e.b, t0: m.t0 - .5, t1: m.t1 + .5, z0: lo - .3, z1: hi + .3 }, { parte: 'cara inferior', s0: e.a, s1: e.b, t0: m.t0 - .5, t1: m.t1 + .5, z0: lo - c - .5, z1: hi - .3 }); }
+    else if (e.tipo === 'baranda') { const [lo, hi] = rng(e.a, e.b, top), w = e.t < tm ? [e.t - 1.2, e.t + 1] : [e.t - 1, e.t + 1.2]; it.cajas.push({ parte: 'baranda', s0: e.a, s1: e.b, t0: w[0], t1: w[1], z0: lo + .3, z1: hi + e.altura + .3 }); }
+    else if (e.tipo === 'pilar') { const h = (e.espesor || 1) / 2 + .5; it.cajas.push({ parte: 'fuste', eje: 'z', s0: e.s - h, s1: e.s + h, t0: m.t0 - 1, t1: m.t1 + 1, z0: e.zBase + .3, z1: e.zTop }); }
+    else if (e.tipo === 'estribo') it.cajas.push({ parte: 'cara', eje: 'z', s0: e.s - 2, s1: e.s + 2, t0: m.t0 - 1, t1: m.t1 + 1, z0: e.zBase + .3, z1: e.zTop - .3 });
+    else if (e.tipo === 'arco') { const za = s => e.coef[0] * s * s + e.coef[1] * s + e.coef[2], [lo] = rng(e.a, e.b, za), [, hi] = rng(e.a, e.b, s => top(s) - .5); it.cajas.push({ parte: 'arco y montantes', s0: e.a, s1: e.b, t0: m.t0 - .5, t1: m.t1 + .5, z0: lo - .5, z1: hi }); }
+    else if (e.tipo === 'arco_superior') { const [lo, hi] = rng(e.a, e.b, top); it.cajas.push({ parte: 'nervios y péndolas', s0: e.a, s1: e.b, t0: m.t0 - 2, t1: m.t1 + 2, z0: lo + 1, z1: hi + e.flecha + 3 }); }
+    else if (e.tipo === 'pilono') { it.cajas.push({ parte: 'fuste', eje: 'z', s0: e.s - 4, s1: e.s + 4, t0: m.t0 - 3, t1: m.t1 + 3, z0: e.zBase + .3, z1: e.zTop + 2 });
+      if (e.tirantes.length) { const an = e.tirantes.map(c => c.anclaje).concat([e.s]), zt = top(e.s); items.push({ id: e.id + 'T', tipo: 'tirantes', nombre: 'Tirantes de ' + e.id + ' (' + e.tirantes.length + ' contados)', cajas: [{ parte: 'tirantes', s0: Math.min(...an), s1: Math.max(...an), t0: m.t0 - 2, t1: m.t1 + 2, z0: zt + 2, z1: e.zTop }], evid: [], medidas: { tirantes: e.tirantes } }); } }
+    items.push(it); }
+  // cobertura: metros del elemento (a lo largo del eje; en altura para pilares, estribos y pilonos) con ≥ 5 puntos dentro de su caja, por parte
+  const cnt = items.map(it => it.cajas.map(c => new Uint16Array(Math.max(1, Math.ceil(c.eje === 'z' ? c.z1 - c.z0 : c.s1 - c.s0)))));
+  for (let i = 0; i < O.n; i++) { const s = O.s[i], t = O.t[i], z = O.z[i];
+    for (let k = 0; k < items.length; k++) { const cs = items[k].cajas; for (let j = 0; j < cs.length; j++) { const c = cs[j]; if (s < c.s0 || s >= c.s1 || t < c.t0 || t > c.t1 || z < c.z0 || z > c.z1) continue; const v = cnt[k][j], b = Math.min(v.length - 1, Math.floor(c.eje === 'z' ? z - c.z0 : s - c.s0)); if (v[b] < 65535) v[b]++; } } }
+  items.forEach((it, k) => { it.cobertura = it.cajas.map((c, j) => ({ parte: c.parte, f: +(cnt[k][j].filter(v => v >= 5).length / cnt[k][j].length).toFixed(2) }));
+    for (const c of it.cobertura) if (c.f < .6) it.evid.push({ fuente: 'cobertura', nivel: c.f < .3 ? 'alto' : 'medio', texto: `${c.parte}: la nube cubre solo ${Math.round(c.f * 100)} % ${it.cajas.find(x => x.parte === c.parte).eje === 'z' ? 'de la altura' : 'del largo'}; el resto debe inspeccionarse en campo` }); });
+  // asignación por volumen compartido con las cajas
+  const caja = (s0, s1, t0, t1, z0, z1, tipos) => { let best = null, bv = 0; for (const it of items) { if (tipos && !tipos.includes(it.tipo)) continue; for (const c of it.cajas) { const v = Math.max(0, Math.min(s1, c.s1) - Math.max(s0, c.s0) + .01) * Math.max(0, Math.min(t1, c.t1) - Math.max(t0, c.t0) + .01) * Math.max(0, Math.min(z1, c.z1) - Math.max(z0, c.z0) + .01);
+    if (Math.min(s1, c.s1) < Math.max(s0, c.s0) - .5 || Math.min(z1, c.z1) < Math.max(z0, c.z0) - .5) continue; if (v > bv) { bv = v; best = { it, parte: c.parte }; } } } return best; };
+  const sinElemento = [];
+  // medidas que el inspector debe revisar
+  for (const it of items) { const e = it.medidas;
+    if (it.tipo === 'pilar' && e.completo === false && e.espesor != null) it.evid.push({ fuente: 'medición', nivel: 'medio', texto: 'fuste visto en parte (ancho medido < 1/4 del tablero): sus medidas no son completas' });
+    if (it.tipo === 'pilar' && e.inclinacion != null) it.evid.push({ fuente: 'medición', nivel: 'info', texto: `inclinación medida del fuste ${e.inclinacion} mm/m (con ruido de la nube; compárela con la de otra campaña)` });
+    if (it.tipo === 'tablero' && e.canto == null) it.evid.push({ fuente: 'medición', nivel: 'medio', texto: 'canto no medido: no se separa una cara inferior del tablero en la nube' }); }
+  // huecos de la nube sobre el tablero
+  for (const h of (ex.calidad && ex.calidad.huecos) || []) { const b = caja(h.a, h.b, m.t0, m.t1, -1e9, 1e9, ['tablero']); if (b) b.it.evid.push({ fuente: 'cobertura', nivel: 'alto', a: h.a, b: h.b, texto: `hueco sin puntos en la calzada de ${r1(h.a)} a ${r1(h.b)} m` }); }
+  // zonas anómalas por intensidad o color
+  const ZT = { calzada: [['tablero'], 'calzada'], 'cara inferior y vigas': [['arco', 'tablero'], null], pilares: [['pilar'], null], 'estructura sobre la calzada': [['arco_superior', 'pilono', 'tirantes', 'baranda'], null] };
+  for (const an of (ex.atributos && ex.atributos.anomalias) || []) { const zt = ZT[an.zona]; let b = null; if (zt) { const cand = items.filter(it => zt[0].includes(it.tipo) && it.cajas.some(c => Math.min(an.b, c.s1) > Math.max(an.a, c.s0) - .5)); b = cand.length ? { it: cand.sort((x, y) => zt[0].indexOf(x.tipo) - zt[0].indexOf(y.tipo))[0] } : null; }
+    const txt = `${an.zona} ${r1(an.a)}–${r1(an.b)} m: ${an.atributo} ${an.signo} que su entorno (${r1(an.desvios)} desviaciones${an.cambio != null ? ', ' + (an.cambio > 0 ? '+' : '') + an.cambio + ' %' : ''}); puede ser material, humedad, suciedad, óxido, una reparación o la geometría del escaneo`;
+    (b ? b.it.evid : sinElemento).push({ fuente: 'atributos', nivel: 'medio', a: an.a, b: an.b, texto: txt }); }
+  // cambios entre fechas
+  const C = ex.comparacion; if (C) { const add = (g, tipo) => { const b = caja(g.a, g.b, g.tmin != null ? g.tmin : m.t0, g.tmax != null ? g.tmax : m.t1, g.zmin, g.zmax);
+      const txt = tipo === 'cambio' ? `cambio de ${g.d > 0 ? '+' : ''}${Math.round(g.d * 100)} cm entre fechas (${r1(g.a)}–${r1(g.b)} m, ${g.area} m²)` : tipo === 'nuevo' ? `aparece algo nuevo entre fechas (${r1(g.a)}–${r1(g.b)} m, ${g.area} m², cota ${g.zmin}–${g.zmax} m)` : `ya no está en la segunda fecha (${r1(g.a)}–${r1(g.b)} m, ${g.area} m²)`;
+      (b ? b.it.evid : sinElemento).push({ fuente: 'comparación', nivel: tipo === 'cambio' && Math.abs(g.d) >= .05 ? 'alto' : 'medio', a: g.a, b: g.b, texto: (b ? b.parte + ': ' : '') + txt }); };
+    (C.cambios || []).forEach(g => add(g, 'cambio')); (C.nuevo || []).forEach(g => add(g, 'nuevo')); (C.quitado || []).forEach(g => add(g, 'quitado'));
+    if (C.perfil && C.perfil.length) for (const it of items.filter(x => x.tipo === 'tablero')) { const p = C.perfil.filter(q => q[0] >= it.medidas.a && q[0] <= it.medidas.b && q[1] != null); if (p.length >= 3) { const dm = p.reduce((a, q) => a + q[1], 0) / p.length; it.evid.push({ fuente: 'comparación', nivel: Math.abs(dm) >= .05 ? 'alto' : 'info', texto: `calzada: cambio medio de cota ${dm > 0 ? '+' : ''}${(dm * 100).toFixed(1)} cm entre fechas en este vano` }); } } }
+  for (const [k, n] of MTC.noMedibles) items.push({ id: 'V-' + k, tipo: 'visual', nombre: n, cajas: [], evid: [{ fuente: 'visual', nivel: 'info', texto: 'no se mide con la nube: inspección visual' }], cobertura: [] });
+  for (const it of items) delete it.cajas;
+  return { elementos: items, sinElemento, escala: MTC.escala };
+}
+/* condición global propuesta: la peor de los elementos primarios; los secundarios con deterioro llevan a lo sumo a «regular» (2), como describe la escala */
+function condicionGlobal(f, calif) { let p = -1, s = -1; for (const it of f.elementos) { const c = calif[it.id] && calif[it.id].condicion; if (c == null || c === '') continue; if (MTC.primarios.includes(it.tipo)) p = Math.max(p, +c); else s = Math.max(s, +c); }
+  if (p < 0 && s < 0) return null; return Math.max(p, Math.min(s, 2)); }
 /* (s,t,z) del marco del puente -> coordenadas absolutas del archivo original (deshace sesgo, giro, intercambio de ejes y escala) */
 function alMundo(O, s, t, z, curvo) { const tr = O.tr, sk = O.skew; if (sk && sk.phi) s = s + (t - sk.tm) * Math.tan(sk.phi * Math.PI / 180); const W = [0, 0, 0];
   if (!tr || curvo) return [s, t, z]; const S = s / tr.scale, T = t / tr.scale;
@@ -2047,11 +2113,22 @@ function exportarIFC(R, O, opt = {}) {
     const o = add(`${cls}(${guid()},$,${str(nombre)},$,${ot ? str(ot) : '$'},${pl},${pr},$,${cls === 'IFCELEMENTASSEMBLY' ? '$,' : ''}.${pt_}.)`); prods.push(o);
     const vals = Object.entries(props).filter(([, v]) => v != null && v !== '').map(([k, v]) => add(`IFCPROPERTYSINGLEVALUE(${str(k)},$,${typeof v === 'number' ? (Number.isInteger(v) && !/m$|altura|ancho|espesor|canto|luz|flecha|cota|cobertura/i.test(k) ? `IFCINTEGER(${v})` : `IFCREAL(${f(v)})`) : typeof v === 'boolean' ? `IFCBOOLEAN(.${v ? 'T' : 'F'}.)` : `IFCTEXT(${str(v)})`},$)`));
     if (vals.length) { const ps = add(`IFCPROPERTYSET(${guid()},$,'Pset_PuenteGemelo_Medido',$,(${vals.join(',')}))`); add(`IFCRELDEFINESBYPROPERTIES(${guid()},$,$,$,(${o}),${ps})`); }
+    const ins = opt.inspeccion, c = ins && ins.calif[cur]; if (c && !hecho.has(cur) && (c.condicion != null || c.obs || (c.danos && c.danos.length))) { hecho.add(cur); inspPset(o, c); }
     return o; };
+  /* calificación del inspector (escala de la Directiva N° 001-2006-MTC/14) */
+  const inspPset = (o, c) => { const ins = opt.inspeccion, v = [];
+    const P2 = (k, x) => v.push(add(`IFCPROPERTYSINGLEVALUE(${str(k)},$,${x},$)`));
+    if (c.condicion != null) { P2('CondicionMTC', `IFCINTEGER(${c.condicion})`); P2('CondicionTexto', `IFCTEXT(${str(MTC.escala[c.condicion][1])})`); }
+    if (c.material) P2('Material', `IFCLABEL(${str(c.material)})`); if (c.danos && c.danos.length) P2('Danos', `IFCTEXT(${str(c.danos.join('; '))})`); if (c.obs) P2('Observaciones', `IFCTEXT(${str(c.obs)})`);
+    if (ins.meta) { if (ins.meta.fecha) P2('FechaInspeccion', `IFCLABEL(${str(ins.meta.fecha)})`); if (ins.meta.inspector) P2('Inspector', `IFCLABEL(${str(ins.meta.inspector)})`); if (ins.meta.tipo) P2('TipoInspeccion', `IFCLABEL(${str(ins.meta.tipo)})`); }
+    P2('Norma', `IFCTEXT('Directiva N 001-2006-MTC/14, Guia para inspeccion de puentes')`);
+    const ps = add(`IFCPROPERTYSET(${guid()},$,'Pset_PuenteGemelo_InspeccionMTC',$,(${v.join(',')}))`); add(`IFCRELDEFINESBYPROPERTIES(${guid()},$,$,$,(${o}),${ps})`); };
+  let cur = null; const hecho = new Set();
+  if (opt.inspeccion && opt.inspeccion.global != null) inspPset(bridge, { condicion: opt.inspeccion.global });
   const tops = {}; for (const e of E) if (e.tipo === 'tablero') tops[e.id] = e;
   const zTopAt = s => { const T = E.find(e => e.tipo === 'tablero' && s >= e.a - .5 && s <= e.b + .5) || E.find(e => e.tipo === 'tablero'); if (!T) return 0; let best = T.perfil[0]; for (const p of T.perfil) if (Math.abs(p[0] - s) < Math.abs(best[0] - s)) best = p; return best[1]; };
   const nota = 'sección no medida en la nube: radio simbólico';
-  for (const e of E) {
+  for (const e of E) { cur = e.id;
     if (e.tipo === 'tablero') { const c = e.canto || .5, sols = [];
       for (let k = 1; k < e.perfil.length; k++) { const [s0, z0] = e.perfil[k - 1], [s1, z1] = e.perfil[k], p0 = P(s0, tm, z0 - c / 2), p1 = P(s1, tm, z1 - c / 2), d = dir(p0, p1), Lg = Math.hypot(p1[0] - p0[0], p1[1] - p0[1], p1[2] - p0[2]); sols.push(caja(p0, d, eT, e.ancho, c, Lg)); }
       objeto('IFCSLAB', 'Tablero vano ' + e.vano, 'USERDEFINED:Tablero', sols, { Luz: e.luz, Ancho: e.ancho, Canto: e.canto, CantoFuente: e.fuente, CotaCalzada: e.cota, InicioEje_m: e.a, FinEje_m: e.b, Nota: e.canto ? null : 'canto no visible: se dibuja con 0,5 m' }); }
@@ -2068,7 +2145,7 @@ function exportarIFC(R, O, opt = {}) {
         for (const s of e.pendolas) objeto('IFCMEMBER', 'Péndola nervio ' + (k + 1) + ' s=' + s, 'USERDEFINED:Péndola', [tubo([P(s, t, zTopAt(s)), P(s, t, zA(s))], .05)], { PosicionEje_m: s, Nota: nota }, 'AdvancedSweptSolid'); } }
     else if (e.tipo === 'pilono') { const zt = e.zTop, zd = zTopAt(e.s);
       objeto('IFCCOLUMN', 'Pilono ' + e.id, 'USERDEFINED:Pilono', [tubo([P(e.s, tm, e.zBase), P(e.s, tm, zt)], 1)], { PosicionEje_m: e.s, AlturaSobreTablero: e.altura, Tirantes: e.tirantes.length, Nota: nota }, 'AdvancedSweptSolid');
-      for (const c of e.tirantes) objeto('IFCMEMBER', 'Tirante ' + c.lado + ' anclaje s=' + c.anclaje, 'STAY_CABLE', [tubo([P(c.anclaje, tm, zTopAt(c.anclaje)), P(e.s, tm, zt)], .1)], { Lado: c.lado, AnclajeTablero_m: c.anclaje, Cruce_m: c.cruce, Nota: 'recta del tope del pilono al anclaje estimado; ' + nota }, 'AdvancedSweptSolid'); }
+      cur = e.id + 'T'; for (const c of e.tirantes) objeto('IFCMEMBER', 'Tirante ' + c.lado + ' anclaje s=' + c.anclaje, 'STAY_CABLE', [tubo([P(c.anclaje, tm, zTopAt(c.anclaje)), P(e.s, tm, zt)], .1)], { Lado: c.lado, AnclajeTablero_m: c.anclaje, Cruce_m: c.cruce, Nota: 'recta del tope del pilono al anclaje estimado; ' + nota }, 'AdvancedSweptSolid'); }
     else if (e.tipo === 'baranda') { const sols = [], N = Math.max(1, Math.ceil((e.b - e.a) / 20));
       for (let k = 0; k < N; k++) { const s0 = e.a + (e.b - e.a) * k / N, s1 = e.a + (e.b - e.a) * (k + 1) / N, p0 = P(s0, e.t, zTopAt(s0)), p1 = P(s1, e.t, zTopAt(s1)); sols.push(caja([p0[0] + eZ[0] * e.altura / 2, p0[1] + eZ[1] * e.altura / 2, p0[2] + eZ[2] * e.altura / 2], dir(p0, p1), eT, .1, e.altura, Math.hypot(p1[0] - p0[0], p1[1] - p0[1], p1[2] - p0[2]))); }
       objeto('IFCRAILING', 'Baranda ' + e.lado, 'GUARDRAIL', sols, { Lado: e.lado, Altura: e.altura, Cobertura: e.cobertura, Nota: 'espesor de 0,1 m de referencia (no medido)' }); }
@@ -2117,7 +2194,7 @@ function apoyosArco(O, dk, gr, la, W = { R: 15, BW: 2, NB: 10, NMIN: 150, VERT: 
   const a = uno(la.a), b = uno(la.b); return a != null && b != null ? { a: +a.toFixed(1), b: +b.toFixed(1), L: +(b - a).toFixed(1) } : null;
 }
 
-return { alMundo, exportarIFC, elementos, compararNubes, orientarComo, atributosNube, subCloud, ATR, dimensiones, ejeCurvo, ejePoli, desenrollar, ejeAuto, composicion, calidadNube, supra, superestructura, apoyosArco, gapProfile, gapEnds, estribosHueco, GAP_W, hipotesis, clearanceProfile, iaEstribos, HIP_W, EST_W, iaFeatures, iaPredict, iaClusters, iaRefine, IA_NAMES, IA_REGLA, fftInPlace, detrend, csdMatrix, fdd, efdd, fddModes, pickPeaks, staticPrep, fiberStress, influence, HL93, hl93Extremes, liveLoad, CS_WF, pTrans, markovStep, elemHI, bridgeHI, calibrateAlpha, maintenancePlan, Dxf, bridgePlans, sensorsOf, readAccel, sdof, spectrum, seismic, freqCampaign, setConcMin, suggestType, applySkew, coherence, f1Band, geomSigmas, perturbGeom, archRise, peakCampaign, csdAverage, calibrateModel, nelderMead, trainFreqIA, trainVecIA, trainModalIA, modalFeat, modalMeasFeat, modalMeasFeatBase, freqPredict, build, modal, archAll, parseCloud, orient, bounds, deckLevel, groundLevel, detectSupports, spansOf, envelope, fitParabola, polyval, archGeometry, spanCoverage, MATERIALS,
+return { MTC, fichaInspeccion, condicionGlobal, alMundo, exportarIFC, elementos, compararNubes, orientarComo, atributosNube, subCloud, ATR, dimensiones, ejeCurvo, ejePoli, desenrollar, ejeAuto, composicion, calidadNube, supra, superestructura, apoyosArco, gapProfile, gapEnds, estribosHueco, GAP_W, hipotesis, clearanceProfile, iaEstribos, HIP_W, EST_W, iaFeatures, iaPredict, iaClusters, iaRefine, IA_NAMES, IA_REGLA, fftInPlace, detrend, csdMatrix, fdd, efdd, fddModes, pickPeaks, staticPrep, fiberStress, influence, HL93, hl93Extremes, liveLoad, CS_WF, pTrans, markovStep, elemHI, bridgeHI, calibrateAlpha, maintenancePlan, Dxf, bridgePlans, sensorsOf, readAccel, sdof, spectrum, seismic, freqCampaign, setConcMin, suggestType, applySkew, coherence, f1Band, geomSigmas, perturbGeom, archRise, peakCampaign, csdAverage, calibrateModel, nelderMead, trainFreqIA, trainVecIA, trainModalIA, modalFeat, modalMeasFeat, modalMeasFeatBase, freqPredict, build, modal, archAll, parseCloud, orient, bounds, deckLevel, groundLevel, detectSupports, spansOf, envelope, fitParabola, polyval, archGeometry, spanCoverage, MATERIALS,
   build, sensorsOf, modal, signConvention, features, campaign, trainIA, forestPredict, LEVELS, noisy, mulberry, gaussR, quantile, median };
 })();
 if (typeof module !== 'undefined') module.exports = OPC;
