@@ -95,7 +95,7 @@ function pbImportDialog() { let i = document.getElementById('pbImp');
 /* ---------- selector del puente activo (cabecera y paneles) ---------- */
 function pbOptions() { const L = PB.list.slice().sort((a, b) => (b.actualizado || '').localeCompare(a.actualizado || ''));
   const cur = PB.active !== 'balta' && !pbMeta(PB.active) ? `<option value="${PB.active}" selected>${esc(OP.name || 'Puente nuevo')} (sin guardar)</option>` : '';
-  return `<option value="balta" ${PB.active === 'balta' ? 'selected' : ''}>Puente Balta (ejemplo)</option>${L.map(b => `<option value="${b.id}" ${b.id === PB.active ? 'selected' : ''}>${esc(b.nombre)}${b.resumen && !b.resumen.modelo ? ' · sin modelo' : ''}</option>`).join('')}${cur}<option value="__nuevo">+ Agregar un puente…</option><option value="__lista">Ver todos mis puentes…</option>`; }
+  return `<option value="balta" ${PB.active === 'balta' ? 'selected' : ''}>Puente Balta (ejemplo)</option>${L.map(b => `<option value="${b.id}" ${b.id === PB.active ? 'selected' : ''}>${esc(b.nombre)}${(b.id === PB.active && typeof OP !== 'undefined' && OP.id === b.id ? !OP.model : b.resumen && !b.resumen.modelo) ? ' · sin modelo' : ''}</option>`).join('')}${cur}<option value="__nuevo">+ Agregar un puente…</option><option value="__lista">Ver todos mis puentes…</option>`; }
 function pbSelect(id) { return `<select id="${id}" aria-label="Puente activo">${pbOptions()}</select>`; }
 function pbBindSelect(id) { const s = document.getElementById(id); if (!s) return; s.onchange = e => { const v = e.target.value;
   if (v === '__nuevo') return pbNew(); if (v === '__lista') return show('puentes');

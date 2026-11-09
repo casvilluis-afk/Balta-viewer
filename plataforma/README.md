@@ -1,37 +1,30 @@
-# Plataforma de inspección del Puente Balta
+# PuenteGemelo · plataforma web
 
-Segunda parte de la tesis *Implementación de una plataforma digital para la inspección de puentes históricos con inteligencia artificial: caso del Puente Balta, Lima* (UPC). Autores: Luis Ñuñuvero Castillo y Anthony Tarazona Cerna. Asesor: Rick M. Delgadillo.
+Segunda parte de la tesis *Implementación de una plataforma digital para la inspección de puentes históricos con inteligencia artificial: caso Puente Balta* (UPC). Autores: Luis Ñuñuvero Castillo y Anthony Tarazona Cerna. Asesor: Rick M. Delgadillo.
 
-Página publicada: https://casvilluis-afk.github.io/Balta-viewer/plataforma/
+Página publicada: https://casvilluis-afk.github.io/Balta-viewer/plataforma/ · Programa de escritorio y descripción completa: [`../app/README.md`](../app/README.md)
 
-## Módulos
+## Pestañas
 
-| Pestaña | Objetivo específico |
+| Pestaña | Qué hace |
 |---|---|
-| Visor y trazabilidad | OE2: consulta por componente; enlace entre el modelo 3D (`../models/puente-balta-v12.glb`) y los elementos del modelo 2D |
-| Simulador con IA | OE3: modelo 2D exacto en el navegador frente al sustituto Random Forest, con alertas de dominio y diagnóstico inverso SVM-RBF |
-| Comparador | OE4: dos escenarios lado a lado |
-| Inspección priorizada | OE5: índice por zona y reporte copiable |
-| Validación | OE6: concordancia con OpenSees, métricas de IA, tiempo de consulta y SUS |
-| Base y procedencia | OE1: secciones, hipótesis y huellas SHA-256 |
+| Inicio | Mis puentes (proyectos) y estado del puente activo |
+| Gemelo digital | Nube, modelo e IA en 7 pasos (nube → tablero y apoyos, calidad, dimensiones, elementos e IFC, evidencia para la inspección → geometría → modelo y modos → IA → diagnóstico → plan e informe); sismo registrado |
+| Monitoreo con IA | Vibración medida (FDD/EFDD), calibración del modelo y diagnóstico |
+| Inspección y gestión | Prioridades de inspección (IA), inspección de campo según la Guía del MTC, carga vehicular HL-93, deterioro y mantenimiento |
+| Verificación | Pruebas de la plataforma y registro de datos y procedencia |
 
-La página no necesita compilación: es HTML y JavaScript, y carga Three.js 0.160 desde jsDelivr.
+El Puente Balta viene como proyecto de ejemplo con el material verificado de la primera parte: modelo 2D de 150 nodos y 221 elementos contra OpenSees 3.8.0 (525 casos), sustituto Random Forest, diagnóstico inverso SVM-RBF y nube TLS.
 
-## Datos (`data/`)
+La página no necesita compilación: es HTML y JavaScript y carga Three.js 0.160 desde jsDelivr (la app de escritorio lo trae incluido).
 
-- `modelo_2d.json`: modelo 2D de 150 nodos y 221 elementos (copia de `../data/fem-original/scenario-model.json`).
-- `fem_525.csv`: los 525 casos de OpenSees 3.8.0.
-- `rf_surrogate.json`: Random Forest con escalamiento físico (u·E/q, σ/q), entrenado con los 450 casos con carga.
-- `svm_inverse.json`: SVM-RBF que localiza el daño a partir de 9 flechas del tablero, más un Random Forest de severidad.
-- `metrics_ia.json`: métricas de validación de ambos modelos.
-- `procedencia.json`: verificación numérica, secciones e hipótesis.
+## Archivos
 
-## Reproducir los modelos (`codigo/`)
-
-```bash
-cd plataforma/codigo
-pip install numpy pandas scikit-learn
-python train.py
-```
-
-`solver2d.py` replica el script `06_simulaciones_parametricas.py` (elementos `elasticBeamColumn`, transformación lineal, apoyos empotrados) y reproduce los 450 casos con carga con un error relativo menor a 1e-11. `train.py` regenera los archivos de `data/`.
+- `index.html`: interfaz, solver 2D (réplica del script de OpenSees), modelo C e IA del Balta, láminas.
+- `op_core.js`: núcleo de cálculo sin interfaz (nubes, apoyos, calidad, dimensiones, atributos, comparación, elementos, IFC, modelos, modos, IA, OMA, HL-93, Markov, sismo, DXF).
+- `op_ui.js`: flujo de 7 pasos del gemelo desde la nube.
+- `pg_mod.js`: módulos del puente activo (vibración, calibración, inspección MTC, HL-93, deterioro, estado).
+- `pg_puentes.js`: biblioteca de puentes (proyectos `.puente`).
+- `v3d.js`: vista 3D.
+- `data/`: modelo 2D, casos de OpenSees, modelos de IA del Balta y procedencia; `codigo/`: scripts de Python que los generan (`pip install numpy pandas scikit-learn` y `python train.py`).
+- `docs/Manual_PuenteGemelo.pdf`: guía de uso para inspectores.

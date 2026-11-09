@@ -1597,6 +1597,8 @@ function calidadNube(O, dk, gr, supports = [], W = {}) {
   const origen = fracBajo < .2 && fracTop > .6 ? 'desde arriba' : fracBajo >= .5 ? 'desde abajo o los costados' : 'mixta';
   // avisos y recomendaciones (texto para el inspector)
   const f1 = v => v.toFixed(1).replace('.', ','), pc = v => Math.round(100 * v) + ' %', avisos = [], rec = [];
+  /* muchos huecos o huecos que suman mucho largo: la nube casi seguro incluye calles, edificios o el terreno alrededor (por ejemplo una hoja completa de un vuelo LiDAR) */
+  { const hl = huecos.reduce((a, h) => a + (h.b - h.a), 0); if (huecos.length >= 6 || hl > .25 * L) { avisos.unshift({ nivel: 'crit', txt: `La nube tiene ${huecos.length} huecos en el tablero que suman ${f1(hl)} m de ${f1(L)} m: parece incluir mucho más que el puente (calles, edificios o una hoja completa de un vuelo LiDAR). La detección de apoyos y de tipología no es confiable así.` }); rec.unshift('Recortar en el paso 1 una franja a lo largo del puente (con el terreno de ambos extremos) y volver a detectar.'); } }
   if (anchoLocal && (tb1 - tb0) > 4 * anchoLocal + 4) { avisos.push({ nivel: 'crit', txt: `El tablero no sigue un eje recto en planta: en cada metro la calzada mide unos ${f1(anchoLocal)} m de ancho, pero a lo largo de la nube ocupa una franja de ${f1(tb1 - tb0)} m. Parece un puente curvo, quebrado o con rampas; la app mide sobre un eje recto, así que los huecos, vanos y apoyos de esta nube no son confiables.` }); rec.push('Recortar en el paso 1 cada tramo recto del puente y analizarlo por separado.'); }
   for (const h of huecos) { avisos.push({ nivel: 'crit', txt: `Hueco en el tablero entre ${f1(h.a)} y ${f1(h.b)} m (${f1(h.b - h.a)} m sin puntos de calzada)${h.conAlto ? '; sobre él sí hay estructura alta' : ''}. Las medidas de ese tramo no son confiables.` }); rec.push(`Completar la nube entre ${f1(h.a)} y ${f1(h.b)} m (otra posición del escáner o otra pasada).`); }
   const estCerca = (x) => sp.some(p => p.tipo === 'estribo' && Math.abs((p.a + p.b) / 2 - x) < 6); if (cortes.izq && estCerca(s0 + e0 * bw)) cortes.izq = false; if (cortes.der && estCerca(s0 + (e1 + 1) * bw)) cortes.der = false;
@@ -2030,23 +2032,13 @@ function elementos(O, dk, gr, supports, opt = {}) {
   return { elementos: E, marco: { t0: r2(t0), t1: r2(t1), ancho: r2(B) }, calzada: { s0: q.s0, bw: q.bw, z: zcal.map(v => v == null ? null : r2(v)) } };
 }
 
-/* ---------- Ficha de inspección por elemento (Directiva N° 001-2006-MTC/14, Guía para inspección de puentes) ----------
-   Escala de condición de la directiva: 0 muy bueno … 5 pésimo. La app no califica: junta para cada elemento lo que la nube dice de él
-   (cuánto se vio, medidas, zonas anómalas por intensidad o color, cambios entre fechas, huecos de la nube) para que el inspector califique.
-   Se agregan los componentes de la directiva que una nube no mide (juntas, apoyos, rodadura, cauce…) para inspección visual. */
-const MTC = {
-  escala: [[0, 'Muy bueno', 'No se observa problemas'], [1, 'Bueno', 'Hay problemas menores. Algunos elementos muestran deterioro sin importancia'], [2, 'Regular', 'Los elementos primarios están en buen estado, pero algunos secundarios muestran deterioro'],
-    [3, 'Malo', 'La pérdida de sección, deterioro o socavación afectan seriamente a los elementos estructurales primarios'], [4, 'Muy malo', 'Avanzado deterioro de los elementos estructurales primarios'], [5, 'Pésimo', 'Gran deterioro o pérdida de sección presente en elementos estructurales críticos']],
-  danos: { concreto: ['agrietamiento', 'escamas', 'delaminación', 'descascaramiento (spalling)', 'afloramientos (eflorescencia)', 'desgaste o abrasión', 'daño por colisión', 'pulido', 'sobrecarga', 'corrosión del refuerzo'],
-    acero: ['corrosión', 'agrietamiento (fatiga, en conexiones o soldaduras)', 'daño por colisión', 'sobreesfuerzo (deformación)'],
-    madera: ['pudrición por hongos y humedad', 'parásitos e insectos', 'ataque químico', 'fuego', 'impactos', 'abrasión', 'sobreesfuerzos', 'intemperie', 'flexiones (combaduras o pandeos)', 'rajaduras', 'aplastamiento'],
-    mamposteria: ['grietas', 'pérdida de mortero en juntas', 'piezas sueltas o faltantes', 'eflorescencia', 'vegetación', 'socavación de la base'] },
-  danosNota: { mamposteria: 'la directiva no trae una lista para mampostería de piedra: lista propia de la app' },
-  noMedibles: [['juntas', 'Juntas de expansión'], ['apoyos', 'Aparatos de apoyo'], ['rodadura', 'Superficie de rodadura'], ['aceras', 'Aceras'], ['senal', 'Señalización'], ['accesos', 'Accesos'], ['taludes', 'Taludes'], ['defensas', 'Defensas'], ['cauce', 'Cauce']],
-  primarios: ['tablero', 'pilar', 'estribo', 'arco', 'arco_superior', 'pilono', 'tirantes']
-};
+/* ---------- Evidencia de la nube por elemento (para la inspección de campo MTC) ----------
+   No califica: junta para cada elemento lo que la nube dice de él (cuánto se vio, medidas incompletas, zonas anómalas por intensidad o color,
+   cambios entre fechas, huecos de la nube). La calificación (escala 0–5 de la Directiva N° 01-2006-MTC/14) la pone el inspector en
+   «Inspección de campo (MTC)», donde esta evidencia aparece junto a cada elemento del expediente. */
+const MTC = { escala: [[0, 'Muy bueno'], [1, 'Bueno'], [2, 'Regular'], [3, 'Malo'], [4, 'Muy malo'], [5, 'Pésimo']] };
 function fichaInspeccion(O, R, ex = {}) {
-  if (!R || !R.elementos) return null; const Z = R.calzada, m = R.marco, tm = (m.t0 + m.t1) / 2, r1 = v => +(+v).toFixed(1);
+  if (!R || !R.elementos) return null; const Z = R.calzada, m = R.marco, tm = (m.t0 + m.t1) / 2, r1 = v => +(+v).toFixed(1), c1 = v => String(+(+v).toFixed(1)).replace('.', ',');
   const top = s => { if (!Z) return 0; const k = Math.max(0, Math.min(Z.z.length - 1, Math.floor((s - Z.s0) / Z.bw))); for (let d = 0; d < Z.z.length; d++) { if (Z.z[k - d] != null) return Z.z[k - d]; if (Z.z[k + d] != null) return Z.z[k + d]; } return 0; };
   const rng = (a, b, f) => { let lo = Infinity, hi = -Infinity; for (let s = a; s <= b + 1e-6; s += Math.max(.5, (b - a) / 30)) { const v = f(s); lo = Math.min(lo, v); hi = Math.max(hi, v); } return [lo, hi]; };
   const NOM = { tablero: 'Tablero', pilar: 'Pilar', estribo: 'Estribo', arco: 'Arco', arco_superior: 'Arco superior', pilono: 'Pilono', tirantes: 'Tirantes', baranda: 'Baranda' };
@@ -2077,25 +2069,21 @@ function fichaInspeccion(O, R, ex = {}) {
     if (it.tipo === 'pilar' && e.inclinacion != null) it.evid.push({ fuente: 'medición', nivel: 'info', texto: `inclinación medida del fuste ${e.inclinacion} mm/m (con ruido de la nube; compárela con la de otra campaña)` });
     if (it.tipo === 'tablero' && e.canto == null) it.evid.push({ fuente: 'medición', nivel: 'medio', texto: 'canto no medido: no se separa una cara inferior del tablero en la nube' }); }
   // huecos de la nube sobre el tablero
-  for (const h of (ex.calidad && ex.calidad.huecos) || []) { const b = caja(h.a, h.b, m.t0, m.t1, -1e9, 1e9, ['tablero']); if (b) b.it.evid.push({ fuente: 'cobertura', nivel: 'alto', a: h.a, b: h.b, texto: `hueco sin puntos en la calzada de ${r1(h.a)} a ${r1(h.b)} m` }); }
+  for (const h of (ex.calidad && ex.calidad.huecos) || []) { const b = caja(h.a, h.b, m.t0, m.t1, -1e9, 1e9, ['tablero']); if (b) b.it.evid.push({ fuente: 'cobertura', nivel: 'alto', a: h.a, b: h.b, texto: `hueco sin puntos en la calzada de ${c1(h.a)} a ${c1(h.b)} m` }); }
   // zonas anómalas por intensidad o color
   const ZT = { calzada: [['tablero'], 'calzada'], 'cara inferior y vigas': [['arco', 'tablero'], null], pilares: [['pilar'], null], 'estructura sobre la calzada': [['arco_superior', 'pilono', 'tirantes', 'baranda'], null] };
   for (const an of (ex.atributos && ex.atributos.anomalias) || []) { const zt = ZT[an.zona]; let b = null; if (zt) { const cand = items.filter(it => zt[0].includes(it.tipo) && it.cajas.some(c => Math.min(an.b, c.s1) > Math.max(an.a, c.s0) - .5)); b = cand.length ? { it: cand.sort((x, y) => zt[0].indexOf(x.tipo) - zt[0].indexOf(y.tipo))[0] } : null; }
-    const txt = `${an.zona} ${r1(an.a)}–${r1(an.b)} m: ${an.atributo} ${an.signo} que su entorno (${r1(an.desvios)} desviaciones${an.cambio != null ? ', ' + (an.cambio > 0 ? '+' : '') + an.cambio + ' %' : ''}); puede ser material, humedad, suciedad, óxido, una reparación o la geometría del escaneo`;
+    const txt = `${an.zona} ${c1(an.a)} a ${c1(an.b)} m: ${an.atributo} ${an.signo} que su entorno (${c1(an.desvios)} desviaciones${an.cambio != null ? ', ' + (an.cambio > 0 ? '+' : '') + an.cambio + ' %' : ''}); puede ser material, humedad, suciedad, óxido, una reparación o la geometría del escaneo`;
     (b ? b.it.evid : sinElemento).push({ fuente: 'atributos', nivel: 'medio', a: an.a, b: an.b, texto: txt }); }
   // cambios entre fechas
   const C = ex.comparacion; if (C) { const add = (g, tipo) => { const b = caja(g.a, g.b, g.tmin != null ? g.tmin : m.t0, g.tmax != null ? g.tmax : m.t1, g.zmin, g.zmax);
-      const txt = tipo === 'cambio' ? `cambio de ${g.d > 0 ? '+' : ''}${Math.round(g.d * 100)} cm entre fechas (${r1(g.a)}–${r1(g.b)} m, ${g.area} m²)` : tipo === 'nuevo' ? `aparece algo nuevo entre fechas (${r1(g.a)}–${r1(g.b)} m, ${g.area} m², cota ${g.zmin}–${g.zmax} m)` : `ya no está en la segunda fecha (${r1(g.a)}–${r1(g.b)} m, ${g.area} m²)`;
+      const txt = tipo === 'cambio' ? `cambio de ${g.d > 0 ? '+' : ''}${Math.round(g.d * 100)} cm entre fechas (${c1(g.a)} a ${c1(g.b)} m, ${c1(g.area)} m²)` : tipo === 'nuevo' ? `aparece algo nuevo entre fechas (${c1(g.a)} a ${c1(g.b)} m, ${c1(g.area)} m², cota ${c1(g.zmin)} a ${c1(g.zmax)} m)` : `ya no está en la segunda fecha (${c1(g.a)} a ${c1(g.b)} m, ${c1(g.area)} m²)`;
       (b ? b.it.evid : sinElemento).push({ fuente: 'comparación', nivel: tipo === 'cambio' && Math.abs(g.d) >= .05 ? 'alto' : 'medio', a: g.a, b: g.b, texto: (b ? b.parte + ': ' : '') + txt }); };
     (C.cambios || []).forEach(g => add(g, 'cambio')); (C.nuevo || []).forEach(g => add(g, 'nuevo')); (C.quitado || []).forEach(g => add(g, 'quitado'));
-    if (C.perfil && C.perfil.length) for (const it of items.filter(x => x.tipo === 'tablero')) { const p = C.perfil.filter(q => q[0] >= it.medidas.a && q[0] <= it.medidas.b && q[1] != null); if (p.length >= 3) { const dm = p.reduce((a, q) => a + q[1], 0) / p.length; it.evid.push({ fuente: 'comparación', nivel: Math.abs(dm) >= .05 ? 'alto' : 'info', texto: `calzada: cambio medio de cota ${dm > 0 ? '+' : ''}${(dm * 100).toFixed(1)} cm entre fechas en este vano` }); } } }
-  for (const [k, n] of MTC.noMedibles) items.push({ id: 'V-' + k, tipo: 'visual', nombre: n, cajas: [], evid: [{ fuente: 'visual', nivel: 'info', texto: 'no se mide con la nube: inspección visual' }], cobertura: [] });
+    if (C.perfil && C.perfil.length) for (const it of items.filter(x => x.tipo === 'tablero')) { const p = C.perfil.filter(q => q[0] >= it.medidas.a && q[0] <= it.medidas.b && q[1] != null); if (p.length >= 3) { const dm = p.reduce((a, q) => a + q[1], 0) / p.length; it.evid.push({ fuente: 'comparación', nivel: Math.abs(dm) >= .05 ? 'alto' : 'info', texto: `calzada: cambio medio de cota ${dm > 0 ? '+' : ''}${c1(dm * 100)} cm entre fechas en este vano` }); } } }
   for (const it of items) delete it.cajas;
-  return { elementos: items, sinElemento, escala: MTC.escala };
+  return { elementos: items, sinElemento };
 }
-/* condición global propuesta: la peor de los elementos primarios; los secundarios con deterioro llevan a lo sumo a «regular» (2), como describe la escala */
-function condicionGlobal(f, calif) { let p = -1, s = -1; for (const it of f.elementos) { const c = calif[it.id] && calif[it.id].condicion; if (c == null || c === '') continue; if (MTC.primarios.includes(it.tipo)) p = Math.max(p, +c); else s = Math.max(s, +c); }
-  if (p < 0 && s < 0) return null; return Math.max(p, Math.min(s, 2)); }
 /* (s,t,z) del marco del puente -> coordenadas absolutas del archivo original (deshace sesgo, giro, intercambio de ejes y escala) */
 function alMundo(O, s, t, z, curvo) { const tr = O.tr, sk = O.skew; if (sk && sk.phi) s = s + (t - sk.tm) * Math.tan(sk.phi * Math.PI / 180); const W = [0, 0, 0];
   if (!tr || curvo) return [s, t, z]; const S = s / tr.scale, T = t / tr.scale;
@@ -2150,13 +2138,13 @@ function exportarIFC(R, O, opt = {}) {
     if (vals.length) { const ps = add(`IFCPROPERTYSET(${guid()},$,'Pset_PuenteGemelo_Medido',$,(${vals.join(',')}))`); add(`IFCRELDEFINESBYPROPERTIES(${guid()},$,$,$,(${o}),${ps})`); }
     const ins = opt.inspeccion, c = ins && ins.calif[cur]; if (c && !hecho.has(cur) && (c.condicion != null || c.obs || (c.danos && c.danos.length))) { hecho.add(cur); inspPset(o, c); }
     return o; };
-  /* calificación del inspector (escala de la Directiva N° 001-2006-MTC/14) */
+  /* calificación del inspector (escala de la Directiva N° 01-2006-MTC/14) */
   const inspPset = (o, c) => { const ins = opt.inspeccion, v = [];
     const P2 = (k, x) => v.push(add(`IFCPROPERTYSINGLEVALUE(${str(k)},$,${x},$)`));
     if (c.condicion != null) { P2('CondicionMTC', `IFCINTEGER(${c.condicion})`); P2('CondicionTexto', `IFCTEXT(${str(MTC.escala[c.condicion][1])})`); }
-    if (c.material) P2('Material', `IFCLABEL(${str(c.material)})`); if (c.danos && c.danos.length) P2('Danos', `IFCTEXT(${str(c.danos.join('; '))})`); if (c.obs) P2('Observaciones', `IFCTEXT(${str(c.obs)})`);
+    if (c.material) P2('Material', `IFCLABEL(${str(c.material)})`); if (c.danos && c.danos.length) P2('Defectos', `IFCTEXT(${str(c.danos.join('; '))})`); if (c.obs) P2('Observaciones', `IFCTEXT(${str(c.obs)})`);
     if (ins.meta) { if (ins.meta.fecha) P2('FechaInspeccion', `IFCLABEL(${str(ins.meta.fecha)})`); if (ins.meta.inspector) P2('Inspector', `IFCLABEL(${str(ins.meta.inspector)})`); if (ins.meta.tipo) P2('TipoInspeccion', `IFCLABEL(${str(ins.meta.tipo)})`); }
-    P2('Norma', `IFCTEXT('Directiva N 001-2006-MTC/14, Guia para inspeccion de puentes')`);
+    P2('Norma', `IFCTEXT('Directiva N 01-2006-MTC/14, Guia para inspeccion de puentes')`);
     const ps = add(`IFCPROPERTYSET(${guid()},$,'Pset_PuenteGemelo_InspeccionMTC',$,(${v.join(',')}))`); add(`IFCRELDEFINESBYPROPERTIES(${guid()},$,$,$,(${o}),${ps})`); };
   let cur = null; const hecho = new Set();
   if (opt.inspeccion && opt.inspeccion.global != null) inspPset(bridge, { condicion: opt.inspeccion.global });
@@ -2229,7 +2217,7 @@ function apoyosArco(O, dk, gr, la, W = { R: 15, BW: 2, NB: 10, NMIN: 150, VERT: 
   const a = uno(la.a), b = uno(la.b); return a != null && b != null ? { a: +a.toFixed(1), b: +b.toFixed(1), L: +(b - a).toFixed(1) } : null;
 }
 
-return { MTC, fichaInspeccion, condicionGlobal, alMundo, exportarIFC, elementos, compararNubes, orientarComo, atributosNube, subCloud, ATR, dimensiones, ejeCurvo, ejePoli, desenrollar, ejeAuto, composicion, calidadNube, supra, superestructura, apoyosArco, gapProfile, gapEnds, estribosHueco, GAP_W, hipotesis, clearanceProfile, iaEstribos, HIP_W, EST_W, iaFeatures, iaPredict, iaClusters, iaRefine, IA_NAMES, IA_REGLA, fftInPlace, detrend, csdMatrix, fdd, efdd, fddModes, pickPeaks, staticPrep, fiberStress, influence, HL93, hl93Extremes, liveLoad, CS_WF, pTrans, markovStep, elemHI, bridgeHI, calibrateAlpha, maintenancePlan, Dxf, bridgePlans, sensorsOf, readAccel, sdof, spectrum, seismic, freqCampaign, setConcMin, suggestType, applySkew, coherence, f1Band, geomSigmas, perturbGeom, archRise, peakCampaign, csdAverage, calibrateModel, nelderMead, trainFreqIA, trainVecIA, trainModalIA, modalFeat, modalMeasFeat, modalMeasFeatBase, freqPredict, build, modal, archAll, parseCloud, orient, bounds, deckLevel, groundLevel, detectSupports, spansOf, envelope, fitParabola, polyval, archGeometry, spanCoverage, MATERIALS,
+return { MTC, fichaInspeccion, alMundo, exportarIFC, elementos, compararNubes, orientarComo, atributosNube, subCloud, ATR, dimensiones, ejeCurvo, ejePoli, desenrollar, ejeAuto, composicion, calidadNube, supra, superestructura, apoyosArco, gapProfile, gapEnds, estribosHueco, GAP_W, hipotesis, clearanceProfile, iaEstribos, HIP_W, EST_W, iaFeatures, iaPredict, iaClusters, iaRefine, IA_NAMES, IA_REGLA, fftInPlace, detrend, csdMatrix, fdd, efdd, fddModes, pickPeaks, staticPrep, fiberStress, influence, HL93, hl93Extremes, liveLoad, CS_WF, pTrans, markovStep, elemHI, bridgeHI, calibrateAlpha, maintenancePlan, Dxf, bridgePlans, sensorsOf, readAccel, sdof, spectrum, seismic, freqCampaign, setConcMin, suggestType, applySkew, coherence, f1Band, geomSigmas, perturbGeom, archRise, peakCampaign, csdAverage, calibrateModel, nelderMead, trainFreqIA, trainVecIA, trainModalIA, modalFeat, modalMeasFeat, modalMeasFeatBase, freqPredict, build, modal, archAll, parseCloud, orient, bounds, deckLevel, groundLevel, detectSupports, spansOf, envelope, fitParabola, polyval, archGeometry, spanCoverage, MATERIALS,
   build, sensorsOf, modal, signConvention, features, campaign, trainIA, forestPredict, LEVELS, noisy, mulberry, gaussR, quantile, median };
 })();
 if (typeof module !== 'undefined') module.exports = OPC;
