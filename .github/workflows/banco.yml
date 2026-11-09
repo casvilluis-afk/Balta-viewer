@@ -33,12 +33,21 @@ jobs:
           import matplotlib; matplotlib.use('Agg'); import matplotlib.pyplot as plt
           modo = os.environ['MODO'].strip(); info = {'modo': modo, 'items': {}, 'errores': []}
           Z2 = 'https://zenodo.org/records/18738225/files/'
+          ATR_T = {'intensity': 'f4', 'red': 'u1', 'green': 'u1', 'blue': 'u1', 'return_number': 'u1', 'number_of_returns': 'u1', 'classification': 'u1'}
           def guardar(base, xyz, lab=None, extra=None):
+              # atributos por punto (intensidad, color, retornos, clasificación) viajan en extra['_atr'] y se guardan como propiedades del PLY
+              atr = (extra or {}).pop('_atr', None) or {}
+              if atr: base = base + '_atr'
               n = len(xyz); rng = np.random.default_rng(1); keep = rng.choice(n, size=min(n, 1500000), replace=False); keep.sort()
               sub = xyz[keep]; off = sub.mean(axis=0); sub = (sub - off).astype(np.float32)
-              el = PlyElement.describe(np.core.records.fromarrays([sub[:, 0], sub[:, 1], sub[:, 2]], names='x,y,z', formats='f4,f4,f4'), 'vertex')
+              cols = [sub[:, 0], sub[:, 1], sub[:, 2]]; nms = ['x', 'y', 'z']; fms = ['f4', 'f4', 'f4']
+              for k, a in atr.items():
+                  a = np.asarray(a)[keep]
+                  if k in ('red', 'green', 'blue') and a.max() > 255: a = a / 257.0
+                  cols.append(a.astype(ATR_T[k])); nms.append(k); fms.append(ATR_T[k])
+              el = PlyElement.describe(np.core.records.fromarrays(cols, names=','.join(nms), formats=','.join(fms)), 'vertex')
               PlyData([el], text=False).write(f'out/{base}.ply')
-              d = {'puntos_originales': int(n), 'puntos': int(len(sub)), 'extension_m': (sub.max(0) - sub.min(0)).round(2).tolist(), 'offset': off.round(3).tolist()}
+              d = {'puntos_originales': int(n), 'puntos': int(len(sub)), 'extension_m': (sub.max(0) - sub.min(0)).round(2).tolist(), 'offset': off.round(3).tolist(), 'atributos': list(atr.keys())}
               if lab is not None:
                   l = np.asarray(lab)[keep].astype(np.uint8); l.tofile(f'out/{base}_etiquetas.u8')
                   d['clases'] = {str(int(k)): int(c) for k, c in zip(*np.unique(l, return_counts=True))}
@@ -60,14 +69,20 @@ jobs:
                       for e in cands:
                           if any(t in (e.name + ' '.join(q.name for q in e.properties)).lower() for t in ('label', 'class', 'semantic')):
                               q = next((q.name for q in e.properties if any(t in q.name.lower() for t in ('label', 'class', 'semantic'))), e.properties[0].name); L = np.asarray(e[q]); lab = e.name + '.' + q; break
-                  return np.vstack([v['x'], v['y'], v['z']]).T.astype(np.float64), L, {'propiedades': props, 'etiqueta': lab, 'elementos': els}
+                  atr = {}
+                  for q in props:
+                      ql = q.lower()
+                      if ql in ('red', 'green', 'blue', 'r', 'g', 'b'): atr[{'r': 'red', 'g': 'green', 'b': 'blue'}.get(ql, ql)] = np.asarray(v[q])
+                      elif 'intens' in ql or ql in ('scalar_intensity', 'reflectance'): atr['intensity'] = np.asarray(v[q])
+                  return np.vstack([v['x'], v['y'], v['z']]).T.astype(np.float64), L, {'propiedades': props, 'etiqueta': lab, 'elementos': els, '_atr': atr}
               if p.endswith('.las') or p.endswith('.laz'):
                   import laspy; f = laspy.read(path); dims = list(f.point_format.dimension_names); L = None; lab = None
                   for nm in [d for d in dims if any(t in d.lower() for t in ('label', 'semantic'))] + ['classification', 'user_data', 'point_source_id']:
                       if nm in dims:
                           a = np.asarray(f[nm])
                           if len(np.unique(a[:200000])) > 1: L = a; lab = nm; break
-                  return np.vstack([f.x, f.y, f.z]).T, L, {'formato': 'las', 'dimensiones': dims, 'etiqueta': lab}
+                  atr = {k: np.asarray(f[k]) for k in ('intensity', 'return_number', 'number_of_returns', 'classification', 'red', 'green', 'blue') if k in dims}
+                  return np.vstack([f.x, f.y, f.z]).T, L, {'formato': 'las', 'dimensiones': dims, 'etiqueta': lab, '_atr': atr}
               if p.endswith('.e57'):
                   import pye57; e = pye57.E57(path); xs = []
                   for k in range(e.scan_count):
@@ -153,18 +168,19 @@ jobs:
                   import pyproj; tr = pyproj.Transformer.from_crs(4326, 28992, always_xy=True)
                   for it in [x.strip() for x in os.environ['ARCH'].split(';') if x.strip()]:
                       try:
-                          nm, lat, lon, rad, tiles = it.split('|'); x0, y0 = tr.transform(float(lon), float(lat)); rad = float(rad); xs = []; ls = []
+                          nm, lat, lon, rad, tiles = it.split('|'); x0, y0 = tr.transform(float(lon), float(lat)); rad = float(rad); xs = []; ls = []; ats = {}
                           for t in tiles.split(','):
                               u = f'https://geotiles.citg.tudelft.nl/AHN4_T/{t.strip()}.LAZ'; print('Descargando', u, flush=True); urllib.request.urlretrieve(u, 'tile.laz')
                               import laspy; f = laspy.read('tile.laz'); X = np.vstack([f.x, f.y, f.z]).T; m = (np.abs(X[:, 0] - x0) <= rad) & (np.abs(X[:, 1] - y0) <= rad)
-                              xs.append(X[m]); ls.append(np.asarray(f.classification)[m]); info['items'][nm + '_' + t] = {'puntos_hoja': int(len(X)), 'en_recorte': int(m.sum()), 'x_rango': [float(X[:, 0].min()), float(X[:, 0].max())], 'y_rango': [float(X[:, 1].min()), float(X[:, 1].max())]}
-                          X = np.vstack(xs); L = np.concatenate(ls); ex = {'fuente': 'AHN4 (dominio público) vía geotiles.citg.tudelft.nl', 'centro_rd': [x0, y0], 'radio_m': rad}
+                              xs.append(X[m]); ls.append(np.asarray(f.classification)[m]); [ats.setdefault(k, []).append(np.asarray(f[k])[m]) for k in ('intensity', 'return_number', 'number_of_returns', 'classification') if k in list(f.point_format.dimension_names)]; info['items'][nm + '_' + t] = {'puntos_hoja': int(len(X)), 'en_recorte': int(m.sum()), 'x_rango': [float(X[:, 0].min()), float(X[:, 0].max())], 'y_rango': [float(X[:, 1].min()), float(X[:, 1].max())]}
+                          X = np.vstack(xs); L = np.concatenate(ls); AT = {k: np.concatenate(v) for k, v in ats.items()}; ex = {'fuente': 'AHN4 (dominio público) vía geotiles.citg.tudelft.nl', 'centro_rd': [x0, y0], 'radio_m': rad}
                           B = X[L == 26]
                           if len(B) > 1000:  # franja a lo largo del eje de la obra (clase 26), a densidad completa
                               c = B[:, :2].mean(0); _, _, vt = np.linalg.svd(B[:, :2] - c, full_matrices=False); ax = vt[0]; nr = np.array([-ax[1], ax[0]])
                               sb = (B[:, :2] - c) @ ax; tb = (B[:, :2] - c) @ nr; s0, s1 = np.percentile(sb, [.5, 99.5]); tm = np.median(tb)
                               sa = (X[:, :2] - c) @ ax; ta = (X[:, :2] - c) @ nr; m = (sa >= s0 - 30) & (sa <= s1 + 30) & (np.abs(ta - tm) <= 25)
-                              X = X[m]; L = L[m]; ex.update({'franja': 'eje por clase 26, ±25 m', 'largo_clase26_m': float(s1 - s0), 'eje_rd': [float(ax[0]), float(ax[1])]})
+                              X = X[m]; L = L[m]; AT = {k: v[m] for k, v in AT.items()}; ex.update({'franja': 'eje por clase 26, ±25 m', 'largo_clase26_m': float(s1 - s0), 'eje_rd': [float(ax[0]), float(ax[1])]})
+                          if os.environ.get('ATR', '1') == '1': ex['_atr'] = AT
                           guardar(nm, X, L, ex)
                       except Exception as e: info['errores'].append([it, repr(e), traceback.format_exc()[-1500:]])
               elif modo == 'url':
