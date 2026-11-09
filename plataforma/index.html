@@ -1204,8 +1204,18 @@ function inspCompute(){inspBind3d();const P=priorities(),rank={};P.forEach((o,i)
   $('#report').textContent=r;statusBar();}
 /* ---------- Descargas y exportación de láminas ---------- */
 const IN_FRAME=(()=>{try{return window.top!==window.self;}catch(e){return true;}})();
-function download(name,type,data){
-  if(IN_FRAME){toast('La descarga no está disponible en esta vista. Ábrala desde la versión publicada en GitHub Pages.');return;}
+/* dentro del visor de claude.ai las descargas pasan por la capacidad «downloads» (el visor pide confirmación); los formatos que no admite (.ifc, .dxf…) van dentro de un .zip */
+const DL_OK=/\.(gif|png|jpe?g|webp|mp4|webm|txt|json|md|docx|pptx|csv|html|svg|pdf|xlsx|zip)$/i;
+function zipStore(name,u8){const crcT=zipStore.t||(zipStore.t=Array.from({length:256},(_,n)=>{let c=n;for(let k=0;k<8;k++)c=c&1?0xEDB88320^(c>>>1):c>>>1;return c>>>0;}));let crc=0xFFFFFFFF;for(let i=0;i<u8.length;i++)crc=crcT[(crc^u8[i])&255]^(crc>>>8);crc=(crc^0xFFFFFFFF)>>>0;
+  const fn=new TextEncoder().encode(name),L=new Uint8Array(30+fn.length),C=new Uint8Array(46+fn.length),E=new Uint8Array(22),dl=new DataView(L.buffer),dc=new DataView(C.buffer),de=new DataView(E.buffer);
+  dl.setUint32(0,0x04034b50,true);dl.setUint16(4,20,true);dl.setUint16(6,0x800,true);dl.setUint32(14,crc,true);dl.setUint32(18,u8.length,true);dl.setUint32(22,u8.length,true);dl.setUint16(26,fn.length,true);L.set(fn,30);
+  dc.setUint32(0,0x02014b50,true);dc.setUint16(4,20,true);dc.setUint16(6,20,true);dc.setUint16(8,0x800,true);dc.setUint32(16,crc,true);dc.setUint32(20,u8.length,true);dc.setUint32(24,u8.length,true);dc.setUint16(28,fn.length,true);C.set(fn,46);
+  de.setUint32(0,0x06054b50,true);de.setUint16(8,1,true);de.setUint16(10,1,true);de.setUint32(12,C.length,true);de.setUint32(16,L.length+u8.length,true);return new Blob([L,u8,C,E],{type:'application/zip'});}
+async function download(name,type,data){
+  if(IN_FRAME){let dl=null;try{dl=window.claude&&window.claude.use?await window.claude.use('downloads'):null;}catch(e){}
+    if(!dl){toast('La descarga no está disponible en esta vista. Ábrala desde la versión publicada en GitHub Pages o en la app de escritorio.');return;}
+    let blob=data instanceof Blob?data:new Blob([data],{type}),fn=name;if(!DL_OK.test(fn)){blob=zipStore(fn,new Uint8Array(await blob.arrayBuffer()));fn=fn+'.zip';}
+    try{await dl.save({filename:fn,data:blob});if(fn!==name)toast('Se guardó '+fn+' (el archivo va comprimido en .zip).');}catch(e){if(e&&e.code==='declined')return;toast('No se pudo guardar: '+(e&&e.message||e));}return;}
   const url=URL.createObjectURL(data instanceof Blob?data:new Blob([data],{type}));const a=document.createElement('a');a.href=url;a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),4000);}
 function toast(t){let el=$('#toast');if(!el){el=document.createElement('div');el.id='toast';el.setAttribute('role','status');el.style.cssText='position:fixed;left:50%;bottom:calc(46px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--ink);color:var(--sheet);padding:8px 14px;font-size:.82rem;max-width:min(92vw,520px);z-index:20';document.body.appendChild(el);}el.textContent=t;el.hidden=false;clearTimeout(el._t);el._t=setTimeout(()=>el.hidden=true,4200);}
 function sheetSVG(svg){const c=svg.cloneNode(true);c.setAttribute('xmlns','http://www.w3.org/2000/svg');const vb=c.viewBox.baseVal;c.setAttribute('width',vb.width);c.setAttribute('height',vb.height);
