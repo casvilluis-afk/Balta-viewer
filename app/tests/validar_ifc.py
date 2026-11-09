@@ -6,7 +6,7 @@ for f in sys.argv[1:]:
     m = ifcopenshell.open(f)
     log = ifcopenshell.validate.json_logger()
     ifcopenshell.validate.validate(m, log, express_rules=True)
-    errs = [s for s in log.statements if s.get('level', 'ERROR') in ('ERROR', 'error') or 'message' in s]
+    errs = list(log.statements)
     st = ifcopenshell.geom.settings(); st.set(st.USE_WORLD_COORDS, True)
     ok = fallos = 0; lo = [1e18] * 3; hi = [-1e18] * 3; tipos = {}
     for e in m.by_type('IfcElement'):
