@@ -15,19 +15,28 @@ function median(arr) { return quantile(arr, .5); }
 
 /* ---------- lectura de nubes ---------- */
 // blob: objeto con size y slice(a,b) → {arrayBuffer(), text()} (File/Blob en el navegador)
+// atributos por punto que se conservan si el archivo los trae (además de x, y, z)
+const ATR = ['intensidad', 'rojo', 'verde', 'azul', 'retorno', 'retornos', 'clase'];
 class Sampler {
-  constructor(max, seed = 12345) { this.max = max; this.n = 0; this.buf = new Float64Array(3 * Math.min(max, 1 << 20)); this.r = mulberry(seed); this.off = null; }
-  push(x, y, z) {
+  constructor(max, seed = 12345) { this.max = max; this.n = 0; this.buf = new Float64Array(3 * Math.min(max, 1 << 20)); this.r = mulberry(seed); this.off = null; this.an = null; this.ab = null; }
+  // nombres de los atributos presentes (subconjunto de ATR); se llama antes de empujar puntos
+  atributos(names) { this.an = names.length ? names : null; if (this.an) this.ab = this.an.map(() => new Float32Array(Math.min(this.max, 1 << 20))); }
+  push(x, y, z, a) {
     if (!isFinite(x) || !isFinite(y) || !isFinite(z)) return;
     if (!this.off) this.off = [x, y, z].map(v => Math.round(v));
     x -= this.off[0]; y -= this.off[1]; z -= this.off[2];
     let k;
-    if (this.n < this.max) { k = this.n; if (3 * k + 3 > this.buf.length) { const b = new Float64Array(Math.min(3 * this.max, this.buf.length * 2)); b.set(this.buf); this.buf = b; } }
+    if (this.n < this.max) { k = this.n; if (3 * k + 3 > this.buf.length) { const b = new Float64Array(Math.min(3 * this.max, this.buf.length * 2)); b.set(this.buf); this.buf = b; }
+      if (this.ab && k >= this.ab[0].length) this.ab = this.ab.map(v => { const w = new Float32Array(Math.min(this.max, v.length * 2)); w.set(v); return w; }); }
     else { k = Math.floor(this.r() * (this.n + 1)); if (k >= this.max) { this.n++; return; } }
-    this.buf[3 * k] = x; this.buf[3 * k + 1] = y; this.buf[3 * k + 2] = z; this.n++;
+    this.buf[3 * k] = x; this.buf[3 * k + 1] = y; this.buf[3 * k + 2] = z; if (this.ab && a) for (let j = 0; j < this.ab.length; j++) this.ab[j][k] = a[j]; this.n++;
   }
-  result() { const m = Math.min(this.n, this.max); return { xyz: Float32Array.from(this.buf.subarray(0, 3 * m)), total: this.n, kept: m, offset: this.off || [0, 0, 0] }; }
+  result() { const m = Math.min(this.n, this.max), r = { xyz: Float32Array.from(this.buf.subarray(0, 3 * m)), total: this.n, kept: m, offset: this.off || [0, 0, 0] };
+    if (this.an) { r.attr = {}; this.an.forEach((nm, j) => r.attr[nm] = this.ab[j].slice(0, m)); } return r; }
 }
+// subconjunto de una nube (recortes, filtros) conservando los atributos
+function subCloud(c, keep, extra = {}) { const m = keep.length, xyz = new Float32Array(3 * m); for (let j = 0; j < m; j++) { const i = keep[j]; xyz[3 * j] = c.xyz[3 * i]; xyz[3 * j + 1] = c.xyz[3 * i + 1]; xyz[3 * j + 2] = c.xyz[3 * i + 2]; }
+  const r = Object.assign({ xyz, total: c.total, kept: m, offset: c.offset }, extra); if (c.attr) { r.attr = {}; for (const k in c.attr) { const v = new Float32Array(m); for (let j = 0; j < m; j++) v[j] = c.attr[k][keep[j]]; r.attr[k] = v; } } return r; }
 async function readText(blob, onLine, prog) {
   const CH = 16 << 20; let rest = '';
   for (let pos = 0; pos < blob.size; pos += CH) {
@@ -55,17 +64,26 @@ async function parseCloud(blob, name, prog, max = MAXP) {
     const ie = EL.findIndex(e => ['x', 'y', 'z'].every(k => e.props.some(p => p.n === k))); if (ie < 0) throw new Error('El PLY no tiene coordenadas x, y, z.');
     if (EL[ie].list) throw new Error('Propiedades de lista en los puntos no soportadas.');
     const props = EL[ie].props, nV = EL[ie].n, ix = ['x', 'y', 'z'].map(k => props.findIndex(p => p.n === k));
+    // atributos reconocidos por nombre (las etiquetas de entrenamiento como «label» no se leen: no vienen en una nube real)
+    const pn = props.map(p => p.n.toLowerCase()), busca = f => pn.findIndex(f);
+    const ia = { intensidad: busca(n => /intens|reflectance/.test(n)), rojo: busca(n => n === 'red' || n === 'r' || n === 'diffuse_red'), verde: busca(n => n === 'green' || n === 'g' || n === 'diffuse_green'), azul: busca(n => n === 'blue' || n === 'b' || n === 'diffuse_blue'),
+      retorno: busca(n => n === 'return_number' || n === 'returnnumber'), retornos: busca(n => n === 'number_of_returns' || n === 'numberofreturns'), clase: busca(n => n === 'classification') };
+    const an = ATR.filter(k => ia[k] >= 0), aix = an.map(k => ia[k]); S.atributos(an);
     if (fmt === 'ascii') {
-      let row = 0; await readText(blob.slice(dataStart, blob.size), l => { if (row >= nV) return; const m = l.trim().split(/\s+/); if (m.length < props.length) return; row++; S.push(+m[ix[0]], +m[ix[1]], +m[ix[2]]); }, prog);
+      let row = 0; await readText(blob.slice(dataStart, blob.size), l => { if (row >= nV) return; const m = l.trim().split(/\s+/); if (m.length < props.length) return; row++; S.push(+m[ix[0]], +m[ix[1]], +m[ix[2]], aix.length ? aix.map(j => +m[j]) : null); }, prog);
     } else if (fmt === 'binary_little_endian' || fmt === 'binary_big_endian') {
       const le = fmt === 'binary_little_endian', SZ = { char: 1, int8: 1, uchar: 1, uint8: 1, short: 2, int16: 2, ushort: 2, uint16: 2, int: 4, int32: 4, uint: 4, uint32: 4, float: 4, float32: 4, double: 8, float64: 8 };
       let skip = 0; for (let k = 0; k < ie; k++) { if (EL[k].list) throw new Error('El PLY tiene elementos con listas antes de los puntos.'); skip += EL[k].n * EL[k].props.reduce((a, p) => a + SZ[p.t], 0); }
       let off = 0; const offs = props.map(p => { const o = off; off += SZ[p.t]; return o; }), stride = off;
       const rd = ix.map(i => (props[i].t === 'double' || props[i].t === 'float64') ? 'getFloat64' : 'getFloat32');
+      const GET = { char: 'getInt8', int8: 'getInt8', uchar: 'getUint8', uint8: 'getUint8', short: 'getInt16', int16: 'getInt16', ushort: 'getUint16', uint16: 'getUint16', int: 'getInt32', int32: 'getInt32', uint: 'getUint32', uint32: 'getUint32', float: 'getFloat32', float32: 'getFloat32', double: 'getFloat64', float64: 'getFloat64' };
+      const ag = aix.map(j => GET[props[j].t]), ao = aix.map(j => offs[j]), av = new Array(aix.length);
+      // color de 16 bits (0–65535) se lleva a 0–255
+      const c16 = an.map((k, q) => ['rojo', 'verde', 'azul'].includes(k) && /short|16/.test(props[aix[q]].t) ? 1 / 257 : 1);
       const per = Math.floor((32 << 20) / stride);
       for (let i0 = 0; i0 < nV; i0 += per) {
         const n = Math.min(per, nV - i0), dv = new DataView(await blob.slice(dataStart + skip + i0 * stride, dataStart + skip + (i0 + n) * stride).arrayBuffer());
-        for (let i = 0; i < n; i++) { const b = i * stride; S.push(dv[rd[0]](b + offs[ix[0]], le), dv[rd[1]](b + offs[ix[1]], le), dv[rd[2]](b + offs[ix[2]], le)); }
+        for (let i = 0; i < n; i++) { const b = i * stride; for (let q = 0; q < ag.length; q++) av[q] = dv[ag[q]](b + ao[q], le) * c16[q]; S.push(dv[rd[0]](b + offs[ix[0]], le), dv[rd[1]](b + offs[ix[1]], le), dv[rd[2]](b + offs[ix[2]], le), ag.length ? av : null); }
         if (prog) await prog((i0 + n) / nV);
       }
     } else throw new Error('Formato PLY no reconocido: ' + fmt);
@@ -75,18 +93,31 @@ async function parseCloud(blob, name, prog, max = MAXP) {
     const vmin = h.getUint8(25), offP = h.getUint32(96, true), recLen = h.getUint16(105, true);
     let nP = h.getUint32(107, true); if (vmin >= 4 && !nP) nP = Number(h.getBigUint64(247, true));
     const sc = [131, 139, 147].map(o => h.getFloat64(o, true)), of = [155, 163, 171].map(o => h.getFloat64(o, true));
+    // formato de punto: intensidad (todos), retornos y clase (0–5: bytes 14–15; 6–10: bytes 14 y 16), color (2: byte 20; 3 y 5: 28; 7, 8 y 10: 30)
+    const pf = h.getUint8(104) & 63, nuevo = pf >= 6, rgbOff = { 2: 20, 3: 28, 5: 28, 7: 30, 8: 30, 10: 30 }[pf];
+    const an = ['intensidad', 'retorno', 'retornos', 'clase', ...(rgbOff != null ? ['rojo', 'verde', 'azul'] : [])], av = new Array(an.length); S.atributos(an);
+    let rgbMax = 0;
     const per = Math.floor((32 << 20) / recLen);
     for (let i0 = 0; i0 < nP; i0 += per) {
       const n = Math.min(per, nP - i0), dv = new DataView(await blob.slice(offP + i0 * recLen, offP + (i0 + n) * recLen).arrayBuffer());
-      for (let i = 0; i < n; i++) { const b = i * recLen; S.push(dv.getInt32(b, true) * sc[0] + of[0], dv.getInt32(b + 4, true) * sc[1] + of[1], dv.getInt32(b + 8, true) * sc[2] + of[2]); }
+      for (let i = 0; i < n; i++) { const b = i * recLen, rb = dv.getUint8(b + 14); av[0] = dv.getUint16(b + 12, true);
+        if (nuevo) { av[1] = rb & 15; av[2] = rb >> 4; av[3] = dv.getUint8(b + 16); } else { av[1] = rb & 7; av[2] = (rb >> 3) & 7; av[3] = dv.getUint8(b + 15) & 31; }
+        if (rgbOff != null) { av[4] = dv.getUint16(b + rgbOff, true); av[5] = dv.getUint16(b + rgbOff + 2, true); av[6] = dv.getUint16(b + rgbOff + 4, true); if (av[4] > rgbMax) rgbMax = av[4]; }
+        S.push(dv.getInt32(b, true) * sc[0] + of[0], dv.getInt32(b + 4, true) * sc[1] + of[1], dv.getInt32(b + 8, true) * sc[2] + of[2], av); }
       if (prog) await prog((i0 + n) / nP);
     }
+    S.rgb16 = rgbMax > 255;
   } else if (['xyz', 'txt', 'csv', 'pts', 'asc'].includes(ext)) {
     await readText(blob, l => { const v = numbers3(l); if (v) S.push(v[0], v[1], v[2]); }, prog);
   } else if (ext === 'e57' || ext === 'laz') {
     throw new Error(`Los archivos .${ext} no se pueden leer en el navegador. Conviértalo a PLY binario o XYZ en CloudCompare (guía en esta misma pestaña).`);
   } else throw new Error('Formato no reconocido. Use PLY, LAS, XYZ, TXT o CSV.');
-  const r = S.result(); if (r.kept < 1000) throw new Error('El archivo tiene muy pocos puntos válidos.'); return r;
+  const r = S.result(); if (r.kept < 1000) throw new Error('El archivo tiene muy pocos puntos válidos.');
+  if (r.attr) { if (S.rgb16) for (const k of ['rojo', 'verde', 'azul']) if (r.attr[k]) for (let i = 0; i < r.kept; i++) r.attr[k][i] /= 257;
+    // un atributo constante no informa (p. ej. LAS sin color o sin clasificar): se descarta
+    for (const k of Object.keys(r.attr)) { const v = r.attr[k]; let mn = Infinity, mx = -Infinity; for (let i = 0; i < v.length; i += 7) { if (v[i] < mn) mn = v[i]; if (v[i] > mx) mx = v[i]; } if (!(mx > mn)) delete r.attr[k]; }
+    if (!Object.keys(r.attr).length) delete r.attr; }
+  return r;
 }
 
 /* ---------- ejes del puente ---------- */
@@ -1624,8 +1655,8 @@ function desenrollar(O, S, wd, W = { R: 40 }) {
   // (otras ramas, rampas o calles que cruzan quedan fuera; se analizan recortándolas aparte)
   const wm = S.map(p => p.w).filter(v => v > 0).sort((a, b) => a - b), wq = wm.length ? wm[wm.length >> 1] : wd, lim = Math.max(3 * wq, wq + 10), Lt = cum[cum.length - 1];
   let m = 0; for (let k = 0; k < O.n; k++) if (Math.abs(t[k]) <= lim && s[k] >= -30 && s[k] <= Lt + 30) m++;
-  const s2 = new Float32Array(m), t2 = new Float32Array(m), z2 = new Float32Array(m); let j = 0; for (let k = 0; k < O.n; k++) if (Math.abs(t[k]) <= lim && s[k] >= -30 && s[k] <= Lt + 30) { s2[j] = s[k]; t2[j] = t[k]; z2[j] = z[k]; j++; }
-  return { O: { s: s2, t: t2, z: z2, n: m, snap: null, angleDeg: O.angleDeg, ejeRatio: Infinity, curvo: true }, franja: +lim.toFixed(1), descartados: O.n - m, eje: S.map((p, i) => ({ x: +p.x.toFixed(2), y: +p.y.toFixed(2), h: +p.h.toFixed(2), s: +cum[i].toFixed(2) })), largo: cum[cum.length - 1], giro: giro * 180 / Math.PI, radioMin: rmin, fuera };
+  const s2 = new Float32Array(m), t2 = new Float32Array(m), z2 = new Float32Array(m), src = new Int32Array(m); let j = 0; for (let k = 0; k < O.n; k++) if (Math.abs(t[k]) <= lim && s[k] >= -30 && s[k] <= Lt + 30) { s2[j] = s[k]; t2[j] = t[k]; z2[j] = z[k]; src[j] = O.src ? O.src[k] : k; j++; } // src: índice del punto en la nube (para sus atributos)
+  return { O: { s: s2, t: t2, z: z2, src, n: m, snap: null, angleDeg: O.angleDeg, ejeRatio: Infinity, curvo: true }, franja: +lim.toFixed(1), descartados: O.n - m, eje: S.map((p, i) => ({ x: +p.x.toFixed(2), y: +p.y.toFixed(2), h: +p.h.toFixed(2), s: +cum[i].toFixed(2) })), largo: cum[cum.length - 1], giro: giro * 180 / Math.PI, radioMin: rmin, fuera };
 }
 
 /* Eje curvo por ajuste: para curvas suaves (el eje sigue siendo función del largo recto). Centro de la calzada por celda de 2 m
@@ -1733,6 +1764,61 @@ function dimensiones(O, dk, gr, supports, W = {}) {
   return { calzadaSobreReferencia: +sobre.toFixed(2), anchoTablero: +B.toFixed(2), canto: cantoMed != null ? +cantoMed.toFixed(2) : null, cantoN: cs.length, vanos, pilares: pil };
 }
 
+/* ---------- Atributos de cada punto: vegetación, materiales y zonas anómalas ----------
+   attr: atributos de la nube (intensidad, rojo, verde, azul, retorno, retornos, clase), alineados con la nube; O.src da el índice si O es un subconjunto.
+   Vegetación: clase ASPRS 3–5; retorno que no es el último de varios (el láser atravesó follaje), fuera de la calzada; o verde dominante (exceso de verde).
+   Zonas: calzada, cara inferior y vigas, pilares, estructura sobre la calzada. A lo largo del eje, celdas de 1 m cuya intensidad (o rojez)
+   se aparta de su entorno (mediana móvil de ±15 m) en más de 4 desviaciones robustas, en 3 m o más seguidos: cambio de material, humedad,
+   suciedad, óxido o reparación; se revisan en campo (la intensidad también cambia con la distancia y el ángulo del escáner). */
+function atributosNube(O, attr, dk, gr, supports = [], q = null, canto = null) {
+  if (!attr) return null; const A = k => attr[k] ? (O.src ? (i => attr[k][O.src[i]]) : (i => attr[k][i])) : null;
+  const I = A('intensidad'), R = A('rojo'), G = A('verde'), Bl = A('azul'), RN = A('retorno'), NR = A('retornos'), CL = A('clase');
+  q = q || calidadNube(O, dk, gr, supports); if (!q) return null;
+  const deckAt = s => { const k = Math.floor((s - q.s0) / q.bw); return q.deck[Math.max(0, Math.min(q.deck.length - 1, k))]; };
+  const n = O.n, veg = new Uint8Array(n), por = { clase: 0, retornos: 0, color: 0 };
+  const color = R && G && Bl ? (() => { let gris = 0; for (let i = 0; i < n; i += 97) if (Math.abs(R(i) - G(i)) < 1 && Math.abs(G(i) - Bl(i)) < 1) gris++; return gris < .9 * Math.ceil(n / 97); })() : false; // color real (no gris de intensidad)
+  // por vóxel de 1 m: el follaje es un volumen (dispersión alta) con muchos retornos intermedios o puntos verdes; un cable, un arco o un
+  // pendolón también dan retornos intermedios, pero en una línea (dispersión baja), y una estructura verdosa no es verde en todo el vóxel
+  const vk = i => (Math.floor(O.s[i]) + 50000) * 1e8 + (Math.floor(O.t[i]) + 5000) * 1e4 + (Math.floor(O.z[i]) + 5000), V = new Map();
+  for (let i = 0; i < n; i++) { const k = vk(i); let v = V.get(k); if (!v) V.set(k, v = { n: 0, mi: 0, gr: 0, m: new Float64Array(9) }); v.n++;
+    if (RN && NR) { const nr = NR(i), rn = RN(i); if (nr > 1 && rn < nr) v.mi++; }
+    if (color) { const r = R(i), g = G(i), b = Bl(i), exg = (2 * g - r - b) / (r + g + b + 1); if (exg > .08 && g > r && g > b) v.gr++; }
+    const x = O.s[i], y = O.t[i], z = O.z[i], m = v.m; m[0] += x; m[1] += y; m[2] += z; m[3] += x * x; m[4] += x * y; m[5] += x * z; m[6] += y * y; m[7] += y * z; m[8] += z * z; }
+  const esf = v => { const N = v.n, m = v.m, mx = m[0] / N, my = m[1] / N, mz = m[2] / N, e = eig3([m[3] / N - mx * mx, m[4] / N - mx * my, m[5] / N - mx * mz, m[6] / N - my * my, m[7] / N - my * mz, m[8] / N - mz * mz]); return e.l[2] / (e.l[0] + 1e-9); };
+  for (const v of V.values()) { v.veg = 0; if (v.n < 5) continue; const d = esf(v); if (v.mi >= .3 * v.n && d >= .08) v.veg = 2; else if (v.gr >= .6 * v.n && d >= .05) v.veg = 3; }
+  for (let i = 0; i < n; i++) { if (CL) { const c = CL(i); if (c === 3 || c === 4 || c === 5) { veg[i] = 1; por.clase++; continue; } }
+    const v = V.get(vk(i)); if (!v || !v.veg) continue; const h = O.z[i] - deckAt(O.s[i]); if (Math.abs(h) < .4) continue; // la calzada nunca es vegetación
+    veg[i] = 1; if (v.veg === 2) por.retornos++; else por.color++; }
+  let nv = 0; for (let i = 0; i < n; i++) nv += veg[i];
+  // zonas
+  const sp = supports.slice().sort((a, b) => a.a - b.a), hc = canto || 1.5, tt = []; for (let i = 0; i < n; i += 3) if (Math.abs(O.z[i] - deckAt(O.s[i])) < .4) tt.push(O.t[i]); tt.sort((a, b) => a - b);
+  const t0 = tt[Math.floor(tt.length * .03)], t1 = tt[Math.floor(tt.length * .97)];
+  const zona = i => { if (veg[i]) return -1; const s = O.s[i], t = O.t[i], h = O.z[i] - deckAt(s); if (t < t0 - 1 || t > t1 + 1) return -1;
+    if (Math.abs(h) < .4) return 0; if (h > 2) return 3; const enApoyo = sp.some(p => p.tipo === 'pilar' && s >= p.a - .5 && s <= p.b + .5);
+    if (enApoyo && h < -hc - .3 && O.z[i] > gr + .5) return 2; if (h <= -.4 && h >= -hc - .3) return 1; return -1; };
+  const NOM = ['calzada', 'cara inferior y vigas', 'pilares', 'estructura sobre la calzada'], Z = NOM.map(() => ({ I: [], RI: [], L: [] }));
+  const zi = new Int8Array(n); for (let i = 0; i < n; i++) { const z = zona(i); zi[i] = z; if (z < 0) continue; const Zz = Z[z]; if (Zz.I.length < 60000 || i % 5 === 0) { if (I) Zz.I.push(I(i)); if (color) { const r = R(i), g = G(i), b = Bl(i); Zz.RI.push((r - g) / (r + g + 1)); Zz.L.push((r + g + b) / 3); } } }
+  const med = v => { if (!v.length) return null; v = v.slice().sort((a, b) => a - b); return v[v.length >> 1]; }, pc = (v, p) => { v = v.slice().sort((a, b) => a - b); return v[Math.floor(p * (v.length - 1))]; };
+  const zonas = NOM.map((nm, k) => ({ zona: nm, puntos: Z[k].I.length || Z[k].RI.length, intensidad: Z[k].I.length >= 200 ? { mediana: +med(Z[k].I).toFixed(1), p10: +pc(Z[k].I, .1).toFixed(1), p90: +pc(Z[k].I, .9).toFixed(1) } : null,
+    rojez: Z[k].RI.length >= 200 ? +med(Z[k].RI).toFixed(3) : null, brillo: Z[k].L.length >= 200 ? +med(Z[k].L).toFixed(0) : null })).filter(z => z.puntos >= 200);
+  // perfiles a lo largo del eje y zonas anómalas (calzada y cara inferior)
+  const anom = [], perfiles = {};
+  const perfil = (zz, f, nombre) => { const nb = q.deck.length, B = Array.from({ length: nb }, () => []);
+    for (let i = 0; i < n; i++) if (zi[i] === zz) { const b = Math.floor((O.s[i] - q.s0) / q.bw); if (b >= 0 && b < nb && B[b].length < 400) B[b].push(f(i)); }
+    const v = B.map(x => x.length >= 20 ? med(x) : null), tr = v.map((_, b) => { const w = []; for (let j = b - 15; j <= b + 15; j++) if (j >= 0 && j < nb && v[j] != null) w.push(v[j]); return w.length >= 8 ? med(w) : null; });
+    const res = v.map((x, b) => x != null && tr[b] != null ? x - tr[b] : null), rr = res.filter(x => x != null); if (rr.length < 20) return; const nivel = Math.abs(med(tr.filter(x => x != null))) || 1;
+    const mad = Math.max(med(rr.map(Math.abs)) * 1.4826, .02 * nivel, nombre.startsWith('rojez') ? .01 : 1e-6); // piso: 2 % del nivel (y 0,01 de rojez), para que valores casi iguales no den desvíos enormes
+    perfiles[nombre] = { s0: q.s0, bw: q.bw, valor: v.map(x => x == null ? null : +x.toFixed(3)) };
+    for (let b = 0; b < nb;) { const zb = res[b] != null ? res[b] / mad : 0; if (Math.abs(zb) < 4) { b++; continue; } const sg = Math.sign(zb); let e = b; while (e + 1 < nb && res[e + 1] != null && Math.sign(res[e + 1]) === sg && Math.abs(res[e + 1] / mad) >= 4) e++;
+      if ((e - b + 1) * q.bw >= 3) { let mz = 0; for (let j = b; j <= e; j++) mz = Math.max(mz, Math.abs(res[j] / mad)); anom.push({ zona: NOM[zz], atributo: nombre.split(' ')[0], a: +(q.s0 + b * q.bw).toFixed(1), b: +(q.s0 + (e + 1) * q.bw).toFixed(1), signo: sg > 0 ? 'mayor' : 'menor', desvios: +mz.toFixed(1), cambio: tr[b] ? +(100 * res[b] / Math.abs(tr[b])).toFixed(0) : null }); }
+      b = e + 1; } };
+  if (I) { perfil(0, I, 'intensidad calzada'); perfil(1, I, 'intensidad cara inferior'); }
+  if (color) { const ri = i => { const r = R(i), g = G(i); return (r - g) / (r + g + 1); }; perfil(0, ri, 'rojez calzada'); perfil(1, ri, 'rojez cara inferior'); }
+  // las más marcadas primero; se listan hasta 10 (en la calzada, marcas viales, parches de asfalto o vehículos también las producen)
+  anom.sort((x, y) => y.desvios - x.desvios); const nAnom = anom.length;
+  return { presentes: Object.keys(attr), colorReal: color, vegetacion: { puntos: nv, fraccion: +(nv / n).toFixed(3), por }, mascaraVeg: veg, zonas, anomalias: anom.slice(0, 10), nAnomalias: nAnom, perfiles };
+}
+
 // Puente combinado: tramos con distinto sistema a lo largo del eje (atirantado, arco sobre el tablero, armadura, tramos apoyados en pilares).
 // Cada sistema ocupa lo que alcanzan sus elementos (cables de cada pilono, raíces o pilas del arco, cordones de la armadura); el resto del tablero
 // entre los apoyos extremos son tramos apoyados, con los vanos que marcan los apoyos.
@@ -1771,7 +1857,7 @@ function apoyosArco(O, dk, gr, la, W = { R: 15, BW: 2, NB: 10, NMIN: 150, VERT: 
   const a = uno(la.a), b = uno(la.b); return a != null && b != null ? { a: +a.toFixed(1), b: +b.toFixed(1), L: +(b - a).toFixed(1) } : null;
 }
 
-return { dimensiones, ejeCurvo, ejePoli, desenrollar, ejeAuto, composicion, calidadNube, supra, superestructura, apoyosArco, gapProfile, gapEnds, estribosHueco, GAP_W, hipotesis, clearanceProfile, iaEstribos, HIP_W, EST_W, iaFeatures, iaPredict, iaClusters, iaRefine, IA_NAMES, IA_REGLA, fftInPlace, detrend, csdMatrix, fdd, efdd, fddModes, pickPeaks, staticPrep, fiberStress, influence, HL93, hl93Extremes, liveLoad, CS_WF, pTrans, markovStep, elemHI, bridgeHI, calibrateAlpha, maintenancePlan, Dxf, bridgePlans, sensorsOf, readAccel, sdof, spectrum, seismic, freqCampaign, setConcMin, suggestType, applySkew, coherence, f1Band, geomSigmas, perturbGeom, archRise, peakCampaign, csdAverage, calibrateModel, nelderMead, trainFreqIA, trainVecIA, trainModalIA, modalFeat, modalMeasFeat, modalMeasFeatBase, freqPredict, build, modal, archAll, parseCloud, orient, bounds, deckLevel, groundLevel, detectSupports, spansOf, envelope, fitParabola, polyval, archGeometry, spanCoverage, MATERIALS,
+return { atributosNube, subCloud, ATR, dimensiones, ejeCurvo, ejePoli, desenrollar, ejeAuto, composicion, calidadNube, supra, superestructura, apoyosArco, gapProfile, gapEnds, estribosHueco, GAP_W, hipotesis, clearanceProfile, iaEstribos, HIP_W, EST_W, iaFeatures, iaPredict, iaClusters, iaRefine, IA_NAMES, IA_REGLA, fftInPlace, detrend, csdMatrix, fdd, efdd, fddModes, pickPeaks, staticPrep, fiberStress, influence, HL93, hl93Extremes, liveLoad, CS_WF, pTrans, markovStep, elemHI, bridgeHI, calibrateAlpha, maintenancePlan, Dxf, bridgePlans, sensorsOf, readAccel, sdof, spectrum, seismic, freqCampaign, setConcMin, suggestType, applySkew, coherence, f1Band, geomSigmas, perturbGeom, archRise, peakCampaign, csdAverage, calibrateModel, nelderMead, trainFreqIA, trainVecIA, trainModalIA, modalFeat, modalMeasFeat, modalMeasFeatBase, freqPredict, build, modal, archAll, parseCloud, orient, bounds, deckLevel, groundLevel, detectSupports, spansOf, envelope, fitParabola, polyval, archGeometry, spanCoverage, MATERIALS,
   build, sensorsOf, modal, signConvention, features, campaign, trainIA, forestPredict, LEVELS, noisy, mulberry, gaussR, quantile, median };
 })();
 if (typeof module !== 'undefined') module.exports = OPC;

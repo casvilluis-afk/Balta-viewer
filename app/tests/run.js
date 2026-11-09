@@ -5,6 +5,7 @@ const P = path.join(__dirname, '..', '..', 'plataforma');
 global.self = undefined;
 const OPC = new Function(fs.readFileSync(path.join(P, 'op_core.js'), 'utf8') + '\nreturn OPC;')();
 let fails = 0; const ok = (name, cond, info) => { console.log((cond ? 'OK   ' : 'FALLA') + '  ' + name + (info ? '  · ' + info : '')); if (!cond) fails++; };
+const PEND = []; // pruebas que leen archivos (asíncronas)
 
 // 1. Viga simplemente apoyada: f1 analítica = (π²/2πL²)·√(EI/m)
 { const L = 30, E = 200, A = .5, I = .2, w = 80, G = { supports: [{ a: 0, b: 0 }, { a: L, b: L }], deckAxis: 0 };
@@ -166,6 +167,18 @@ ok('Modelo C: 20 zonas de daño (15 de arcos, 3 de tablero y 2 de pilares por so
     const Oq = OPC.orient({ xyz: Float32Array.from(Q), offset: [0, 0, 0], eje: 'x' }, 'z', 1), dkq = OPC.deckLevel(Oq);
     const D = OPC.dimensiones(Oq, dkq, -8, [{ a: -.5, b: .5, tipo: 'estribo' }, { a: 24.5, b: 25.5, tipo: 'pilar' }, { a: 49.5, b: 50.5, tipo: 'estribo' }]), P1 = D && D.pilares[0];
     ok('Dimensiones: canto del tablero 1,2 m y pilar de 1,0 × 5,0 m medidos en la nube', D && Math.abs(D.canto - 1.2) <= .15 && P1 && Math.abs(P1.espesor - 1) <= .15 && Math.abs(P1.ancho - 5) <= .3, D ? `canto ${D.canto} m · pilar ${P1 && P1.espesor} × ${P1 && P1.ancho} m · nivel de referencia ${dkq.toFixed(2)} m` : 'sin medida'); }
+  // Atributos: un PLY binario con color e intensidad se lee con sus atributos; en la calzada, una mancha de 3 m con intensidad 40 % menor
+  // se marca como zona a revisar, y un arbusto verde junto al pilar se reconoce como vegetación (la estructura gris no)
+  PEND.push((async () => { const P = [], at = []; const add = (s0, t, z, I, r, g, b) => { P.push(s0, t, z); at.push([I, r, g, b]); };
+    for (let s0 = -10; s0 <= 60; s0 += .25) for (let t = -4; t <= 4; t += .25) { add(s0, t, 0, s0 > 30 && s0 < 33 ? 60 : 100 + 5 * Math.sin(s0), 128, 128, 130); add(s0, t, -8, 80, 120, 110, 90); if (s0 >= 0 && s0 <= 50) add(s0, t, -1, 90, 128, 128, 130); }
+    for (let z = -8; z <= -1; z += .1) for (let t = -2; t <= 2; t += .1) { add(24.5, t, z, 95, 128, 128, 130); add(25.5, t, z, 95, 128, 128, 130); }
+    for (let k = 0; k < 3000; k++) { const a = k * 2.399, rr = 1.5 * Math.sqrt((k % 100) / 100); add(20 + rr * Math.cos(a), 6 + rr * Math.sin(a), -7 + (k % 37) / 10, 50, 60, 140, 50); }
+    const n = P.length / 3, hdr = `ply\nformat binary_little_endian 1.0\nelement vertex ${n}\nproperty float x\nproperty float y\nproperty float z\nproperty float intensity\nproperty uchar red\nproperty uchar green\nproperty uchar blue\nend_header\n`;
+    const buf = new ArrayBuffer(n * 19), dv = new DataView(buf); for (let i = 0; i < n; i++) { const o = i * 19; dv.setFloat32(o, P[3 * i], true); dv.setFloat32(o + 4, P[3 * i + 1], true); dv.setFloat32(o + 8, P[3 * i + 2], true); dv.setFloat32(o + 12, at[i][0], true); dv.setUint8(o + 16, at[i][1]); dv.setUint8(o + 17, at[i][2]); dv.setUint8(o + 18, at[i][3]); }
+    const c = await OPC.parseCloud(new Blob([hdr, buf]), 'atr.ply', null); c.eje = 'x'; const Oa = OPC.orient(c, 'z', 1);
+    const sup = [{ a: -.5, b: .5, tipo: 'estribo' }, { a: 24.5, b: 25.5, tipo: 'pilar' }, { a: 49.5, b: 50.5, tipo: 'estribo' }], r = OPC.atributosNube(Oa, c.attr, 0, -8, sup);
+    const an = r && r.anomalias.find(x => x.zona === 'calzada' && x.signo === 'menor' && x.a >= 29 && x.b <= 34);
+    ok('Atributos: PLY con color e intensidad; mancha de 3 m en la calzada y arbusto verde detectados', c.attr && 'intensidad' in c.attr && 'verde' in c.attr && an && r.vegetacion.por.color >= 2500 && r.vegetacion.por.color <= 3200, r ? `atributos ${Object.keys(c.attr).join(',')} · anomalía ${an ? an.a + '–' + an.b + ' m' : 'no'} · vegetación ${r.vegetacion.puntos}` : 'sin análisis'); })());
   ok('Eje: planta cuadrada marcada como dudosa; tramo recortado queda en x', Oq.ejeRatio < 3 && Ox.snap === 0, `cociente ${Oq.ejeRatio.toFixed(2)} · recortado: eje ${Ox.snap === 0 ? 'x' : '?'}`); }
 
 // 15. Campaña de registros: los modos que se repiten se separan del ruido que aparece y desaparece, y se estima el efecto de la temperatura
@@ -204,5 +217,4 @@ ok('Modelo C: 20 zonas de daño (15 de arcos, 3 de tablero y 2 de pilares por so
 // 17. Solver 2D de la plataforma contra OpenSees: se verifica en el navegador (pestaña Validación) con los 450 casos de data/fem_525.csv
 ok('Dataset OpenSees presente', fs.existsSync(path.join(P, 'data', 'fem_525.csv')));
 
-console.log(fails ? `\n${fails} prueba(s) fallaron` : '\nTodas las pruebas pasaron');
-process.exit(fails ? 1 : 0);
+Promise.all(PEND).catch(e => { console.log('FALLA  prueba asíncrona: ' + e.message); fails++; }).then(() => { console.log(fails ? `\n${fails} prueba(s) fallaron` : '\nTodas las pruebas pasaron'); process.exit(fails ? 1 : 0); });
