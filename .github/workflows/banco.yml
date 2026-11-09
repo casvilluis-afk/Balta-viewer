@@ -8,7 +8,7 @@ on:
   workflow_dispatch:
     inputs:
       modo:
-        description: 'explorar | coreanos | extraer | listar | zipurl | zipcada | url | leer | ahn'
+        description: 'explorar | coreanos | extraer | listar | zipurl | zipcada | url | leer | ahn | epocas'
         default: 'explorar'
       archivos:
         description: 'coreanos: nombres separados por ; · extraer: zip|miembro;zip|miembro'
@@ -34,12 +34,12 @@ jobs:
           modo = os.environ['MODO'].strip(); info = {'modo': modo, 'items': {}, 'errores': []}
           Z2 = 'https://zenodo.org/records/18738225/files/'
           ATR_T = {'intensity': 'f4', 'red': 'u1', 'green': 'u1', 'blue': 'u1', 'return_number': 'u1', 'number_of_returns': 'u1', 'classification': 'u1'}
-          def guardar(base, xyz, lab=None, extra=None):
+          def guardar(base, xyz, lab=None, extra=None, offset=None):
               # atributos por punto (intensidad, color, retornos, clasificación) viajan en extra['_atr'] y se guardan como propiedades del PLY
               atr = (extra or {}).pop('_atr', None) or {}
               if atr: base = base + '_atr'
               n = len(xyz); rng = np.random.default_rng(1); keep = rng.choice(n, size=min(n, 1500000), replace=False); keep.sort()
-              sub = xyz[keep]; off = sub.mean(axis=0); sub = (sub - off).astype(np.float32)
+              sub = xyz[keep]; off = np.asarray(offset, dtype=np.float64) if offset is not None else sub.mean(axis=0); sub = (sub - off).astype(np.float32)  # offset fijo: varias épocas en el mismo marco
               cols = [sub[:, 0], sub[:, 1], sub[:, 2]]; nms = ['x', 'y', 'z']; fms = ['f4', 'f4', 'f4']
               for k, a in atr.items():
                   a = np.asarray(a)[keep]
@@ -182,6 +182,35 @@ jobs:
                               X = X[m]; L = L[m]; AT = {k: v[m] for k, v in AT.items()}; ex.update({'franja': 'eje por clase 26, ±25 m', 'largo_clase26_m': float(s1 - s0), 'eje_rd': [float(ax[0]), float(ax[1])]})
                           if os.environ.get('ATR', '1') == '1': ex['_atr'] = AT
                           guardar(nm, X, L, ex)
+                      except Exception as e: info['errores'].append([it, repr(e), traceback.format_exc()[-1500:]])
+              elif modo == 'epocas':
+                  # el mismo recorte de AHN en varias campañas: nombre|lat|lon|radio_m|subhojas|AHN3,AHN4,AHN5
+                  # todas con el mismo origen (coordenadas RD redondeadas) y la misma franja (eje de la clase 26 de la campaña más reciente que la tenga)
+                  import pyproj, laspy; tr = pyproj.Transformer.from_crs(4326, 28992, always_xy=True)
+                  for it in [x.strip() for x in os.environ['ARCH'].split(';') if x.strip()]:
+                      try:
+                          nm, lat, lon, rad, tiles, vers = it.split('|'); x0, y0 = tr.transform(float(lon), float(lat)); rad = float(rad); E = {}
+                          for v in [q.strip() for q in vers.split(',') if q.strip()]:
+                              xs, ats = [], {}
+                              for t in tiles.split(','):
+                                  u = f'https://geotiles.citg.tudelft.nl/{v}_T/{t.strip()}.LAZ'; print('Descargando', u, flush=True)
+                                  try: urllib.request.urlretrieve(u, 'tile.laz')
+                                  except Exception as e: info['errores'].append([u, repr(e)]); continue
+                                  f = laspy.read('tile.laz'); X = np.vstack([f.x, f.y, f.z]).T; m = (np.abs(X[:, 0] - x0) <= rad) & (np.abs(X[:, 1] - y0) <= rad); dims = list(f.point_format.dimension_names)
+                                  xs.append(X[m]); [ats.setdefault(k, []).append(np.asarray(f[k])[m]) for k in ('intensity', 'return_number', 'number_of_returns', 'classification') if k in dims]
+                                  info['items'][f'{nm}_{v}_{t}'] = {'en_recorte': int(m.sum()), 'gps_time': [float(np.asarray(f.gps_time)[m].min()), float(np.asarray(f.gps_time)[m].max())] if 'gps_time' in dims and m.any() else None}
+                                  os.remove('tile.laz')
+                              if xs: E[v] = (np.vstack(xs), {k: np.concatenate(a) for k, a in ats.items()})
+                          ref = next((v for v in sorted(E, reverse=True) if 'classification' in E[v][1] and (E[v][1]['classification'] == 26).sum() > 1000), None)
+                          off = [round(x0), round(y0), 0.0]; ex0 = {'fuente': 'AHN (dominio público) vía geotiles.citg.tudelft.nl', 'centro_rd': [x0, y0], 'radio_m': rad, 'offset_comun': off}
+                          if ref:
+                              X, A = E[ref]; B = X[A['classification'] == 26]; c = B[:, :2].mean(0); _, _, vt = np.linalg.svd(B[:, :2] - c, full_matrices=False); ax = vt[0]; nr = np.array([-ax[1], ax[0]])
+                              sb = (B[:, :2] - c) @ ax; tb = (B[:, :2] - c) @ nr; s0, s1 = np.percentile(sb, [.5, 99.5]); tm = np.median(tb); ex0.update({'franja': f'eje por clase 26 de {ref}, ±25 m', 'eje_rd': [float(ax[0]), float(ax[1])]})
+                          for v, (X, A) in E.items():
+                              if ref:
+                                  sa = (X[:, :2] - c) @ ax; ta = (X[:, :2] - c) @ nr; m = (sa >= s0 - 30) & (sa <= s1 + 30) & (np.abs(ta - tm) <= 25); X = X[m]; A = {k: a[m] for k, a in A.items()}
+                              ex = dict(ex0); ex['campana'] = v; ex['_atr'] = A
+                              guardar(f'{nm}_{v}', X, A.get('classification'), ex, offset=off)
                       except Exception as e: info['errores'].append([it, repr(e), traceback.format_exc()[-1500:]])
               elif modo == 'url':
                   for it in [p.strip() for p in os.environ['ARCH'].split(';') if p.strip()]:
