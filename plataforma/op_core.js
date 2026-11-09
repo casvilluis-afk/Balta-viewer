@@ -1574,7 +1574,7 @@ function calidadNube(O, dk, gr, supports = [], W = {}) {
   for (const a of apoyos) if (a.tipo === 'pilar' && a.frac < .5) { avisos.push({ nivel: 'warn', txt: `${a.tipo === 'pilar' ? 'Pilar' : 'Estribo'} ${a.i} (en ${f1(a.s)} m): solo se ve el ${pc(a.frac)} de su altura.` }); rec.push(`Escanear el apoyo ${a.i} de costado, desde una posición con vista hasta su base.`); }
   for (const v of vanos) if (v.tablero < .8 && !huecos.some(h => h.a >= v.a - 1 && h.b <= v.b + 1)) avisos.push({ nivel: 'warn', txt: `Vano ${v.i}: la calzada está cubierta solo en el ${pc(v.tablero)} de su largo.` });
   if (esp != null && esp > .1) avisos.push({ nivel: 'info', txt: `Espaciado típico de puntos en la calzada ≈ ${Math.round(100 * esp)} cm: suficiente para la geometría general, no para medir fisuras ni secciones finas.` });
-  return { s0, bw, deck: Array.from(deck), top: Array.from(top), bajo: Array.from(bajo), alto: Array.from(alto), thr, thrB, extension: [+(s0 + e0 * bw).toFixed(1), +(s0 + (e1 + 1) * bw).toFixed(1)], largo: L, ancho: +ancho.toFixed(1), noRecto: !!(anchoLocal && (tb1 - tb0) > 4 * anchoLocal + 4), desvioEje: +desvio.toFixed(1), anchoLocal: anchoLocal && +anchoLocal.toFixed(1), fracTablero: +fracTop.toFixed(2), fracBajo: +fracBajo.toFixed(2), espaciado: esp && +esp.toFixed(3), origen, huecos, cortes, apoyos, vanos, avisos, recomendaciones: rec };
+  return { s0, bw, deck: Array.from(deck), top: Array.from(top), bajo: Array.from(bajo), alto: Array.from(alto), thr, thrB, extension: [+(s0 + e0 * bw).toFixed(1), +(s0 + (e1 + 1) * bw).toFixed(1)], largo: L, ancho: +ancho.toFixed(1), tb: [+tb0.toFixed(2), +tb1.toFixed(2)], noRecto: !!(anchoLocal && (tb1 - tb0) > 4 * anchoLocal + 4), desvioEje: +desvio.toFixed(1), anchoLocal: anchoLocal && +anchoLocal.toFixed(1), fracTablero: +fracTop.toFixed(2), fracBajo: +fracBajo.toFixed(2), espaciado: esp && +esp.toFixed(3), origen, huecos, cortes, apoyos, vanos, avisos, recomendaciones: rec };
 }
 
 // Superestructura sobre el tablero con la dispersión local de los puntos (miembros lineales frente a follaje)
@@ -1919,6 +1919,166 @@ function compararNubes(OA, OB, dk, gr, supports = [], W = {}) {
   return { solape: +sol0.toFixed(2), icp, dzTerreno: +dzTerreno.toFixed(3), nSuelo, errorRegistro: +(sRef || 0).toFixed(3), nucleos: res.length, sinOtraFecha: sinB, noVistoEnB: res.filter(r => r.noVisto).length, nuevos, noVistoEnA: sinA, lodMediano: lods.length ? +med(lods).toFixed(3) : null, resumen, perfil, cambios, nuevo, quitado, B };
 }
 
+/* ---------- Elementos del puente identificados en la nube (para el gemelo y el modelo IFC) ----------
+   Tablero por vano, pilares (con sus columnas), estribos, arcos bajo el tablero y sus montantes, arco sobre el tablero y sus péndolas,
+   pilonos y sus tirantes, barandas. Cada elemento lleva sus medidas y de dónde salen. Los miembros delgados (péndolas, tirantes,
+   montantes) se cuentan como picos de puntos a lo largo del eje en una franja de altura donde solo ellos cruzan. */
+function elementos(O, dk, gr, supports, opt = {}) {
+  const q = opt.calidad || calidadNube(O, dk, gr, supports); if (!q) return null;
+  const D = opt.dims || dimensiones(O, dk, gr, supports), SS = opt.superestructura || superestructura(O, dk, gr);
+  const deckAt = s => { const k = Math.floor((s - q.s0) / q.bw); return q.deck[Math.max(0, Math.min(q.deck.length - 1, k))]; };
+  /* superficie de la calzada metro a metro: en el centro del ancho (60 %), la capa de 20 cm más alta que cubre a lo ancho (celdas de 0,5 m) al menos la mitad que la capa más extendida de ese metro,
+     buscada entre 1,5 m bajo y 2,5 m sobre el seguimiento grueso del tablero; se suaviza con la mediana de ±3 m. La cobertura a lo ancho separa la calzada
+     de vehículos o postes, y no depende de si el escáner vio más la cara inferior o la superior. */
+  const tdA = q.tb ? q.tb[0] : -Infinity, tdB = q.tb ? q.tb[1] : Infinity, tq0 = tdA + .2 * (tdB - tdA), tq1 = tdB - .2 * (tdB - tdA), nbz = q.deck.length, zb = Array.from({ length: nbz }, () => []);
+  const nct = Math.max(1, Math.ceil((tq1 - tq0) / .5));
+  for (let i = 0; i < O.n; i++) { const t = O.t[i]; if (t < tq0 || t > tq1) continue; const k = Math.floor((O.s[i] - q.s0) / q.bw); if (k < 0 || k >= nbz) continue; const dz = O.z[i] - q.deck[k]; if (dz > -1.5 && dz < 2.5) zb[k].push(i); }
+  const cand = zb.map((v, k) => { if (v.length < 20) return []; const lo = q.deck[k] - 1.5, cel = Array.from({ length: 40 }, () => new Set()), zz = Array.from({ length: 40 }, () => []);
+    for (const i of v) { const j = Math.min(39, Math.floor((O.z[i] - lo) / .1)); cel[j].add(Math.floor((O.t[i] - tq0) / .5)); zz[j].push(O.z[i]); }
+    const cov = cel.map((c, j) => j ? new Set([...c, ...cel[j - 1]]).size : c.size), cmx = Math.max(...cov); if (cmx < 4) return []; const C = [];
+    for (let j = 39; j >= 1; j--) if (cov[j] >= .5 * cmx && cov[j] >= cov[j + 1 < 40 ? j + 1 : j] && (!C.length || C[C.length - 1].j - j > 2)) { const w = zz[j].concat(zz[j - 1]).sort((a, b) => a - b); C.push({ j, z: w[w.length >> 1] }); } return C; });
+  /* una capa es calzada si continúa a lo largo del eje: candidatos de ±10 m a la misma cota (±0,3 m más 6 % de pendiente). Vehículos, árboles o postes son cortos */
+  const zc0 = cand.map((C, k) => { if (!C.length) return null; const R = Math.round(10 / q.bw), sup = C.map(c => { let n = 0; for (let d = -R; d <= R; d++) { const D2 = cand[k + d]; if (!D2 || !D2.length) continue; if (D2.some(x => Math.abs(x.z - c.z) <= .3 + .06 * Math.abs(d * q.bw))) n++; } return n; }), smx = Math.max(...sup);
+    for (let m = 0; m < C.length; m++) if (sup[m] >= .6 * smx) return C[m].z; return C[0].z; });
+  const zcal = zc0.map((_, k) => { const w = []; for (let j = k - 3; j <= k + 3; j++) if (zc0[j] != null) w.push(zc0[j]); if (!w.length) return null; w.sort((a, b) => a - b); return w[w.length >> 1]; });
+  const top = s => { const k = Math.max(0, Math.min(nbz - 1, Math.floor((s - q.s0) / q.bw))); if (zcal[k] != null) return zcal[k]; for (let d = 1; d < nbz; d++) { if (zcal[k - d] != null) return zcal[k - d]; if (zcal[k + d] != null) return zcal[k + d]; } return deckAt(s) + (D && D.calzadaSobreReferencia > .5 ? D.calzadaSobreReferencia : 0); }, canto = D && D.canto ? D.canto : null;
+  const tt = []; for (let i = 0; i < O.n; i += 3) if (Math.abs(O.z[i] - deckAt(O.s[i])) < .4) tt.push(O.t[i]); tt.sort((a, b) => a - b);
+  /* bordes del tablero: el ancho medido solo donde la calzada está elevada (calidadNube); el suelo al mismo nivel junto a los estribos no cuenta */
+  const t0 = q.tb ? q.tb[0] : tt[Math.floor(tt.length * .03)], t1 = q.tb ? q.tb[1] : tt[Math.floor(tt.length * .97)], tm = (t0 + t1) / 2, B = t1 - t0;
+  const sp = supports.slice().sort((a, b) => a.a - b.a), mid = p => (p.a + p.b) / 2, E = [], r2 = v => +v.toFixed(2);
+  // picos de puntos a lo largo del eje (celdas de 0,5 m suavizadas) dentro de un filtro; separación mínima entre miembros
+  const picos = (f, a, b, sep) => { const bw = .5, nb = Math.max(1, Math.ceil((b - a) / bw)), h = new Float32Array(nb);
+    for (let i = 0; i < O.n; i++) { const s = O.s[i]; if (s < a || s >= b || !f(i)) continue; h[Math.floor((s - a) / bw)]++; }
+    const g = h.map((_, k) => (h[k - 1] || 0) * .25 + h[k] * .5 + (h[k + 1] || 0) * .25), nz = [...g].filter(v => v > 0).sort((x, y) => x - y); if (nz.length < 3) return [];
+    const thr = Math.max(3, 2 * nz[nz.length >> 1] * .5, .15 * nz[nz.length - 1]), P = [];
+    for (let k = 0; k < nb; k++) if (g[k] >= thr && g[k] >= (g[k - 1] || 0) && g[k] > (g[k + 1] || 0)) { const s = a + (k + .5) * bw; if (P.length && s - P[P.length - 1].s < sep) { if (g[k] > P[P.length - 1].v) P[P.length - 1] = { s, v: g[k] }; } else P.push({ s, v: g[k] }); }
+    return P.map(p => r2(p.s)); };
+  // tablero por vano
+  for (let k = 1; k < sp.length; k++) { const a = sp[k - 1].b, b = sp[k].a; if (b - a < 1) continue; const v = D && D.vanos.find(x => Math.abs(x.a - a) < .5);
+    const sm = (a + b) / 2, perfil = []; for (let s = a; s <= b + 1e-6; s += Math.max(1, (b - a) / 20)) perfil.push([r2(s), r2(top(s))]);
+    E.push({ tipo: 'tablero', id: 'T' + k, vano: k, a: r2(a), b: r2(b), luz: r2(b - a), ancho: r2(B), t0: r2(t0), t1: r2(t1), canto: v && v.canto != null ? v.canto : canto, cota: r2(top(sm)), perfil, fuente: v && v.canto != null ? 'canto medido en este vano' : canto ? 'canto medido (mediana del puente)' : 'canto no visible' }); }
+  // pilares y estribos
+  for (const p of sp) { if (p.tipo === 'pilar') { const d = D && D.pilares.find(x => Math.abs(x.s - mid(p)) < 1.5);
+      E.push({ tipo: 'pilar', id: 'P' + (E.filter(e => e.tipo === 'pilar').length + 1), s: r2(mid(p)), espesor: d && d.espesor != null ? d.espesor : p.b - p.a > .1 ? r2(p.b - p.a) : null, ancho: d && d.ancho != null ? d.ancho : null, columnas: d && d.columnas || 1, anchoColumna: d && d.anchoColumna || null,
+        zBase: r2(gr), zTop: r2(top(mid(p)) - (canto || .5)), inclinacion: d ? d.inclinacion : null, completo: d ? !!d.completo : false, fuente: d && d.espesor != null ? 'fuste medido' : 'caras del apoyo' }); }
+    else E.push({ tipo: 'estribo', id: 'E' + (E.filter(e => e.tipo === 'estribo').length + 1), s: r2(mid(p)), espesor: r2(Math.max(1, p.b - p.a)), ancho: r2(B), zBase: r2(gr), zTop: r2(top(mid(p))) }); }
+  // arcos bajo el tablero (vanos de arco) y sus montantes
+  const ARC = opt.arcos || []; ARC.forEach((A, k) => { if (!A || !A.coef) return; const zA = s => polyval(A.coef, s), cr = (A.a + A.b) / 2; let zc = -Infinity, sc = cr; for (let s = A.a; s <= A.b; s += .5) if (zA(s) > zc) { zc = zA(s); sc = s; }
+    const mont = picos(i => { const s = O.s[i], z = O.z[i], t = O.t[i]; if (t < t0 - 1 || t > t1 + 1) return false; const za = zA(s), zd = top(s) - (canto || .5) - .3; return zd - za > 1.5 && z > za + .8 && z < zd; }, A.a + 1, A.b - 1, 1.5);
+    E.push({ tipo: 'arco', id: 'A' + (k + 1), a: r2(A.a), b: r2(A.b), luz: r2(A.b - A.a), flecha: r2(zc - Math.min(zA(A.a), zA(A.b))), coef: A.coef.map(c => +c.toPrecision(8)), zClave: r2(zc), ancho: r2(B), montantes: mont }); });
+  /* vanos de arco sin tablero propio (el primer o último apoyo del arco no quedó entre los apoyos): se agrega el tablero sobre ese arco */
+  for (const A of E.filter(e => e.tipo === 'arco')) if (!E.some(e => e.tipo === 'tablero' && Math.min(e.b, A.b) - Math.max(e.a, A.a) > .5 * A.luz)) { const perfil = []; for (let s = A.a; s <= A.b + 1e-6; s += Math.max(1, A.luz / 20)) perfil.push([r2(s), r2(top(s))]);
+    E.push({ tipo: 'tablero', id: 'T' + A.id, vano: 'arco ' + A.id, a: A.a, b: A.b, luz: A.luz, ancho: r2(B), t0: r2(t0), t1: r2(t1), canto, cota: r2(top((A.a + A.b) / 2)), perfil, fuente: canto ? 'canto medido (mediana del puente)' : 'canto no visible' }); }
+  // superestructura sobre la calzada
+  for (const g of SS || []) {
+    if (g.tipo === 'arco_superior' && g.luzArco) { const la = g.luzArco, c = (la.a + la.b) / 2, h = la.L / 2, zA = s => top(s) + la.flecha * (1 - ((s - c) / h) ** 2);
+      const lados = [[t0 - 2, tm], [tm, t1 + 2]].map(([u0, u1]) => { let n = 0, st = 0; for (let i = 0; i < O.n; i++) { const s = O.s[i], t = O.t[i]; if (t < u0 || t > u1 || s < c - h / 2 || s > c + h / 2) continue; if (O.z[i] > top(s) + .6 * la.flecha) { n++; st += t; } } return n > 50 ? r2(st / n) : null; }).filter(v => v != null);
+      const pend = picos(i => { const s = O.s[i], z = O.z[i], t = O.t[i], hz = zA(s) - top(s); if (t < t0 - 2 || t > t1 + 2 || hz < 5) return false; return z > top(s) + 2.5 && z < top(s) + .6 * hz; }, la.a + 2, la.b - 2, 2.5);
+      E.push({ tipo: 'arco_superior', id: 'AS1', a: r2(la.a), b: r2(la.b), luz: r2(la.L), flecha: r2(la.flecha), nervios: lados.length || 1, tNervios: lados, pendolas: pend, apoyos: la.apoyos || null }); }
+    if (g.tipo === 'atirantado') for (const m of g.pilonos) { const H = m.h, zt = top(m.s), tir = [];
+      /* cortes horizontales a 25, 45 y 65 % de la altura del pilono; por lado se queda el corte con más cruces (los tirantes en abanico se separan mejor abajo) */
+      for (const lado of [-1, 1]) { const a = lado < 0 ? m.s - 3 * H : m.s + 1.5, b = lado < 0 ? m.s - 1.5 : m.s + 3 * H; let mejor = { cr: [], f: .45 };
+        for (const f of [.25, .45, .65]) { const zc = zt + f * H, cr = picos(i => Math.abs(O.z[i] - zc) < .6 && O.t[i] > t0 - 2 && O.t[i] < t1 + 2, a, b, 1.5); if (cr.length > mejor.cr.length) mejor = { cr, f }; }
+        for (const sc of mejor.cr) tir.push({ lado: lado < 0 ? 'izquierdo' : 'derecho', cruce: sc, corte: mejor.f, anclaje: r2(m.s + (sc - m.s) / (1 - mejor.f)) }); }
+      E.push({ tipo: 'pilono', id: 'PL' + (E.filter(e => e.tipo === 'pilono').length + 1), s: r2(m.s), altura: r2(H), zBase: r2(gr), zTop: r2(zt + H), tirantes: tir }); } }
+  /* barandas: en cada metro se buscan los bordes de la calzada (puntos a ±0,25 m de su superficie) y, junto a cada borde, puntos 0,3–2,8 m más arriba.
+     Hay baranda si aparece en ≥ 50 % de los metros con borde visto; altura = mediana por metro del percentil 95 (postes de luz o árboles aislados no la mueven) */
+  const L0 = sp.length ? sp[0].a : q.extension[0], L1 = sp.length ? sp[sp.length - 1].b : q.extension[1], nm = Math.max(1, Math.ceil(L1 - L0)), cz = Array.from({ length: nm }, () => []);
+  for (let i = 0; i < O.n; i++) { const s = O.s[i]; if (s < L0 || s >= L1) continue; if (Math.abs(O.z[i] - top(s)) < .25) cz[Math.floor(s - L0)].push(O.t[i]); }
+  const bord = cz.map(v => { if (v.length < 10) return null; v.sort((a, b) => a - b); return [v[Math.floor(v.length * .02)], v[Math.floor(v.length * .98)]]; });
+  const hb = [0, 1].map(() => Array.from({ length: nm }, () => []));
+  for (let i = 0; i < O.n; i++) { const s = O.s[i]; if (s < L0 || s >= L1) continue; const k = Math.floor(s - L0), e = bord[k]; if (!e) continue; const h = O.z[i] - top(s); if (h < .3 || h > 2.8) continue; const t = O.t[i];
+    if (t > e[0] - 1 && t < e[0] + 1.2) hb[0][k].push(h); else if (t < e[1] + 1 && t > e[1] - 1.2) hb[1][k].push(h); }
+  const nVis = bord.filter(Boolean).length;
+  ['izquierda', 'derecha'].forEach((lado, w) => { const ph = hb[w].filter(v => v.length >= 3).map(v => { v.sort((a, b) => a - b); return v[Math.floor(v.length * .95)]; }), cob = ph.length / Math.max(1, nVis);
+    if (nVis >= 5 && cob >= .5) { ph.sort((a, b) => a - b); const tb = bord.filter(Boolean).map(e => e[w]).sort((a, b) => a - b); E.push({ tipo: 'baranda', id: 'B' + (w + 1), lado, t: r2(tb[tb.length >> 1]), a: r2(L0), b: r2(L1), altura: r2(ph[ph.length >> 1]), cobertura: r2(cob) }); } });
+  return { elementos: E, marco: { t0: r2(t0), t1: r2(t1), ancho: r2(B) }, calzada: { s0: q.s0, bw: q.bw, z: zcal.map(v => v == null ? null : r2(v)) } };
+}
+
+/* (s,t,z) del marco del puente -> coordenadas absolutas del archivo original (deshace sesgo, giro, intercambio de ejes y escala) */
+function alMundo(O, s, t, z, curvo) { const tr = O.tr, sk = O.skew; if (sk && sk.phi) s = s + (t - sk.tm) * Math.tan(sk.phi * Math.PI / 180); const W = [0, 0, 0];
+  if (!tr || curvo) return [s, t, z]; const S = s / tr.scale, T = t / tr.scale;
+  if (tr.snap === 0) { W[tr.ih[0]] = S; W[tr.ih[1]] = T; } else if (tr.snap === 1) { W[tr.ih[1]] = S; W[tr.ih[0]] = T; }
+  else { const s2 = (s + tr.smin) / tr.scale, da = s2 * tr.u[0] - T * tr.u[1], db = s2 * tr.u[1] + T * tr.u[0]; W[tr.ih[0]] = da + tr.mx + tr.offset[tr.ih[0]]; W[tr.ih[1]] = db + tr.my + tr.offset[tr.ih[1]]; }
+  W[tr.iu] = z / tr.scale; return W; }
+/* ---------- Modelo IFC (IFC4X3) de los elementos identificados ----------
+   Escribe un archivo STEP con IfcProject > IfcSite > IfcBridge y un objeto por elemento (tablero, pilares, estribos, arcos, péndolas,
+   montantes, pilono, tirantes, barandas). Cada uno lleva el conjunto de propiedades «Pset_PuenteGemelo_Medido» con lo que salió de la nube
+   y, cuando una sección no se pudo medir, lo dice. Las coordenadas vuelven al sistema del archivo original (deshaciendo giro, sesgo y escala);
+   el modelo queda alrededor de un origen redondeado y IfcMapConversion guarda ese origen. */
+function exportarIFC(R, O, opt = {}) {
+  if (!R || !R.elementos) return null; const tr = O.tr, sk = O.skew, curvo = !!opt.curvo || !!O.curvo;
+  const mundo = (s, t, z) => alMundo(O, s, t, z, curvo);
+  const E = R.elementos, m = R.marco, tm = (m.t0 + m.t1) / 2, sc = mundo(E.length ? (Math.min(...E.map(e => e.a != null ? e.a : e.s)) + Math.max(...E.map(e => e.b != null ? e.b : e.s))) / 2 : 0, tm, 0);
+  const org = sc.map((v, k) => k === (tr ? tr.iu : 2) ? 0 : Math.round(v / 10) * 10);
+  const P = (s, t, z) => { const w = mundo(s, t, z); return [w[0] - org[0], w[1] - org[1], w[2] - org[2]]; };
+  const dir = (p, q) => { const d = [q[0] - p[0], q[1] - p[1], q[2] - p[2]], L = Math.hypot(...d) || 1; return d.map(v => v / L); };
+  const L = [], id = () => L.length + 1, add = x => { L.push(x); return '#' + L.length; }, f = v => { const x = (+v).toFixed(4).replace(/0+$/, ''); return x.endsWith('.') ? x : x.includes('.') ? x : x + '.'; };
+  const str = v => "'" + String(v).replace(/\\/g, '\\\\').replace(/'/g, "''").replace(/[^\x20-\x7e]/g, c => '\\X2\\' + c.charCodeAt(0).toString(16).toUpperCase().padStart(4, '0') + '\\X0\\') + "'";
+  const B64 = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz_$';
+  const guid = () => { const b = new Uint8Array(16); for (let i = 0; i < 16; i++) b[i] = Math.floor(Math.random() * 256); b[6] = (b[6] & 15) | 64; b[8] = (b[8] & 63) | 128;
+    let n = 0n; for (const x of b) n = (n << 8n) | BigInt(x); let s = ''; for (let i = 0; i < 22; i++) { s = B64[Number(n & 63n)] + s; n >>= 6n; } return "'" + s + "'"; };
+  const pt = p => add(`IFCCARTESIANPOINT((${p.map(f).join(',')}))`), dr = d => add(`IFCDIRECTION((${d.map(f).join(',')}))`);
+  const ax = (o, z, x) => add(`IFCAXIS2PLACEMENT3D(${pt(o)},${z ? dr(z) : '$'},${x ? dr(x) : '$'})`);
+  const perp = (z, h) => { const d = h[0] * z[0] + h[1] * z[1] + h[2] * z[2], x = [h[0] - d * z[0], h[1] - d * z[1], h[2] - d * z[2]], n = Math.hypot(...x); return n > 1e-6 ? x.map(v => v / n) : (Math.abs(z[2]) < .9 ? [0, 0, 1] : [1, 0, 0]); };
+  // dirección "a lo ancho" del puente en el mundo
+  const eT = dir(P(0, 0, 0), P(0, 1, 0)), eZ = dir(P(0, 0, 0), P(0, 0, 1));
+  // header + contexto
+  const H = [];
+  add(`IFCPERSON($,${str(opt.autor || 'PuenteGemelo')},$,$,$,$,$,$)`);
+  const uL = add("IFCSIUNIT(*,.LENGTHUNIT.,$,.METRE.)"), uA = add("IFCSIUNIT(*,.AREAUNIT.,$,.SQUARE_METRE.)"), uV = add("IFCSIUNIT(*,.VOLUMEUNIT.,$,.CUBIC_METRE.)"), uR = add("IFCSIUNIT(*,.PLANEANGLEUNIT.,$,.RADIAN.)");
+  const ua = add(`IFCUNITASSIGNMENT((${uL},${uA},${uV},${uR}))`);
+  const ctx = add(`IFCGEOMETRICREPRESENTATIONCONTEXT($,'Model',3,1.E-05,${ax([0, 0, 0], null, null)},$)`);
+  const body = add(`IFCGEOMETRICREPRESENTATIONSUBCONTEXT('Body','Model',*,*,*,*,${ctx},$,.MODEL_VIEW.,$)`);
+  const proj = add(`IFCPROJECT(${guid()},$,${str(opt.proyecto || 'Gemelo digital del puente')},${str('Elementos identificados en la nube de puntos por PuenteGemelo ' + (opt.version || ''))},$,$,$,(${ctx}),${ua})`);
+  if (opt.georef !== false && !curvo && tr) { const crs = add(`IFCPROJECTEDCRS(${str(opt.crs || 'CRS del archivo de nube (no declarado)')},$,$,$,$,$,$)`);
+    add(`IFCMAPCONVERSION(${ctx},${crs},${f(org[0])},${f(org[1])},${f(org[2])},$,$,$,$,$)`); }
+  const site = add(`IFCSITE(${guid()},$,'Sitio',$,$,${add(`IFCLOCALPLACEMENT($,${ax([0, 0, 0], null, null)})`)},$,$,.ELEMENT.,$,$,$,$,$)`);
+  const brP = add(`IFCLOCALPLACEMENT($,${ax([0, 0, 0], null, null)})`);
+  const bridge = add(`IFCBRIDGE(${guid()},$,${str(opt.nombre || 'Puente')},${str(opt.tipo ? 'Tipología sugerida: ' + opt.tipo : '')},$,${brP},$,$,.ELEMENT.,.${opt.tipoIFC || 'NOTDEFINED'}.)`);
+  add(`IFCRELAGGREGATES(${guid()},$,$,$,${proj},(${site}))`); add(`IFCRELAGGREGATES(${guid()},$,$,$,${site},(${bridge}))`);
+  // sólidos
+  const caja = (o, ez, ex, dx, dy, h) => add(`IFCEXTRUDEDAREASOLID(${add(`IFCRECTANGLEPROFILEDEF(.AREA.,$,$,${f(Math.max(dx, .01))},${f(Math.max(dy, .01))})`)},${ax(o, ez, perp(ez, ex))},${dr([0, 0, 1])},${f(Math.max(h, .01))})`);
+  const tubo = (pts, r) => add(`IFCSWEPTDISKSOLID(${add(`IFCPOLYLINE((${pts.map(pt).join(',')}))`)},${f(r)},$,$,$)`);
+  const prods = [];
+  const objeto = (cls, nombre, tipo, solidos, props, rtype) => { const rep = add(`IFCSHAPEREPRESENTATION(${body},'Body',${str(rtype || 'SweptSolid')},(${solidos.join(',')}))`);
+    const pr = add(`IFCPRODUCTDEFINITIONSHAPE($,$,(${rep}))`), pl = add(`IFCLOCALPLACEMENT(${brP},${ax([0, 0, 0], null, null)})`);
+    const [pt_, ot] = tipo.includes(':') ? ['USERDEFINED', tipo.split(':')[1]] : [tipo, null];
+    const o = add(`${cls}(${guid()},$,${str(nombre)},$,${ot ? str(ot) : '$'},${pl},${pr},$,${cls === 'IFCELEMENTASSEMBLY' ? '$,' : ''}.${pt_}.)`); prods.push(o);
+    const vals = Object.entries(props).filter(([, v]) => v != null && v !== '').map(([k, v]) => add(`IFCPROPERTYSINGLEVALUE(${str(k)},$,${typeof v === 'number' ? (Number.isInteger(v) && !/m$|altura|ancho|espesor|canto|luz|flecha|cota|cobertura/i.test(k) ? `IFCINTEGER(${v})` : `IFCREAL(${f(v)})`) : typeof v === 'boolean' ? `IFCBOOLEAN(.${v ? 'T' : 'F'}.)` : `IFCTEXT(${str(v)})`},$)`));
+    if (vals.length) { const ps = add(`IFCPROPERTYSET(${guid()},$,'Pset_PuenteGemelo_Medido',$,(${vals.join(',')}))`); add(`IFCRELDEFINESBYPROPERTIES(${guid()},$,$,$,(${o}),${ps})`); }
+    return o; };
+  const tops = {}; for (const e of E) if (e.tipo === 'tablero') tops[e.id] = e;
+  const zTopAt = s => { const T = E.find(e => e.tipo === 'tablero' && s >= e.a - .5 && s <= e.b + .5) || E.find(e => e.tipo === 'tablero'); if (!T) return 0; let best = T.perfil[0]; for (const p of T.perfil) if (Math.abs(p[0] - s) < Math.abs(best[0] - s)) best = p; return best[1]; };
+  const nota = 'sección no medida en la nube: radio simbólico';
+  for (const e of E) {
+    if (e.tipo === 'tablero') { const c = e.canto || .5, sols = [];
+      for (let k = 1; k < e.perfil.length; k++) { const [s0, z0] = e.perfil[k - 1], [s1, z1] = e.perfil[k], p0 = P(s0, tm, z0 - c / 2), p1 = P(s1, tm, z1 - c / 2), d = dir(p0, p1), Lg = Math.hypot(p1[0] - p0[0], p1[1] - p0[1], p1[2] - p0[2]); sols.push(caja(p0, d, eT, e.ancho, c, Lg)); }
+      objeto('IFCSLAB', 'Tablero vano ' + e.vano, 'USERDEFINED:Tablero', sols, { Luz: e.luz, Ancho: e.ancho, Canto: e.canto, CantoFuente: e.fuente, CotaCalzada: e.cota, InicioEje_m: e.a, FinEje_m: e.b, Nota: e.canto ? null : 'canto no visible: se dibuja con 0,5 m' }); }
+    else if (e.tipo === 'pilar') { const h = e.zTop - e.zBase, n = e.columnas || 1, an = e.ancho || e.espesor || 1, wc = n > 1 && e.anchoColumna ? e.anchoColumna : an / n, sols = [];
+      for (let k = 0; k < n; k++) { const t = n > 1 ? tm - an / 2 + wc / 2 + k * (an - wc) / (n - 1) : tm; sols.push(caja(P(e.s, t, e.zBase), eZ, eT, wc, Math.max(e.espesor || .5, .1), h)); }
+      objeto('IFCCOLUMN', 'Pilar ' + e.id, 'PIERSTEM', sols, { Espesor: e.espesor, Ancho: e.ancho, Columnas: n, AnchoColumna: e.anchoColumna, Altura: +h.toFixed(2), Inclinacion_grados: e.inclinacion, VistoCompleto: e.completo, PosicionEje_m: e.s, Fuente: e.fuente, Nota: e.ancho ? null : 'ancho no medido: se dibuja igual al espesor' }); }
+    else if (e.tipo === 'estribo') objeto('IFCELEMENTASSEMBLY', 'Estribo ' + e.id, 'ABUTMENT', [caja(P(e.s, tm, e.zBase), eZ, eT, e.ancho, e.espesor, e.zTop - e.zBase)], { PosicionEje_m: e.s, Ancho: e.ancho, Altura: +(e.zTop - e.zBase).toFixed(2), Nota: 'espesor y fondo del estribo no se miden: caja de referencia de 1 m' }, 'SweptSolid');
+    else if (e.tipo === 'arco') { const zA = s => polyval(e.coef, s), pts = []; for (let k = 0; k <= 24; k++) { const s = e.a + (e.b - e.a) * k / 24; pts.push(P(s, tm, zA(s))); }
+      objeto('IFCMEMBER', 'Arco ' + e.id, 'ARCH_SEGMENT', [tubo(pts, .3)], { Luz: e.luz, Flecha: e.flecha, CotaClave: e.zClave, Ancho: e.ancho, Montantes: e.montantes.length, Nota: 'intradós ajustado a la nube; ' + nota }, 'AdvancedSweptSolid');
+      for (const s of e.montantes) { const z0 = zA(s), z1 = zTopAt(s) - .5; if (z1 - z0 > .3) objeto('IFCMEMBER', 'Montante ' + e.id + ' s=' + s, 'POST', [tubo([P(s, tm, z0), P(s, tm, z1)], .1)], { PosicionEje_m: s, Largo: +(z1 - z0).toFixed(2), Nota: nota }, 'AdvancedSweptSolid'); } }
+    else if (e.tipo === 'arco_superior') { const c = (e.a + e.b) / 2, h = e.luz / 2, zA = s => zTopAt(s) + e.flecha * (1 - ((s - c) / h) ** 2), ts = e.tNervios && e.tNervios.length ? e.tNervios : [tm];
+      for (const [k, t] of ts.entries()) { const pts = []; for (let j = 0; j <= 30; j++) { const s = e.a + (e.b - e.a) * j / 30; pts.push(P(s, t, zA(s))); }
+        objeto('IFCMEMBER', 'Arco superior nervio ' + (k + 1), 'ARCH_SEGMENT', [tubo(pts, .5)], { Luz: e.luz, Flecha: e.flecha, Pendolas: e.pendolas.length, Nota: 'parábola ajustada a la nube; ' + nota }, 'AdvancedSweptSolid');
+        for (const s of e.pendolas) objeto('IFCMEMBER', 'Péndola nervio ' + (k + 1) + ' s=' + s, 'USERDEFINED:Péndola', [tubo([P(s, t, zTopAt(s)), P(s, t, zA(s))], .05)], { PosicionEje_m: s, Nota: nota }, 'AdvancedSweptSolid'); } }
+    else if (e.tipo === 'pilono') { const zt = e.zTop, zd = zTopAt(e.s);
+      objeto('IFCCOLUMN', 'Pilono ' + e.id, 'USERDEFINED:Pilono', [tubo([P(e.s, tm, e.zBase), P(e.s, tm, zt)], 1)], { PosicionEje_m: e.s, AlturaSobreTablero: e.altura, Tirantes: e.tirantes.length, Nota: nota }, 'AdvancedSweptSolid');
+      for (const c of e.tirantes) objeto('IFCMEMBER', 'Tirante ' + c.lado + ' anclaje s=' + c.anclaje, 'STAY_CABLE', [tubo([P(c.anclaje, tm, zTopAt(c.anclaje)), P(e.s, tm, zt)], .1)], { Lado: c.lado, AnclajeTablero_m: c.anclaje, Cruce_m: c.cruce, Nota: 'recta del tope del pilono al anclaje estimado; ' + nota }, 'AdvancedSweptSolid'); }
+    else if (e.tipo === 'baranda') { const sols = [], N = Math.max(1, Math.ceil((e.b - e.a) / 20));
+      for (let k = 0; k < N; k++) { const s0 = e.a + (e.b - e.a) * k / N, s1 = e.a + (e.b - e.a) * (k + 1) / N, p0 = P(s0, e.t, zTopAt(s0)), p1 = P(s1, e.t, zTopAt(s1)); sols.push(caja([p0[0] + eZ[0] * e.altura / 2, p0[1] + eZ[1] * e.altura / 2, p0[2] + eZ[2] * e.altura / 2], dir(p0, p1), eT, .1, e.altura, Math.hypot(p1[0] - p0[0], p1[1] - p0[1], p1[2] - p0[2]))); }
+      objeto('IFCRAILING', 'Baranda ' + e.lado, 'GUARDRAIL', sols, { Lado: e.lado, Altura: e.altura, Cobertura: e.cobertura, Nota: 'espesor de 0,1 m de referencia (no medido)' }); }
+  }
+  if (prods.length) add(`IFCRELCONTAINEDINSPATIALSTRUCTURE(${guid()},$,$,$,(${prods.join(',')}),${bridge})`);
+  const now = new Date().toISOString().slice(0, 19);
+  return ['ISO-10303-21;', 'HEADER;', "FILE_DESCRIPTION(('ViewDefinition [ReferenceView]'),'2;1');", `FILE_NAME(${str((opt.nombre || 'puente') + '.ifc')},'${now}',(${str(opt.autor || '')}),(''),'PuenteGemelo','PuenteGemelo ${opt.version || ''}','');`, "FILE_SCHEMA(('IFC4X3_ADD2'));", 'ENDSEC;', 'DATA;',
+    ...L.map((x, i) => '#' + (i + 1) + '=' + x + ';'), 'ENDSEC;', 'END-ISO-10303-21;', ''].join('\n');
+}
+
 // Puente combinado: tramos con distinto sistema a lo largo del eje (atirantado, arco sobre el tablero, armadura, tramos apoyados en pilares).
 // Cada sistema ocupa lo que alcanzan sus elementos (cables de cada pilono, raíces o pilas del arco, cordones de la armadura); el resto del tablero
 // entre los apoyos extremos son tramos apoyados, con los vanos que marcan los apoyos.
@@ -1957,7 +2117,7 @@ function apoyosArco(O, dk, gr, la, W = { R: 15, BW: 2, NB: 10, NMIN: 150, VERT: 
   const a = uno(la.a), b = uno(la.b); return a != null && b != null ? { a: +a.toFixed(1), b: +b.toFixed(1), L: +(b - a).toFixed(1) } : null;
 }
 
-return { compararNubes, orientarComo, atributosNube, subCloud, ATR, dimensiones, ejeCurvo, ejePoli, desenrollar, ejeAuto, composicion, calidadNube, supra, superestructura, apoyosArco, gapProfile, gapEnds, estribosHueco, GAP_W, hipotesis, clearanceProfile, iaEstribos, HIP_W, EST_W, iaFeatures, iaPredict, iaClusters, iaRefine, IA_NAMES, IA_REGLA, fftInPlace, detrend, csdMatrix, fdd, efdd, fddModes, pickPeaks, staticPrep, fiberStress, influence, HL93, hl93Extremes, liveLoad, CS_WF, pTrans, markovStep, elemHI, bridgeHI, calibrateAlpha, maintenancePlan, Dxf, bridgePlans, sensorsOf, readAccel, sdof, spectrum, seismic, freqCampaign, setConcMin, suggestType, applySkew, coherence, f1Band, geomSigmas, perturbGeom, archRise, peakCampaign, csdAverage, calibrateModel, nelderMead, trainFreqIA, trainVecIA, trainModalIA, modalFeat, modalMeasFeat, modalMeasFeatBase, freqPredict, build, modal, archAll, parseCloud, orient, bounds, deckLevel, groundLevel, detectSupports, spansOf, envelope, fitParabola, polyval, archGeometry, spanCoverage, MATERIALS,
+return { alMundo, exportarIFC, elementos, compararNubes, orientarComo, atributosNube, subCloud, ATR, dimensiones, ejeCurvo, ejePoli, desenrollar, ejeAuto, composicion, calidadNube, supra, superestructura, apoyosArco, gapProfile, gapEnds, estribosHueco, GAP_W, hipotesis, clearanceProfile, iaEstribos, HIP_W, EST_W, iaFeatures, iaPredict, iaClusters, iaRefine, IA_NAMES, IA_REGLA, fftInPlace, detrend, csdMatrix, fdd, efdd, fddModes, pickPeaks, staticPrep, fiberStress, influence, HL93, hl93Extremes, liveLoad, CS_WF, pTrans, markovStep, elemHI, bridgeHI, calibrateAlpha, maintenancePlan, Dxf, bridgePlans, sensorsOf, readAccel, sdof, spectrum, seismic, freqCampaign, setConcMin, suggestType, applySkew, coherence, f1Band, geomSigmas, perturbGeom, archRise, peakCampaign, csdAverage, calibrateModel, nelderMead, trainFreqIA, trainVecIA, trainModalIA, modalFeat, modalMeasFeat, modalMeasFeatBase, freqPredict, build, modal, archAll, parseCloud, orient, bounds, deckLevel, groundLevel, detectSupports, spansOf, envelope, fitParabola, polyval, archGeometry, spanCoverage, MATERIALS,
   build, sensorsOf, modal, signConvention, features, campaign, trainIA, forestPredict, LEVELS, noisy, mulberry, gaussR, quantile, median };
 })();
 if (typeof module !== 'undefined') module.exports = OPC;

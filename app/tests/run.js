@@ -167,6 +167,18 @@ ok('Modelo C: 20 zonas de daño (15 de arcos, 3 de tablero y 2 de pilares por so
     const Oq = OPC.orient({ xyz: Float32Array.from(Q), offset: [0, 0, 0], eje: 'x' }, 'z', 1), dkq = OPC.deckLevel(Oq);
     const D = OPC.dimensiones(Oq, dkq, -8, [{ a: -.5, b: .5, tipo: 'estribo' }, { a: 24.5, b: 25.5, tipo: 'pilar' }, { a: 49.5, b: 50.5, tipo: 'estribo' }]), P1 = D && D.pilares[0];
     ok('Dimensiones: canto del tablero 1,2 m y pilar de 1,0 × 5,0 m medidos en la nube', D && Math.abs(D.canto - 1.2) <= .15 && P1 && Math.abs(P1.espesor - 1) <= .15 && Math.abs(P1.ancho - 5) <= .3, D ? `canto ${D.canto} m · pilar ${P1 && P1.espesor} × ${P1 && P1.ancho} m · nivel de referencia ${dkq.toFixed(2)} m` : 'sin medida'); }
+  // Elementos y modelo IFC: tablero de 1,2 m de canto con barandas de 1,1 m en ambos bordes, un pilar de 1,0 × 5,0 m, en una nube girada 30° y
+  // desplazada a coordenadas UTM; se identifican los elementos, se exporta el IFC4X3 y un punto vuelve exacto a las coordenadas del archivo
+  { const Q = [], g = 30 * Math.PI / 180, X0 = 279000, Y0 = 8665000, put = (s0, t, z) => Q.push(s0 * Math.cos(g) - t * Math.sin(g), s0 * Math.sin(g) + t * Math.cos(g), z);
+    for (let s0 = -10; s0 <= 60; s0 += .2) for (let t = -5; t <= 5; t += .25) { put(s0, t, 0); if (s0 >= 0 && s0 <= 50) { put(s0, t, -1.2); put(s0, t + .1, -1.2); } put(s0, t, -8); }
+    for (let s0 = 0; s0 <= 50; s0 += .2) for (let z = .1; z <= 1.1; z += .1) { put(s0, -5, z); put(s0, 5, z); }
+    for (let z = -8; z <= -1.2; z += .1) { for (let t = -2.5; t <= 2.5; t += .1) { put(24.5, t, z); put(25.5, t, z); } for (let s0 = 24.5; s0 <= 25.5; s0 += .1) { put(s0, -2.5, z); put(s0, 2.5, z); } }
+    const c = { xyz: Float32Array.from(Q), offset: [X0, Y0, 3500] }, Oq = OPC.orient(c, 'z', 1), dkq = OPC.deckLevel(Oq), sup = OPC.detectSupports(Oq, dkq, OPC.groundLevel(Oq)).supports;
+    const R = OPC.elementos(Oq, dkq, OPC.groundLevel(Oq), sup), E = R ? R.elementos : [], br = E.filter(e => e.tipo === 'baranda'), pi = E.find(e => e.tipo === 'pilar');
+    const ifc = OPC.exportarIFC(R, Oq, { nombre: 'prueba' }), w = OPC.alMundo(Oq, Oq.s[1234], Oq.t[1234], Oq.z[1234]), err = Math.max(...[0, 1, 2].map(k => Math.abs(w[k] - (c.xyz[3 * 1234 + k] + c.offset[k]))));
+    ok('Elementos: pilar, dos tableros y dos barandas de 1,1 m; IFC4X3 con puente, pilar y barandas; vuelta exacta a coordenadas UTM',
+      pi && E.filter(e => e.tipo === 'tablero').length === 2 && br.length === 2 && br.every(b => Math.abs(b.altura - 1.1) <= .1) && /FILE_SCHEMA\(\('IFC4X3_ADD2'\)\)/.test(ifc) && /IFCBRIDGE\(/.test(ifc) && /IFCCOLUMN\(/.test(ifc) && (ifc.match(/IFCRAILING\(/g) || []).length === 2 && err < .01,
+      `${E.map(e => e.tipo).join(', ')} · barandas ${br.map(b => b.altura).join(' y ')} m · IFC ${(ifc.length / 1024).toFixed(0)} kB · error de vuelta ${(err * 1000).toFixed(1)} mm`); }
   // Atributos: un PLY binario con color e intensidad se lee con sus atributos; en la calzada, una mancha de 3 m con intensidad 40 % menor
   // se marca como zona a revisar, y un arbusto verde junto al pilar se reconoce como vegetación (la estructura gris no)
   PEND.push((async () => { const P = [], at = []; const add = (s0, t, z, I, r, g, b) => { P.push(s0, t, z); at.push([I, r, g, b]); };
