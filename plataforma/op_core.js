@@ -1663,6 +1663,76 @@ function ejeAuto(O, dk, forzar = false) {
   return best;
 }
 
+/* ---------- Dimensiones de los elementos medidas en la nube ----------
+   Pilares: espesor a lo largo del eje, ancho transversal, número de columnas, altura e inclinación.
+   Tablero: canto (de la calzada al fondo de la sección), por vano, solo donde se ve la cara inferior. */
+function dimensiones(O, dk, gr, supports, W = {}) {
+  W = Object.assign({ HUECO: 1, BW: 1 }, W);
+  const q = calidadNube(O, dk, gr, supports); if (!q) return null;
+  const deckAt0 = s => { const k = Math.floor((s - q.s0) / q.bw); return q.deck[Math.max(0, Math.min(q.deck.length - 1, k))]; };
+  // superficie de la calzada: la capa horizontal MÁS ALTA y extensa (no la más poblada). En un escaneo desde abajo la capa más poblada
+  // suele ser la cara inferior del tablero; la calzada queda encima. Por celda de 1 m: capas de 0,2 m con ≥ 20 % de la más poblada
+  // que cubran al menos la mitad del ancho; se toma la más alta entre −1 y +4 m del nivel de referencia, y se suaviza (mediana ±5 m).
+  const nq = q.deck.length, Lz = Array.from({ length: nq }, () => new Map());
+  { const tb = []; for (let i = 0; i < O.n; i++) if (Math.abs(O.z[i] - deckAt0(O.s[i])) < .5) tb.push(O.t[i]); tb.sort((a, b) => a - b); var u0 = tb[Math.floor(tb.length * .03)], u1 = tb[Math.floor(tb.length * .97)]; }
+  for (let i = 0; i < O.n; i++) { const t = O.t[i]; if (t < u0 || t > u1) continue; const k = Math.floor((O.s[i] - q.s0) / q.bw); if (k < 0 || k >= nq) continue; const h = O.z[i] - q.deck[k]; if (h < -1 || h > 4) continue;
+    const L = Math.floor(h / .2), m = Lz[k]; let c = m.get(L); if (!c) m.set(L, c = { n: 0, t: new Set() }); c.n++; c.t.add(Math.floor((t - u0) / .5)); }
+  const top0 = new Float32Array(nq).fill(NaN); for (let k = 0; k < nq; k++) { let mx = 0; for (const c of Lz[k].values()) mx = Math.max(mx, c.n); let best = null;
+    for (const [L, c] of Lz[k]) { if (c.n < .2 * mx || c.n < 5) continue; if (c.t.size < .5 * Math.ceil((u1 - u0) / .5)) continue; /* la calzada ocupa todo el ancho; una baranda, solo los bordes */ if (best == null || L > best) best = L; }
+    if (best != null) top0[k] = q.deck[k] + (best + .5) * .2; }
+  const topS = new Float32Array(nq); for (let k = 0; k < nq; k++) { const v = []; for (let j = k - 5; j <= k + 5; j++) if (top0[j] === top0[j]) v.push(top0[j]); v.sort((a, b) => a - b); topS[k] = v.length ? v[v.length >> 1] : q.deck[k]; }
+  const deckAt = s => { const k = Math.floor((s - q.s0) / q.bw); return topS[Math.max(0, Math.min(nq - 1, k))]; };
+  const tt = []; for (let i = 0; i < O.n; i++) if (Math.abs(O.z[i] - deckAt(O.s[i])) < .5) tt.push(O.t[i]); tt.sort((a, b) => a - b);
+  const tm = tt[tt.length >> 1], t0 = tt[Math.floor(tt.length * .03)], t1 = tt[Math.floor(tt.length * .97)], B = t1 - t0;
+  const sp = supports.slice().sort((a, b) => a.a - b.a), pct = (v, p) => v[Math.min(v.length - 1, Math.max(0, Math.floor(p * (v.length - 1))))];
+  // canto del tablero: por celda de 1 m del eje (lejos de los apoyos), en todo el ancho: de la calzada al borde superior del mayor hueco vertical (≥ 1 m)
+  const nb = Math.ceil((q.s0 + q.deck.length * q.bw - q.s0) / W.BW), cel = new Map();
+  for (let i = 0; i < O.n; i++) { const s = O.s[i], t = O.t[i]; if (t < t0 || t > t1) continue; if (sp.some(p => s > p.a - 3 && s < p.b + 3)) continue; const zs = deckAt(s), z = O.z[i]; if (z > zs + .3 || z < zs - 15 || z < gr - 1) continue; /* el terreno entra: el mayor hueco es el espacio libre */
+    const k = Math.floor((s - q.s0) / W.BW) * 4096; let v = cel.get(k); if (!v) cel.set(k, v = []); v.push(z); }
+  const canto = []; // [s, profundidad]
+  for (const [k, v] of cel) { if (v.length < 6) continue; v.sort((a, b) => b - a); const s = q.s0 + (Math.floor(k / 4096) + .5) * W.BW, zs = deckAt(s); if (v[0] < zs - .3) continue; // la celda debe tener calzada
+    // el fondo de la sección está sobre el MAYOR hueco vertical (el espacio libre bajo el puente), no sobre el primero: entre vigas,
+    // o en almas vistas de lejos, hay huecos menores que no son el fondo
+    let fondo = null, gmax = 0; for (let j = 1; j < v.length; j++) { const g = v[j - 1] - v[j]; if (g > gmax) { gmax = g; fondo = v[j - 1]; } } if (gmax < W.HUECO) fondo = null;
+    if (fondo == null || zs - fondo < .15) continue; // sin hueco, o el hueco empieza bajo la calzada misma: no se ve la sección
+    canto.push([s, zs - fondo]); }
+  // por bin de eje: el canto mayor de las franjas (el fondo de las vigas, no solo la losa)
+  const porS = new Map(); for (const [s, d] of canto) { const k = Math.floor(s); porS.set(k, Math.max(porS.get(k) || 0, d)); }
+  const cs = [...porS.values()].sort((a, b) => a - b), cantoMed = cs.length >= 5 ? pct(cs, .5) : null;
+  const vanos = []; for (let k = 1; k < sp.length; k++) { const a = sp[k - 1].b, b = sp[k].a, v = [...porS].filter(([s]) => s >= a && s <= b).map(x => x[1]).sort((x, y) => x - y); vanos.push({ i: k, a: +a.toFixed(1), b: +b.toFixed(1), canto: v.length >= 5 ? +pct(v, .5).toFixed(2) : null, n: v.length }); }
+  // pilares
+  // pilares: celdas de 0,25 × 0,25 m en planta con puntos en muchos niveles entre el terreno y el fondo del tablero (un fuste es continuo en altura;
+  // el terreno, la vegetación baja o el talud no)
+  const hTab = cantoMed || .5, pil = sp.filter(p => p.tipo === 'pilar').map((p, i) => {
+    const sc = (p.a + p.b) / 2, zt = deckAt(sc) - hTab - .3, idx = []; let zg = Infinity;
+    for (let j = 0; j < O.n; j++) { const s = O.s[j]; if (s < p.a - 2 || s > p.b + 2) continue; const t = O.t[j]; if (t < t0 - 3 || t > t1 + 3) continue; if (O.z[j] < zg) zg = O.z[j]; if (O.z[j] <= zt) idx.push(j); }
+    const z0 = Math.max(gr, zg) + .5, nl = Math.max(2, Math.floor((zt - z0) / .5)); if (zt - z0 < 1 || idx.length < 30) return { i: i + 1, s: +sc.toFixed(1), n: idx.length };
+    const C = new Map(); for (const j of idx) { const z = O.z[j]; if (z < z0) continue; const k = Math.floor(O.s[j] / .25) * 1e6 + Math.floor(O.t[j] / .25) + 5e5; let c = C.get(k); if (!c) C.set(k, c = new Set()); c.add(Math.floor((z - z0) / .5)); }
+    const col0 = []; for (const [k, v] of C) if (v.size >= .6 * nl) col0.push({ k, s: (Math.floor(k / 1e6) + .5) * .25, t: (k % 1e6 - 5e5 + .5) * .25, n: v.size });
+    // grupos conexos de celdas (vecinas a ≤ 0,5 m); el fuste es el grupo con más celdas cerca del centro del apoyo, y se le suman los grupos
+    // alineados con él a lo largo del eje (columnas del mismo pórtico). Un muro, un talud o árboles a un lado quedan fuera.
+    const seen = new Set(), grp = []; for (const c of col0) { if (seen.has(c.k)) continue; const g = [c]; seen.add(c.k); for (let q = 0; q < g.length; q++) for (const d of col0) if (!seen.has(d.k) && Math.abs(d.s - g[q].s) <= .5 && Math.abs(d.t - g[q].t) <= .5) { seen.add(d.k); g.push(d); } grp.push(g); }
+    const cen = g => g.reduce((x, c) => x + c.s, 0) / g.length, main = grp.filter(g => g.length >= 2 && Math.abs(cen(g) - sc) <= Math.max(2, (p.b - p.a) / 2 + 1)).sort((x, y) => y.length - x.length)[0];
+    if (!main) return { i: i + 1, s: +sc.toFixed(1), n: idx.length, sinFuste: true };
+    const sm = cen(main), col = grp.filter(g => g.length >= 2 && Math.abs(cen(g) - sm) <= 1).flat().map(c => [c.s, c.t]);
+    // extensión por los puntos del fuste (no por las celdas, que agregan 0,25 m)
+    const enF = new Set(col.map(c => Math.floor(c[0] / .25) * 1e6 + Math.floor(c[1] / .25) + 5e5)), Ps = [], Pt = []; for (const j of idx) { if (O.z[j] < z0) continue; const k = Math.floor(O.s[j] / .25) * 1e6 + Math.floor(O.t[j] / .25) + 5e5; if (enF.has(k)) { Ps.push(O.s[j]); Pt.push(O.t[j]); } }
+    Ps.sort((x, y) => x - y); Pt.sort((x, y) => x - y);
+    const Ss = col.map(c => c[0]).sort((x, y) => x - y), Ts = col.map(c => c[1]).sort((x, y) => x - y);
+    const ks = [...new Set(Ts.map(t => Math.round(t / .25)))].sort((x, y) => x - y), cols = []; for (const k of ks) { const c = cols[cols.length - 1]; if (c && k - c.b <= 3) c.b = k; else cols.push({ a: k, b: k }); }
+    // inclinación: centro en s de los puntos del fuste por nivel de 1 m (pendiente en mm/m)
+    const enFuste = new Set(col.map(c => Math.floor(c[0] / .25) * 1e6 + Math.floor(c[1] / .25) + 5e5)), lv = new Map();
+    for (const j of idx) { const z = O.z[j]; if (z < z0) continue; const k = Math.floor(O.s[j] / .25) * 1e6 + Math.floor(O.t[j] / .25) + 5e5; if (!enFuste.has(k)) continue; const L = Math.floor(z); let v = lv.get(L); if (!v) lv.set(L, v = []); v.push(O.s[j]); }
+    const P = [...lv].filter(([, v]) => v.length >= 5).map(([k, v]) => { v.sort((x, y) => x - y); return [k + .5, v[v.length >> 1]]; }); let incl = null;
+    // solo con al menos 6 niveles y un ajuste limpio (residuo ≤ 5 % del espesor); si no, la inclinación no se informa
+    if (P.length >= 6) { const mz = P.reduce((x, y) => x + y[0], 0) / P.length, ms = P.reduce((x, y) => x + y[1], 0) / P.length; let num = 0, den = 0; for (const [z, s] of P) { num += (z - mz) * (s - ms); den += (z - mz) ** 2; } const b = den ? num / den : 0;
+      const rs = Math.sqrt(P.reduce((x, [z, s]) => x + (s - ms - b * (z - mz)) ** 2, 0) / P.length), esp = Ss[Ss.length - 1] - Ss[0] + .25; if (den && rs <= .05 * esp + .02) incl = 1000 * b; }
+    return { i: i + 1, s: +sc.toFixed(1), n: idx.length, espesor: +(pct(Ps, .99) - pct(Ps, .01)).toFixed(2), ancho: +(pct(Pt, .99) - pct(Pt, .01)).toFixed(2), columnas: cols.length,
+      anchoColumna: +(Math.max(...cols.map(c => c.b - c.a + 1)) * .25).toFixed(2), completo: (pct(Pt, .99) - pct(Pt, .01)) >= .25 * B, /* fuste angosto bajo un tablero ancho: visto solo en parte */ altura: +(zt + .3 + hTab - z0 + .5).toFixed(2), inclinacion: incl != null ? +incl.toFixed(1) : null }; });
+  let dTop = []; for (let k = 0; k < nq; k++) if (top0[k] === top0[k]) dTop.push(topS[k] - q.deck[k]); dTop.sort((a, b) => a - b); const sobre = dTop.length ? dTop[dTop.length >> 1] : 0;
+  return { calzadaSobreReferencia: +sobre.toFixed(2), anchoTablero: +B.toFixed(2), canto: cantoMed != null ? +cantoMed.toFixed(2) : null, cantoN: cs.length, vanos, pilares: pil };
+}
+
 // Puente combinado: tramos con distinto sistema a lo largo del eje (atirantado, arco sobre el tablero, armadura, tramos apoyados en pilares).
 // Cada sistema ocupa lo que alcanzan sus elementos (cables de cada pilono, raíces o pilas del arco, cordones de la armadura); el resto del tablero
 // entre los apoyos extremos son tramos apoyados, con los vanos que marcan los apoyos.
@@ -1701,7 +1771,7 @@ function apoyosArco(O, dk, gr, la, W = { R: 15, BW: 2, NB: 10, NMIN: 150, VERT: 
   const a = uno(la.a), b = uno(la.b); return a != null && b != null ? { a: +a.toFixed(1), b: +b.toFixed(1), L: +(b - a).toFixed(1) } : null;
 }
 
-return { ejeCurvo, ejePoli, desenrollar, ejeAuto, composicion, calidadNube, supra, superestructura, apoyosArco, gapProfile, gapEnds, estribosHueco, GAP_W, hipotesis, clearanceProfile, iaEstribos, HIP_W, EST_W, iaFeatures, iaPredict, iaClusters, iaRefine, IA_NAMES, IA_REGLA, fftInPlace, detrend, csdMatrix, fdd, efdd, fddModes, pickPeaks, staticPrep, fiberStress, influence, HL93, hl93Extremes, liveLoad, CS_WF, pTrans, markovStep, elemHI, bridgeHI, calibrateAlpha, maintenancePlan, Dxf, bridgePlans, sensorsOf, readAccel, sdof, spectrum, seismic, freqCampaign, setConcMin, suggestType, applySkew, coherence, f1Band, geomSigmas, perturbGeom, archRise, peakCampaign, csdAverage, calibrateModel, nelderMead, trainFreqIA, trainVecIA, trainModalIA, modalFeat, modalMeasFeat, modalMeasFeatBase, freqPredict, build, modal, archAll, parseCloud, orient, bounds, deckLevel, groundLevel, detectSupports, spansOf, envelope, fitParabola, polyval, archGeometry, spanCoverage, MATERIALS,
+return { dimensiones, ejeCurvo, ejePoli, desenrollar, ejeAuto, composicion, calidadNube, supra, superestructura, apoyosArco, gapProfile, gapEnds, estribosHueco, GAP_W, hipotesis, clearanceProfile, iaEstribos, HIP_W, EST_W, iaFeatures, iaPredict, iaClusters, iaRefine, IA_NAMES, IA_REGLA, fftInPlace, detrend, csdMatrix, fdd, efdd, fddModes, pickPeaks, staticPrep, fiberStress, influence, HL93, hl93Extremes, liveLoad, CS_WF, pTrans, markovStep, elemHI, bridgeHI, calibrateAlpha, maintenancePlan, Dxf, bridgePlans, sensorsOf, readAccel, sdof, spectrum, seismic, freqCampaign, setConcMin, suggestType, applySkew, coherence, f1Band, geomSigmas, perturbGeom, archRise, peakCampaign, csdAverage, calibrateModel, nelderMead, trainFreqIA, trainVecIA, trainModalIA, modalFeat, modalMeasFeat, modalMeasFeatBase, freqPredict, build, modal, archAll, parseCloud, orient, bounds, deckLevel, groundLevel, detectSupports, spansOf, envelope, fitParabola, polyval, archGeometry, spanCoverage, MATERIALS,
   build, sensorsOf, modal, signConvention, features, campaign, trainIA, forestPredict, LEVELS, noisy, mulberry, gaussR, quantile, median };
 })();
 if (typeof module !== 'undefined') module.exports = OPC;

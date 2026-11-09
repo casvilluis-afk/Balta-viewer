@@ -159,6 +159,13 @@ ok('Modelo C: 20 zonas de daño (15 de arcos, 3 de tablero y 2 de pilares por so
         Q.push(x, y, dentro ? 0 : 0); if (dentro) Q.push(x, y, -8); }
     const Oq = OPC.orient({ xyz: Float32Array.from(Q), offset: [0, 0, 0] }, 'z', 1), E = OPC.ejeCurvo(Oq, 0);
     ok('Eje curvo: recorre un tablero en arco (radio 60 m) y mide su largo y su giro', E && Math.abs(E.largo - L) < 12 && Math.abs(Math.abs(E.giro) - L / R * 180 / Math.PI) < 15, E ? `largo ${E.largo.toFixed(1)} m (80) · giro ${Math.abs(E.giro).toFixed(0)}° (76)` : 'sin eje'); }
+  // Dimensiones: tablero de 1,2 m de canto (calzada en 0, cara inferior en −1,2; la cara inferior es la capa más poblada, como al escanear desde abajo)
+  // y un pilar de 1,0 × 5,0 m en s = 25; el terreno está en −8
+  { const Q = []; for (let s0 = -10; s0 <= 60; s0 += .2) for (let t = -5; t <= 5; t += .25) { Q.push(s0, t, 0); if (s0 >= 0 && s0 <= 50) { Q.push(s0, t, -1.2); Q.push(s0, t + .1, -1.2); } Q.push(s0, t, -8); }
+    for (let z = -8; z <= -1.2; z += .1) { for (let t = -2.5; t <= 2.5; t += .1) { Q.push(24.5, t, z); Q.push(25.5, t, z); } for (let s0 = 24.5; s0 <= 25.5; s0 += .1) { Q.push(s0, -2.5, z); Q.push(s0, 2.5, z); } }
+    const Oq = OPC.orient({ xyz: Float32Array.from(Q), offset: [0, 0, 0], eje: 'x' }, 'z', 1), dkq = OPC.deckLevel(Oq);
+    const D = OPC.dimensiones(Oq, dkq, -8, [{ a: -.5, b: .5, tipo: 'estribo' }, { a: 24.5, b: 25.5, tipo: 'pilar' }, { a: 49.5, b: 50.5, tipo: 'estribo' }]), P1 = D && D.pilares[0];
+    ok('Dimensiones: canto del tablero 1,2 m y pilar de 1,0 × 5,0 m medidos en la nube', D && Math.abs(D.canto - 1.2) <= .15 && P1 && Math.abs(P1.espesor - 1) <= .15 && Math.abs(P1.ancho - 5) <= .3, D ? `canto ${D.canto} m · pilar ${P1 && P1.espesor} × ${P1 && P1.ancho} m · nivel de referencia ${dkq.toFixed(2)} m` : 'sin medida'); }
   ok('Eje: planta cuadrada marcada como dudosa; tramo recortado queda en x', Oq.ejeRatio < 3 && Ox.snap === 0, `cociente ${Oq.ejeRatio.toFixed(2)} · recortado: eje ${Ox.snap === 0 ? 'x' : '?'}`); }
 
 // 15. Campaña de registros: los modos que se repiten se separan del ruido que aparece y desaparece, y se estima el efecto de la temperatura
