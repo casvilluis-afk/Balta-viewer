@@ -219,6 +219,11 @@ ok('Modelo C: 20 zonas de daño (15 de arcos, 3 de tablero y 2 de pilares por so
     ok('Desviaciones: bache de 5 cm, desprendimiento de 4 cm en el pilar y baranda empujada 20 cm; sin daño, ninguna zona',
       D0.zonas.length === 0 && z.length === 3 && f('calzada', 12, 12.6, .05) && f('cara', 19, 20, .04) && f('baranda alineación', 30, 33, .2),
       `sin daño ${D0.zonas.length} zonas · con daño: ${z.map(x => x.texto.slice(0, 55)).join(' | ')}`); }
+  // Contraste en espejo: en el puente sintético de dos pilares todos los apoyos deben salir igual recorriendo la nube desde el otro extremo
+  { const Q = []; for (let s0 = -10; s0 <= 60; s0 += .2) for (let t = -5; t <= 5; t += .25) { Q.push(s0, t, 0); if (s0 >= 0 && s0 <= 50) Q.push(s0, t, -1.2); Q.push(s0, t, -8); }
+    for (const c of [15, 35]) for (let z = -8; z <= -1.2; z += .1) for (let t = -2.5; t <= 2.5; t += .1) { Q.push(c - .5, t, z); Q.push(c + .5, t, z); }
+    const Oq = OPC.orient({ xyz: Float32Array.from(Q), offset: [0, 0, 0], eje: 'x' }, 'z', 1), dkq = OPC.deckLevel(Oq), grq = OPC.groundLevel(Oq), sup = OPC.estribosHueco(Oq, dkq, grq, OPC.detectSupports(Oq, dkq, grq).supports).supports, C = OPC.contrasteEspejo(Oq, dkq, grq, sup);
+    ok('Contraste en espejo: todos los apoyos del puente sintético coinciden en los dos sentidos', C && C.total >= 3 && C.coinciden === C.total && !C.soloEspejo.length, C ? `${C.coinciden}/${C.total} · solo espejo ${C.soloEspejo.length}` : 'sin resultado'); }
   // Atributos: un PLY binario con color e intensidad se lee con sus atributos; en la calzada, una mancha de 3 m con intensidad 40 % menor
   // se marca como zona a revisar, y un arbusto verde junto al pilar se reconoce como vegetación (la estructura gris no)
   PEND.push((async () => { const P = [], at = []; const add = (s0, t, z, I, r, g, b) => { P.push(s0, t, z); at.push([I, r, g, b]); };
@@ -273,6 +278,19 @@ ok('Modelo C: 20 zonas de daño (15 de arcos, 3 de tablero y 2 de pilares por so
     cases.forEach(c => { const d = OPC.freqPredict(I, Z, OPC.modalMeasFeat(camp, sel, c.fm, c.sh, null)); if (c.z < 0) { nh++; if (d.cls >= 0 && d.conclusive && !d.ood) fa++; } else { nd++; if (d.cls === c.z && !d.ood) ok++; } }); return { zona: ok / nd, fa, nh }; });
   ok('IA con geometría no vista: menos falsas alarmas y no peor localización que con geometría nominal', res[1].fa < res[0].fa && res[1].zona >= res[0].zona - .02,
     `nominal: zona ${(100 * res[0].zona).toFixed(0)} %, falsas alarmas ${res[0].fa}/${res[0].nh} · con geometría no vista: zona ${(100 * res[1].zona).toFixed(0)} %, falsas alarmas ${res[1].fa}/${res[1].nh}`); }
+
+  // Completitud: una serie de montantes cada 4 m con dos huecos (en 12 m y en 24-28 m) se completa con los tres que faltan; sin regularidad no se infiere nada
+  { const r = OPC.regularizar([0, 4, 8, 16, 20, 32, 36, 40], -2, 42), r2 = OPC.regularizar([0, 3, 9, 10, 18, 25], 0, 26);
+    ok('Completitud: serie regular de montantes con huecos → se infieren 12, 24 y 28 m; serie irregular → nada', r.paso === 4 && r.inferidos.join() === '12,24,28' && r2.inferidos.length === 0, `paso ${r.paso} · inferidos ${r.inferidos.join(', ')} · irregular ${r2.inferidos.length}`); }
+  // Completitud del levantamiento en el puente sintético del test de desviaciones (todo visto): índice alto y ninguna cara por debajo del 60 %
+  { let a0 = 3; const rnd = () => { a0 = (a0 * 1103515245 + 12345) % 2147483648; return a0 / 2147483648; }, N = () => (rnd() + rnd() + rnd() - 1.5) * .008, Q = [], put = (s0, t, z) => Q.push(s0 + N(), t + N(), z + N()), e = .05;
+    for (let s0 = -8; s0 <= 48; s0 += e) for (let t = -4; t <= 4; t += e) { put(s0, t, -.02 * Math.abs(t)); if (s0 >= 0 && s0 <= 40 && ((s0 * 20 | 0) % 2 === 0)) put(s0, t, -1.1); }
+    for (let s0 = 0; s0 <= 40; s0 += e) for (let z = .1; z <= 1.1; z += .05) { put(s0, -4, z - .08); put(s0, 4, z - .08); }
+    for (let z = -8; z <= -1.2; z += e) for (let t = -2.5; t <= 2.5; t += e) { put(19.5, t, z); put(20.5, t, z); }
+    for (let z = -8; z <= -1.2; z += e) for (let t = -4; t <= 4; t += e) { put(0, t, z); put(40, t, z); }
+    const O = OPC.orient({ xyz: Float32Array.from(Q), offset: [0, 0, 0], eje: 'x' }, 'z', 1), dk = OPC.deckLevel(O), gr = OPC.groundLevel(O), sup = OPC.estribosHueco(O, dk, gr, OPC.detectSupports(O, dk, gr).supports).supports, q = OPC.calidadNube(O, dk, gr, sup);
+    const R = OPC.elementos(O, dk, gr, sup, { calidad: q }), F = OPC.fichaInspeccion(O, R, { espaciado: q.espaciado }), K = OPC.completitud(O, R, F, { espaciado: q.espaciado });
+    ok('Completitud del levantamiento: puente sintético visto entero → índice ≥ 80 % y sin caras por debajo del 60 %', K && K.indice >= .8 && K.faltantes.length === 0, K ? `índice ${Math.round(K.indice * 100)} % · faltantes ${K.faltantes.length} · completados ${K.completados.length}` : 'sin resultado'); }
 
 // 17. Solver 2D de la plataforma contra OpenSees: se verifica en el navegador (pestaña Validación) con los 450 casos de data/fem_525.csv
 ok('Dataset OpenSees presente', fs.existsSync(path.join(P, 'data', 'fem_525.csv')));
