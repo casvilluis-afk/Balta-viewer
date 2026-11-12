@@ -273,7 +273,7 @@ function pgIAHint(ctx, I) { const C = FQ[ctx.id], L = C && C.last; let zone = nu
   return `<div class="msg">La IA señaló <b>${esc(z)}</b>.${e ? ` Revise primero <b>${esc(e.nombre)}</b> en esa zona.` : ''} La IA orienta; el estado lo decide usted en campo.</div>`; }
 /* la inspección de campo no necesita el modelo: basta un puente activo con nube (la evidencia de la nube llega desde el paso 2) */
 function pgCtxInsp() { const c = pgCtx(); if (c) return c; if (PB.active !== 'balta' && OP.id && OP.id === PB.active && OP.cloud) return { id: pbCtxId(OP.id), kind: 'usuario', type: OP.type || 'viga', title: OP.name || 'Puente sin nombre', sinModelo: true }; return null; }
-function vInspMTC() { if (!pgCtxInsp()) return pbNoModel('la inspección de campo'); const ctx = pgCtxInsp(), K = pgKey(ctx), I = pgInsp(K); if (PG.rec && !I.recs.find(r => r.id === PG.rec)) PG.rec = null; if (!PG.rec && I.recs.length) PG.rec = I.recs[I.recs.length - 1].id;
+function vInspMTC() { if (!pgCtxInsp()) return pbNoModel('la inspección de campo', true); const ctx = pgCtxInsp(), K = pgKey(ctx), I = pgInsp(K); if (PG.rec && !I.recs.find(r => r.id === PG.rec)) PG.rec = null; if (!PG.rec && I.recs.length) PG.rec = I.recs[I.recs.length - 1].id;
   const recs = I.recs.slice().sort((a, b) => (a.fecha || '').localeCompare(b.fecha || ''));
   $('#left').innerHTML = (ctx.sinModelo ? '' : pgBridgeBox()) + `<div class="ph">Expediente</div><div class="pb"><div class="toggle" role="group">${[['inv', 'Inventario'], ['els', 'Elementos'], ['rec', 'Inspecciones']].map(([k, l]) => `<button data-iv="${k}" aria-pressed="${PG.iv === k}">${l}</button>`).join('')}</div></div>
    <div class="ph">Inspecciones registradas<button class="btn" id="inNew" style="padding:0 8px">Nueva</button></div>

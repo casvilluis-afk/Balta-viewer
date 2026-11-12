@@ -105,8 +105,10 @@ function pbHeader() { const mb = document.getElementById('markBridge'); if (!mb)
 function pbTitle() { return PB.active === 'balta' ? 'Puente Balta (ejemplo)' : (OP.name || 'Puente nuevo'); }
 
 /* ---------- aviso cuando el puente activo aún no tiene modelo ---------- */
-function pbNoModel(lab) {
-  $('#left').innerHTML = ''; $('#canvas').innerHTML = `<div class="doc"><h2>${esc(pbTitle())}</h2><div class="msg warn"><b>Este puente aún no tiene modelo.</b> Para usar ${lab}, complete en <a href="#tupuente" id="pbGoTu">Gemelo digital → Nube, modelo e IA</a> los pasos 1 a 4 (nube, tablero y apoyos, geometría, modelo y modos). Todo se guarda en «Mis puentes».</div></div>`;
+function pbNoModel(lab, soloNube) {
+  const msg = soloNube ? `<b>Este puente aún no tiene nube de puntos.</b> Para usar ${lab} basta cargar su nube en <a href="#tupuente" id="pbGoTu">Gemelo digital → Nube, modelo e IA</a> (paso 1) y, si quiere la evidencia de la nube por elemento, identificar los elementos en el paso 2. El modelo (pasos 3 y 4) no hace falta para inspeccionar.`
+    : `<b>Este puente aún no tiene modelo.</b> Para usar ${lab}, complete en <a href="#tupuente" id="pbGoTu">Gemelo digital → Nube, modelo e IA</a> los pasos 1 a 4 (nube, tablero y apoyos, geometría, modelo y modos).`;
+  $('#left').innerHTML = ''; $('#canvas').innerHTML = `<div class="doc"><h2>${esc(pbTitle())}</h2><div class="msg warn">${msg} Todo se guarda en «Mis puentes».</div></div>`;
   const a = document.getElementById('pbGoTu'); if (a) a.onclick = e => { e.preventDefault(); show('tupuente'); };
   $('#right').innerHTML = ''; }
 
