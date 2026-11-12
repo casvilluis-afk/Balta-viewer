@@ -307,6 +307,19 @@ ok('Modelo C: 20 zonas de daño (15 de arcos, 3 de tablero y 2 de pilares por so
     ok('Pilar oculto: sin el fuste de 60 m, el pilar se infiere por los arranques de los arcos y los demás apoyos no se mueven', inf.length === 1 && Math.abs(m(inf[0]) - 60) < 2 && igual && !S0.some(p => p.inferido),
       `completo ${S0.map(p => p.tipo[0] + m(p).toFixed(1)).join(' ')} · sin pilar ${S1.map(p => p.tipo[0] + m(p).toFixed(1) + (p.inferido ? '*' : '')).join(' ')}`); }
 
+  // Nube completada con el propio puente: tablero con un hueco de 4 × 3 m en la calzada y pilar con una cara borrada. Los puntos generados deben caer en
+  // el hueco (≥ 90 % a menos de 10 cm de la superficie verdadera) y en la cara borrada del pilar, y ninguno sobre puntos ya medidos
+  { const Q = [], put = (s, t, z) => Q.push(s, t, z), e = .1; const zc = (s, t) => .1 * (1 - ((s - 20) / 20) ** 2) - .02 * Math.abs(t);
+    for (let s = -8; s <= 48; s += e) for (let t = -4; t <= 4; t += e) { const hueco = s > 10 && s < 14 && t > -1 && t < 2; if (!hueco) put(s, t, zc(s, t)); if (s >= 0 && s <= 40 && ((s * 10 | 0) % 2 === 0)) put(s, t, zc(s, t) - 1.1); }
+    for (let s = 0; s <= 40; s += e) for (let z = .1; z <= 1.1; z += .05) { put(s, -4, z + zc(s, -4) - .08); put(s, 4, z + zc(s, 4) - .08); }
+    for (let z = -8; z <= -1.2; z += e) for (let t = -2.5; t <= 2.5; t += e) { put(13, t, z); put(14, t, z); put(27.5, t, z); /* del segundo pilar solo se ve la cara de 27,5 m; la de 26,5 m se repone copiando el pilar gemelo */ }
+    for (let z = -8; z <= -1.2; z += e) for (let t = -4; t <= 4; t += e) { put(0, t, z); put(40, t, z); }
+    const O = OPC.orient({ xyz: Float32Array.from(Q), offset: [0, 0, 0], eje: 'x' }, 'z', 1), dk = OPC.deckLevel(O), gr = OPC.groundLevel(O), sup = OPC.estribosHueco(O, dk, gr, OPC.detectSupports(O, dk, gr).supports).supports, q = OPC.calidadNube(O, dk, gr, sup);
+    const R = OPC.elementos(O, dk, gr, sup, { calidad: q }), F = OPC.fichaInspeccion(O, R, { espaciado: q.espaciado }), C = OPC.completarNube(O, R, F, { espaciado: q.espaciado });
+    let enHueco = 0, bien = 0, cara = 0; if (C) for (let i = 0; i < C.n; i++) { const s = C.xyz[3 * i], t = C.xyz[3 * i + 1], z = C.xyz[3 * i + 2]; if (s > 10 && s < 14 && t > -1 && t < 2 && Math.abs(z - zc(s, t)) < .6) { enHueco++; if (Math.abs(z - zc(s, t)) < .1) bien++; } if (Math.abs(s - 26.5) < .15 && z < -1.5) cara++; }
+    const lista = C ? C.lista.map(l => `${l.id}/${l.parte} ${l.n}`).join(', ') : 'sin resultado';
+    ok('Nube completada: el hueco de la calzada se rellena con la sección medida (≥ 90 % a < 10 cm) y la cara no vista del pilar se repone copiando el pilar gemelo', C && enHueco >= 250 && bien / enHueco >= .9 && cara >= 500, `${C ? C.n : 0} generados · en el hueco ${enHueco} (${enHueco ? Math.round(100 * bien / enHueco) : 0} % a < 10 cm) · cara del pilar ${cara} · ${lista}`); }
+
 // 17. Solver 2D de la plataforma contra OpenSees: se verifica en el navegador (pestaña Validación) con los 450 casos de data/fem_525.csv
 ok('Dataset OpenSees presente', fs.existsSync(path.join(P, 'data', 'fem_525.csv')));
 

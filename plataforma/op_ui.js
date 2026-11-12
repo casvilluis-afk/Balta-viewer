@@ -62,7 +62,7 @@ function opCurvo(on) { const base = OP.Obase || OP.Orecto || OP.O; // eje en pla
   else { if (!OP.Orecto) return; OP.O = OP.Obase || OP.Orecto; OP.Orecto = null; OP.curvo = null; }
   opDetectar(); vTu(); opIARev(); }
 function opSetCloud(c, name, minPts) {
-  OP.sinVeg = 0; OP.vegFull = null; OP.atr = null; OP.cmp = null; OP.elm = null; OP.ficha = null; OP.dev = null; OP.espejo = null; OP.cmpl = null;
+  OP.sinVeg = 0; OP.vegFull = null; OP.atr = null; OP.cmp = null; OP.elm = null; OP.ficha = null; OP.dev = null; OP.espejo = null; OP.cmpl = null; OP.cnube = null;
   OP.cloud = c; OP.name = String(name).replace(/\.[a-z0-9]+$/i, '').replace(/[_-]+/g, ' ').replace(/\s+\d+([.,]\d+)?\s*[mk]\b/i, '').trim() || name; OP.up = $('#opUp') ? $('#opUp').value : (OP.up || 'z'); OP.unit = $('#opUnit') ? +$('#opUnit').value : (OP.unit || 1); /* desde el paso 2 (quitar vegetación) no están los controles del paso 1 */ OP.O = OPC.orient(c, OP.up, OP.unit); OP.Obase = OP.O; OP.minPts = Math.max(3, Math.round(minPts));
   OP.Orecto = null; OP.curvo = null; opDetectar();
   if ($('#opLoad')) $('#opLoad').textContent = ''; opInfo(); vTu(); opIARev();
@@ -79,7 +79,7 @@ async function opIARev(after) {
   OP.iaBusy = true; const st = $('#opIAst'); if (st) st.textContent = 'La IA está revisando los apoyos…';
   try {
     await new Promise(r => setTimeout(r, 30));
-    OP.iaModel = OP.iaModel || await fetch('data/ia_apoyos.json?v=2.16.3').then(r => { if (!r.ok) throw new Error('sin modelo'); return r.json(); });
+    OP.iaModel = OP.iaModel || await fetch('data/ia_apoyos.json?v=2.17.0').then(r => { if (!r.ok) throw new Error('sin modelo'); return r.json(); });
     if (OP.O !== O || OP.supports !== sup0) return;
     const t0 = performance.now(), R = OPC.iaRefine(OP.O, OP.deckTop, OP.ground, OP.supports, OP.iaModel);
     const rev = { usado: R.usado, motivo: R.motivo || '', veto: R.veto.map(f), rescate: R.rescate.map(f), aEstribo: R.aEstribo.map(f) };
@@ -285,7 +285,24 @@ function opCompletitudUI() { const el = $('#opCmpl'); if (!el || !OP.O) return; 
    <div class="kpi"><div class="k"><div class="v" style="color:${col(K.indice || 0)}">${K.indice == null ? '—' : pc(K.indice)}</div><div class="l">índice de completitud (cobertura media de las caras, ponderada por elemento)</div></div><div class="k"><div class="v">${K.faltantes.length}</div><div class="l">caras con menos del 60 % visto</div></div><div class="k"><div class="v">${K.completados.length}</div><div class="l">completados por geometría</div></div></div>
    <div class="tw"><table class="data"><thead><tr><th>Elemento</th><th>Cara</th><th class="n">Visto</th></tr></thead><tbody>${K.items.map(x => `<tr><td>${esc_(x.elemento)}</td><td>${esc_(x.parte)}</td><td class="n" style="color:${col(x.f)}">${pc(x.f)}</td></tr>`).join('')}</tbody></table></div>
    ${K.faltantes.length ? `<h4 style="margin:8px 0 4px">Qué falta escanear</h4><ul class="help keep" style="margin:0">${K.faltantes.map(r => `<li>${esc_(r.texto)}</li>`).join('')}</ul>` : '<p class="help keep">Todas las caras se vieron en al menos el 60 % de su extensión.</p>'}
-   ${K.completados.length ? `<h4 style="margin:8px 0 4px">Forma completada (inferido, no medido)</h4><ul class="help keep" style="margin:0">${K.completados.map(c => `<li>${esc_(c.texto)} <span class="dim">[${esc_(c.origen)}]</span></li>`).join('')}</ul>` : ''}`; }
+   ${K.completados.length ? `<h4 style="margin:8px 0 4px">Forma completada (inferido, no medido)</h4><ul class="help keep" style="margin:0">${K.completados.map(c => `<li>${esc_(c.texto)} <span class="dim">[${esc_(c.origen)}]</span></li>`).join('')}</ul>` : ''}
+   <h4 style="margin:10px 0 4px">Nube completada con el propio puente</h4><p class="help keep">Los huecos se rellenan con puntos tomados de la geometría medida en otra parte del mismo puente: la cara opuesta reflejada en el eje de simetría medido, la mitad vista del arco reflejada en su clave, el pilar o el arco gemelo trasladados y encajados con la parte vista, o la sección transversal medida a ambos lados del hueco (solo entre dos tramos vistos a menos de 12 m y solo rasgos continuos del elemento). Nunca se escribe donde la nube ya tiene puntos (vecindad de 1,5 × espaciado) y cada punto conserva su origen. No es una red entrenada: lo que no está en este puente no se inventa.</p>
+   <p><button class="btn line" id="opCnBtn">Generar nube completada</button></p><div id="opCmplNube"></div>`;
+  const bt = $('#opCnBtn'); if (bt) bt.onclick = opNubeCompletada; if (OP.cnube) opNubeCompletada(); }
+/* nube completada con el propio puente: botón, resumen por fuente y descarga PLY (medido + generado, color y campo «origen» por punto) */
+function opNubeCompletada() { if (!OP.O || !OP.elm || !OP.ficha) return; const el = $('#opCmplNube'); if (!el) return; el.innerHTML = '<p class="help keep">Generando…</p>';
+  setTimeout(() => { let C = null; try { C = OPC.completarNube(OP.O, OP.elm, OP.ficha, { espaciado: OP.calidad && OP.calidad.espaciado }); } catch (e) { console.warn(e); el.innerHTML = '<p class="help keep">No se pudo generar: ' + esc_(e && e.message || e) + '</p>'; return; }
+    OP.cnube = C; if (!C || !C.n) { el.innerHTML = '<p class="help keep">No hay nada que completar con las reglas actuales: los huecos no están entre dos tramos vistos del mismo elemento ni tienen una cara o un elemento gemelo con que reflejarse.</p>'; return; }
+    el.innerHTML = `<p class="help keep"><b>${C.n.toLocaleString('es-PE')} puntos generados</b> (celda ${C.paso} m; solo donde la nube no tiene puntos a ${C.r} m). Cada punto lleva su origen; en el PLY van en color y con el campo <code>origen</code>, lo medido en gris con origen 0.</p>
+      <div class="tw"><table class="data"><thead><tr><th>Elemento</th><th>Cara</th><th class="n">Puntos</th><th>Origen</th></tr></thead><tbody>${C.lista.map(l => `<tr><td>${esc_(l.id)}</td><td>${esc_(l.parte)}</td><td class="n">${l.n.toLocaleString('es-PE')}</td><td>${esc_(l.origen)}</td></tr>`).join('')}</tbody></table></div>
+      <p><button class="btn" id="opCnPly">Descargar nube completada (.ply)</button> <span class="dim">medido + generado, coordenadas originales</span></p>`;
+    $('#opCnPly').onclick = () => { const O = OP.O, n = O.n, m = C.n, tot = n + m, buf = new ArrayBuffer(tot * 16), dv = new DataView(buf), COL = [[200, 200, 200], [230, 120, 40], [60, 140, 220], [60, 170, 90], [200, 70, 160], [240, 200, 60], [120, 90, 200], [220, 100, 100]];
+      let o = 0; const put = (x, y, z, c, k) => { dv.setFloat32(o, x, true); dv.setFloat32(o + 4, y, true); dv.setFloat32(o + 8, z, true); dv.setUint8(o + 12, c[0]); dv.setUint8(o + 13, c[1]); dv.setUint8(o + 14, c[2]); dv.setUint8(o + 15, k); o += 16; };
+      for (let i = 0; i < n; i++) { const W = OPC.alMundo(O, O.s[i], O.t[i], O.z[i], OP.curvo); put(W[0], W[1], W[2], COL[0], 0); }
+      for (let i = 0; i < m; i++) { const W = OPC.alMundo(O, C.xyz[3 * i], C.xyz[3 * i + 1], C.xyz[3 * i + 2], OP.curvo), k = C.cod[i] + 1; put(W[0], W[1], W[2], COL[1 + (C.cod[i] % 7)], Math.min(255, k)); }
+      const fuentes = C.fuentes.map((f, i) => `comment origen ${i + 1}: ${f.id} ${f.parte} - ${f.origen.replace(/\n/g, ' ')}`).join('\n');
+      const hdr = `ply\nformat binary_little_endian 1.0\ncomment PuenteGemelo ${typeof APP_VERSION !== 'undefined' ? APP_VERSION : ''} nube completada con el propio puente\ncomment origen 0: medido\n${fuentes}\nelement vertex ${tot}\nproperty float x\nproperty float y\nproperty float z\nproperty uchar red\nproperty uchar green\nproperty uchar blue\nproperty uchar origen\nend_header\n`;
+      download((OP.name || 'puente').replace(/\.[^.]+$/, '').replace(/[^\w\-]+/g, '_') + '_completada.ply', 'application/octet-stream', new Blob([hdr, buf], { type: 'application/octet-stream' })); }; }, 30); }
 /* evidencia de la nube por elemento → expediente de «Inspección de campo (MTC)» (la calificación se pone allá, no aquí) */
 const EV_FAM = { pilar: 'pilares', estribo: 'estribos', baranda: 'barandas', arco: 'arcos', arco_superior: 'arco_superior', pilono: 'pilonos', tirantes: 'tirantes' };
 const EV_NUEVAS = { pilares: ['Pilares', 'u', 3, 'pilar'], arcos: ['Arcos (nervaduras)', 'm', 3, 'arco'], arco_superior: ['Arco sobre el tablero (nervios y péndolas)', 'm', 3, null], pilonos: ['Pilonos', 'u', 3, null], tirantes: ['Tirantes', 'u', 3, null] };
