@@ -292,6 +292,21 @@ ok('Modelo C: 20 zonas de daño (15 de arcos, 3 de tablero y 2 de pilares por so
     const R = OPC.elementos(O, dk, gr, sup, { calidad: q }), F = OPC.fichaInspeccion(O, R, { espaciado: q.espaciado }), K = OPC.completitud(O, R, F, { espaciado: q.espaciado });
     ok('Completitud del levantamiento: puente sintético visto entero → índice ≥ 80 % y sin caras por debajo del 60 %', K && K.indice >= .8 && K.faltantes.length === 0, K ? `índice ${Math.round(K.indice * 100)} % · faltantes ${K.faltantes.length} · completados ${K.completados.length}` : 'sin resultado'); }
 
+  // Pilar oculto: tres arcos de 30 m sobre dos pilares; se borra el fuste del pilar de 60 m (oclusión). Los dos arcos vecinos arrancan ahí, así que el pilar
+  // debe inferirse en 60 ± 2 m, marcado «inferido», y el resto de apoyos no debe moverse más de 1 m respecto de la nube completa
+  { const nube = sinPilar => { const Q = [], put = (s, t, z) => Q.push(s, t, z), e = .25;
+      for (let s = -12; s <= 102; s += e) for (let t = -4; t <= 4; t += e) { put(s, t, 0); if (s < -1 || s > 91) put(s, t, -.5); }
+      for (let s = -30; s <= 120; s += .5) for (let t = -15; t <= 15; t += .5) put(s, t, -12);
+      for (const [a, b] of [[0, 30], [30, 60], [60, 90]]) { const c = (a + b) / 2, h = (b - a) / 2; for (let s = a + 1; s <= b - 1; s += e) { const z = -8 + 4 * (1 - ((s - c) / h) ** 2); for (let t = -4; t <= 4; t += e) put(s, t, z); } }
+      for (const [a, b] of [[-1, 0], [90, 91]]) for (let z = -12; z <= -.5; z += e) for (let t = -4; t <= 4; t += e) { put(a, t, z); put(b, t, z); }
+      for (const c of [30, 60]) { if (sinPilar && c === 60) continue; for (let z = -12; z <= -8; z += e) for (let t = -4; t <= 4; t += e) { put(c - 1, t, z); put(c + 1, t, z); } }
+      return { xyz: Float32Array.from(Q), offset: [0, 0, 0], eje: 'x' }; };
+    const corre = c => { const O = OPC.orient(c, 'z', 1), dk = OPC.deckLevel(O), gr = OPC.groundLevel(O); return OPC.estribosHueco(O, dk, gr, OPC.detectSupports(O, dk, gr).supports).supports; };
+    const S0 = corre(nube(false)), S1 = corre(nube(true)), m = p => (p.a + p.b) / 2, inf = S1.filter(p => p.inferido), resto = S1.filter(p => !p.inferido);
+    const igual = S0.length === S1.length && resto.length === S0.length - 1 && resto.every(p => S0.some(q => q.tipo === p.tipo && Math.abs(m(q) - m(p)) < 1));
+    ok('Pilar oculto: sin el fuste de 60 m, el pilar se infiere por los arranques de los arcos y los demás apoyos no se mueven', inf.length === 1 && Math.abs(m(inf[0]) - 60) < 2 && igual && !S0.some(p => p.inferido),
+      `completo ${S0.map(p => p.tipo[0] + m(p).toFixed(1)).join(' ')} · sin pilar ${S1.map(p => p.tipo[0] + m(p).toFixed(1) + (p.inferido ? '*' : '')).join(' ')}`); }
+
 // 17. Solver 2D de la plataforma contra OpenSees: se verifica en el navegador (pestaña Validación) con los 450 casos de data/fem_525.csv
 ok('Dataset OpenSees presente', fs.existsSync(path.join(P, 'data', 'fem_525.csv')));
 
