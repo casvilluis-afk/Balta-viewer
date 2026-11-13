@@ -42,5 +42,5 @@ function metricas(A,B,tau){/* A: evaluada, B: verdad; muestreo ≤ 60k puntos po
    r.porFuente=Object.entries(pf).map(([k,o])=>({fuente:X.C.fuentes[k].id+'/'+X.C.fuentes[k].parte+' · '+X.C.fuentes[k].origen.slice(0,45),n:o.n,prec:+(o.ok/o.n).toFixed(2)}));
    { /* precisión en el hueco: solo los puntos generados a ≤ 0,5 m de algún punto quitado */ const qp=[];for(const i of quitar)qp.push(xyz[3*i],xyz[3*i+1],xyz[3*i+2]);const GQ=Grid(qp,.5);let n=0,ok=0;for(let i=0;i<X.C.n;i++){if(GQ.nn(gen[3*i],gen[3*i+1],gen[3*i+2])>.25)continue;n++;if(GT.nn(gen[3*i],gen[3*i+1],gen[3*i+2])<=tau*tau)ok++;}r.enHueco={n,prec:n?+(ok/n).toFixed(3):null};}
    const GG=Grid(gen,Math.max(tau*2,.1));let rec=0,tot=0;const qs=[...quitar];const st=Math.max(1,Math.ceil(qs.length/40000));for(let j=0;j<qs.length;j+=st){const i=qs[j];tot++;if(GG.nn(xyz[3*i],xyz[3*i+1],xyz[3*i+2])<=tau*tau)rec++;}r.huecoRecuperado=+(rec/tot).toFixed(3);}
-  r.fuentes=X.C?X.C.lista.map(l=>`${l.id}/${l.parte}: ${l.n} (${l.origen.split(' (')[0].slice(0,40)})`):[];console.log(JSON.stringify(r));}
+  r.validacion=X.C&&X.C.validacion;r.fuentes=X.C?X.C.lista.map(l=>`${l.id}/${l.parte}: ${l.n} (${l.origen.split(' (')[0].slice(0,40)})`):[];console.log(JSON.stringify(r));}
 })();
