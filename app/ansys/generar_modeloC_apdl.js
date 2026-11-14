@@ -76,8 +76,12 @@ SET,LIST
 (F8.0,F12.4)
 *ENDDO
 *CFCLOS
-/ESHAPE,1
+/VUP,1,Z               ! Z (vertical) hacia arriba en pantalla: el puente se ve de costado
 /VIEW,1,1,0,0
+/PBC,ALL,,0             ! sin símbolos de apoyos
+ESEL,S,TYPE,,1          ! solo las vigas (oculta los símbolos de masa M0)
+/ESHAPE,0
+/AUTO,1
 SET,1,1
 PLDISP,1
 `;
