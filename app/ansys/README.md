@@ -73,3 +73,5 @@ Igual al modelo 3D de barras, pero cada pilar es un muro macizo de 12,15 × 3 m 
 unido a las barras de cabeza por regiones rígidas (CERIG, UXYZ) y empotrado en la base. `verificar_solido.py` relee el macro y lo
 resuelve con hexaedros de integración completa (control aproximado; SOLID185 usa B-bar): modos laterales 1,3-2,4 % más bajos que con
 pilares de barras, verticales dentro de ±0,5 %. Resultado en `balta_modelo3D_solido_control.csv`.
+
+Resultado en Ansys Student 2026 R1 (pilares sólidos): 4,8037 · 5,2361 · 5,2832 · 6,5195 · 6,6916 · 6,7682 · 6,9129 · 6,9250 · 7,1362 · 7,8756 · 8,4725 · 8,6380 Hz (0,02-0,8 % bajo el control propio; frente a pilares de barras: laterales −1,5 a −3,3 %, verticales ±0,5 %).
