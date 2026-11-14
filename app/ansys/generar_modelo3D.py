@@ -183,3 +183,76 @@ with open(f'{out}/frecuencias_referencia_3D.csv', 'w', encoding='utf-8') as fh:
 nel = sum(NSUB[s] for _, _, s, _, _ in EL)
 print(f'nodos estructura {NN}, nodos totales {nid}, barras {len(EL)}, elementos BEAM188 {nel}, masas {NN}')
 for k in range(NM): print(f'modo {k+1:2d}: {f[k]:7.3f} Hz  {desc[k][0]}  XYZ={[float(v) for v in desc[k][1]]}')
+
+# ================= variante con PILARES SÓLIDOS (SOLID185) =================
+# Cada pilar pasa a ser un muro macizo de 12,15 m (X) × pier_t (Y) desde la base hasta la cabeza, mallado con hexaedros de unos
+# 0,5-1 m. Se eliminan las 6 columnas de barras, sus nodos de base y la viga de cabeza; las barras que llegan a la cabeza
+# (arranques de los arcos y apoyo del tablero) se unen a la cara superior del muro con regiones rígidas (CERIG, UXYZ):
+# cada nodo de cabeza gobierna los nodos de la cara superior más cercanos a su línea de nervio. La base del muro se empotra.
+base_nodes = {i for i, t in fix.items() if t == 'ALL' and any(abs(X[i][2] - G['zbase'][pn]) < 1e-9 for pn in ('p1', 'p2'))}
+keep = [e for e in EL if e[2] != 'cabezal' and not (e[2] == 'pilar' and (e[0] in base_nodes or e[1] in base_nodes))]
+xg = sorted(set([-p['width'] / 2, p['width'] / 2] + [float(v) for v in range(-6, 7) if abs(v) < p['width'] / 2 - .4]))  # sin franjas de borde muy delgadas
+S = []; A = S.append
+A('! ' + '=' * 100)
+A('! Puente Balta - modelo 3D con PILARES SOLIDOS (SOLID185) sobre la geometria del modelo C de PuenteGemelo')
+A('! Igual que balta_modelo3D.mac, salvo los pilares: muros macizos mallados con hexaedros, unidos a las barras por regiones rigidas.')
+A('! SECCIONES, ARRIOSTRES, DIAGONALES Y MATERIAL SUPUESTOS (no medidos). Unidades: kN, m, t, s. X transversal, Y longitudinal, Z vertical.')
+A('! Comparar con balta_modelo3D.mac (pilares de barras): ' + ', '.join(f'{v:.3f}' for v in f) + ' Hz')
+A('! ' + '=' * 100)
+A('FINISH'); A('/CLEAR,NOSTART'); A('/TITLE,Puente Balta - modelo 3D con pilares solidos (geometria de la nube TLS; secciones supuestas)'); A('/PREP7')
+A('ET,1,BEAM188'); A('KEYOPT,1,3,3'); A('ET,2,MASS21'); A('ET,3,SOLID185          ! hexaedro de 8 nodos')
+for s, (E, Aa, Iy, Iz, J) in SEC.items():
+    k = SID[s]; A(f'MP,EX,{k},{f7(E)}          ! {s}'); A(f'MP,PRXY,{k},0.3'); A(f'SECTYPE,{k},BEAM,ASEC'); A(f'SECDATA,{f7(Aa)},{f7(Iy)},0,{f7(Iz)},0,{f7(J)}')
+MS = 50; A(f'MP,EX,{MS},{f7(SEC["pilar"][0])}          ! muro de los pilares (mismo E que las columnas de barras)'); A(f'MP,PRXY,{MS},0.3')
+A('! --- nodos de la estructura')
+for i, (x, y, z) in enumerate(X):
+    if i not in base_nodes: A(f'N,{i+1},{f7(x)},{f7(y)},{f7(z)}')
+nid2 = NN
+for K in list(KUP.values()) + list(KY.values()): nid2 += 1; A(f'N,{nid2},{f7(K[0])},{f7(K[1])},{f7(K[2])}')
+kn2 = {K: NN + 1 + q for q, K in enumerate(list(KUP.values()) + list(KY.values()))}
+A('TYPE,1'); cur = None; ln, le = [], []
+for i, j, s, K, g in keep:
+    k = SID[s]
+    if cur != k: le.append(f'MAT,{k}'); le.append(f'SECNUM,{k}          ! {s}'); cur = k
+    ns = NSUB[s]; prev = i + 1; a, b = np.array(X[i]), np.array(X[j]); ko = f',{kn2[K]}' if K is not None else ''
+    for t in range(1, ns):
+        nid2 += 1; q = a + (b - a) * t / ns; ln.append(f'N,{nid2},{f7(q[0])},{f7(q[1])},{f7(q[2])}'); le.append(f'E,{prev},{nid2}{ko}'); prev = nid2
+    le.append(f'E,{prev},{j+1}{ko}')
+S += ln + le
+A('! --- masas concentradas (las mismas del modelo de barras; el muro no lleva masa propia, como las columnas)'); A('TYPE,2')
+for i, m in enumerate(Mn):
+    if i in base_nodes: continue
+    A(f'R,{100+i},{f7(m)},{f7(m)},{f7(m)},{f7(m*1e-4)},{f7(m*1e-4)},{f7(m*1e-4)}'); A(f'REAL,{100+i}'); A(f'E,{i+1}')
+A('! --- apoyos de arcos y tablero')
+for i, t in sorted(fix.items()):
+    if i in base_nodes: continue
+    A(f'D,{i+1},ALL,0' if t == 'ALL' else f'D,{i+1},UX,0,,,,UY,UZ')
+nsol = 0; ncer = 0
+for k_, pn in enumerate(('p1', 'p2')):
+    yt, zt = G['pier_top'][k_]; zb = G['zbase'][pn]; tp_ = p['pier_t']
+    yg = [yt - tp_ / 2 + tp_ * q / 6 for q in range(7)]; nz = max(2, round((zt - zb) / .5)); zg = [zb + (zt - zb) * q / nz for q in range(nz + 1)]
+    A(f'! --- pilar {pn}: muro solido {p["width"]} x {tp_} m, de Z = {zb:.2f} a {zt:.3f} m ({len(xg)-1} x 6 x {nz} hexaedros)')
+    idn = {}
+    for a_, x in enumerate(xg):
+        for b_, y in enumerate(yg):
+            for c_, z in enumerate(zg): nid2 += 1; idn[(a_, b_, c_)] = nid2; A(f'N,{nid2},{f7(x)},{f7(y)},{f7(z)}')
+    A('TYPE,3'); A(f'MAT,{MS}')
+    for a_ in range(len(xg) - 1):
+        for b_ in range(6):
+            for c_ in range(nz):
+                q = [idn[(a_, b_, c_)], idn[(a_+1, b_, c_)], idn[(a_+1, b_+1, c_)], idn[(a_, b_+1, c_)],
+                     idn[(a_, b_, c_+1)], idn[(a_+1, b_, c_+1)], idn[(a_+1, b_+1, c_+1)], idn[(a_, b_+1, c_+1)]]
+                A('E,' + ','.join(map(str, q))); nsol += 1
+    A(f'! base del muro empotrada')
+    for a_ in range(len(xg)):
+        for b_ in range(7): A(f'D,{idn[(a_, b_, 0)]},UX,0,,,,UY,UZ')
+    A(f'! cabeza del muro: cada nodo de cabeza de las barras gobierna los nodos superiores mas cercanos a su linea (region rigida)')
+    for a_, x in enumerate(xg):
+        xm = min(XS, key=lambda v: (abs(v - x), v)); m_ = tops[(pn, xm)] + 1
+        for b_ in range(7): A(f'CERIG,{m_},{idn[(a_, b_, nz)]},UXYZ'); ncer += 1
+A('FINISH'); A('/SOLU'); A('ANTYPE,MODAL'); A(f'MODOPT,LANB,{NM}'); A(f'MXPAND,{NM},,,YES'); A('SOLVE'); A('FINISH')
+A('/POST1'); A('SET,LIST'); A(f'*DIM,FREQ,ARRAY,{NM}'); A(f'*DO,I,1,{NM}'); A('  *GET,FREQ(I),MODE,I,FREQ'); A('*ENDDO')
+A('*CFOPEN,frecuencias_modelo3D_solido,txt'); A('*VWRITE'); A("('    Modo        f_Hz')"); A(f'*DO,I,1,{NM}'); A('*VWRITE,I,FREQ(I)'); A('(F8.0,F12.4)'); A('*ENDDO'); A('*CFCLOS')
+A('/RGB,INDEX,100,100,100,0'); A('/RGB,INDEX,0,0,0,15'); A('/PBC,ALL,,0'); A('ESEL,S,TYPE,,1'); A('ESEL,A,TYPE,,3'); A('/VUP,1,Z'); A('/VIEW,1,1,-1,0.6'); A('/ESHAPE,0'); A('/AUTO,1'); A('SET,1,1'); A('PLDISP,1')
+open(f'{out}/balta_modelo3D_solido.mac', 'w', encoding='utf-8', newline='\r\n').write('\n'.join(S) + '\n')
+print(f'solido: hexaedros {nsol}, regiones rigidas {ncer}, nodos totales {nid2}, elementos BEAM188 {sum(NSUB[s] for _, _, s, _, _ in keep)}')

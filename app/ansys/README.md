@@ -66,3 +66,10 @@ Generado por `generar_modelo3D.py` sobre la misma geometría (arcos ajustados a 
 Todas las secciones de los elementos secundarios y la separación de nervios son supuestas (ver el encabezado del generador).
 Vigas de Timoshenko (G = E/2,6). `verificar_mac3D.py` relee el macro y coincide con el generador a menos de 0,001 %.
 Frecuencias de referencia en `frecuencias_referencia_3D.csv` (modos 1-3 transversales, 4-12 verticales).
+
+## Modelo 3D con pilares sólidos (`balta_modelo3D_solido.mac`)
+
+Igual al modelo 3D de barras, pero cada pilar es un muro macizo de 12,15 × 3 m mallado con SOLID185 (792 hexaedros en total),
+unido a las barras de cabeza por regiones rígidas (CERIG, UXYZ) y empotrado en la base. `verificar_solido.py` relee el macro y lo
+resuelve con hexaedros de integración completa (control aproximado; SOLID185 usa B-bar): modos laterales 1,3-2,4 % más bajos que con
+pilares de barras, verticales dentro de ±0,5 %. Resultado en `balta_modelo3D_solido_control.csv`.
