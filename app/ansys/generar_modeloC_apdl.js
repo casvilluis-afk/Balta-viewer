@@ -16,6 +16,7 @@ const props = [], key = j => [fr.E[j], fr.A[j], fr.I[j]].join('|'), pid = {};
 fr.el.forEach((_, j) => { const k = key(j); if (!(k in pid)) { pid[k] = props.length + 1; props.push({ E: fr.E[j], A: fr.A[j], I: fr.I[j], grp: fr.grp[j].replace(/_.*/, '') }); } });
 const f6 = v => Number(v).toPrecision(10), NSUB = 4;
 fr.el.forEach(([i, j], t) => { const q = props[pid[key(t)] - 1], L = Math.hypot(fr.nodes[j][0] - fr.nodes[i][0], fr.nodes[j][1] - fr.nodes[i][1]) / NSUB, v = 1000 * 12 * q.E * q.I / (L * L); q.kGA = Math.max(q.kGA || 0, v); }); /* cada barra del modelo se divide en NSUB elementos (nodos intermedios sin masa) */
+function genera(TIMO) {
 let s = `! =====================================================================================
 ! Puente Balta - Modelo C de la plataforma PuenteGemelo, replicado en Ansys Mechanical APDL
 ! Generado por app/ansys/generar_modeloC_apdl.js a partir de data/modelo_c.json (geometría ajustada a la nube TLS)
@@ -27,14 +28,14 @@ let s = `! =====================================================================
 ! =====================================================================================
 FINISH
 /CLEAR,NOSTART
-/TITLE,Puente Balta - Modelo C (verificacion de la plataforma PuenteGemelo)
+/TITLE,Puente Balta - Modelo C ${TIMO ? '(Timoshenko: con cortante)' : '(Euler-Bernoulli: verificacion de la plataforma)'}
 /PREP7
 ET,1,BEAM188            ! viga 3D (se restringe al plano)
 KEYOPT,1,3,3            ! funciones de forma cúbicas (con la opción lineal por defecto la malla gruesa sale rígida: +4 a +30 %)
 ET,2,MASS21             ! masa puntual con inercia rotacional (KEYOPT(3)=0)
 ! --- materiales y secciones (ASEC: A, Iyy, Iyz, Izz, Iw, J); Iyy = Izz para no depender de la orientación
 `;
-props.forEach((q, k) => { const id = k + 1; s += `MP,EX,${id},${f6(q.E)}          ! ${q.grp}\nMP,PRXY,${id},0.3\nSECTYPE,${id},BEAM,ASEC\nSECDATA,${f6(q.A)},${f6(q.I)},0,${f6(q.I)},0,${f6(2 * q.I)}\nSECCONTROL,${f6(q.kGA)},${f6(q.kGA)}        ! rigidez a cortante 1000 veces la de flexión del elemento más corto: viga de Euler-Bernoulli como en la app\n`; });
+props.forEach((q, k) => { const id = k + 1; s += `MP,EX,${id},${f6(q.E)}          ! ${q.grp}\nMP,PRXY,${id},0.3\n` + (TIMO ? `! cortante con G = E/2,6 (viga de Timoshenko, deformación por cortante real de la sección supuesta)\n` : `MP,GXY,${id},${f6(1e4 * q.E)}          ! G = 10 000 E: sin deformación por cortante (Euler-Bernoulli, como la app)\n`) + `SECTYPE,${id},BEAM,ASEC\nSECDATA,${f6(q.A)},${f6(q.I)},0,${f6(q.I)},0,${f6(2 * q.I)}\n`; });
 s += `! --- nodos (Y, Z)\n`;
 fr.nodes.forEach(([y, z], i) => { s += `N,${i + 1},0,${f6(y)},${f6(z)}\n`; });
 s += `! --- elementos viga\nTYPE,1\n`;
@@ -67,7 +68,7 @@ SET,LIST
 *DO,I,1,${NM}
   *GET,FREQ(I),MODE,I,FREQ
 *ENDDO
-*CFOPEN,frecuencias_modeloC,txt
+*CFOPEN,frecuencias_modeloC${TIMO ? '_timoshenko' : ''},txt
 *VWRITE
 ('    Modo        f_Hz')
 *DO,I,1,${NM}
@@ -80,8 +81,10 @@ SET,LIST
 SET,1,1
 PLDISP,1
 `;
+return s; }
 fs.mkdirSync(outD, { recursive: true });
-fs.writeFileSync(path.join(outD, 'balta_modeloC_2D.mac'), s.replace(/\n/g, '\r\n'));
+fs.writeFileSync(path.join(outD, 'balta_modeloC_2D.mac'), genera(false).replace(/\n/g, '\r\n'));
+fs.writeFileSync(path.join(outD, 'balta_modeloC_2D_timoshenko.mac'), genera(true).replace(/\n/g, '\r\n'));
 const ref = ['modo,f_app_Hz'].concat(R.f.map((v, i) => `${i + 1},${v.toFixed(4)}`)).join('\n') + '\n';
 fs.writeFileSync(path.join(outD, 'frecuencias_referencia_app.csv'), ref);
 console.log('nodos', N, 'elementos', fr.el.length, 'secciones', props.length, '\nfrecuencias app (Hz):', R.f.map(v => v.toFixed(3)).join(', '));

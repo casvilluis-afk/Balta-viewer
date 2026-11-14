@@ -9,7 +9,7 @@
 ! =====================================================================================
 FINISH
 /CLEAR,NOSTART
-/TITLE,Puente Balta - Modelo C (verificacion de la plataforma PuenteGemelo)
+/TITLE,Puente Balta - Modelo C (Euler-Bernoulli: verificacion de la plataforma)
 /PREP7
 ET,1,BEAM188            ! viga 3D (se restringe al plano)
 KEYOPT,1,3,3            ! funciones de forma cúbicas (con la opción lineal por defecto la malla gruesa sale rígida: +4 a +30 %)
@@ -17,29 +17,29 @@ ET,2,MASS21             ! masa puntual con inercia rotacional (KEYOPT(3)=0)
 ! --- materiales y secciones (ASEC: A, Iyy, Iyz, Izz, Iw, J); Iyy = Izz para no depender de la orientación
 MP,EX,1,100000000.0          ! arco
 MP,PRXY,1,0.3
+MP,GXY,1,1.000000000e+12          ! G = 10 000 E: sin deformación por cortante (Euler-Bernoulli, como la app)
 SECTYPE,1,BEAM,ASEC
 SECDATA,0.2940000000,0.02019500000,0,0.02019500000,0,0.04039000000
-SECCONTROL,3.719791072e+11,3.719791072e+11        ! rigidez a cortante 1000 veces la de flexión del elemento más corto: viga de Euler-Bernoulli como en la app
 MP,EX,2,100000000.0          ! tablero
 MP,PRXY,2,0.3
+MP,GXY,2,1.000000000e+12          ! G = 10 000 E: sin deformación por cortante (Euler-Bernoulli, como la app)
 SECTYPE,2,BEAM,ASEC
 SECDATA,0.3600000000,0.005000000000,0,0.005000000000,0,0.01000000000
-SECCONTROL,9.212763239e+10,9.212763239e+10        ! rigidez a cortante 1000 veces la de flexión del elemento más corto: viga de Euler-Bernoulli como en la app
 MP,EX,3,100000000.0          ! montante
 MP,PRXY,3,0.3
+MP,GXY,3,1.000000000e+12          ! G = 10 000 E: sin deformación por cortante (Euler-Bernoulli, como la app)
 SECTYPE,3,BEAM,ASEC
 SECDATA,0.05000000000,0.0005000000000,0,0.0005000000000,0,0.001000000000
-SECCONTROL,4.793032769e+10,4.793032769e+10        ! rigidez a cortante 1000 veces la de flexión del elemento más corto: viga de Euler-Bernoulli como en la app
 MP,EX,4,250000000.0          ! pilar
 MP,PRXY,4,0.3
+MP,GXY,4,2.500000000e+12          ! G = 10 000 E: sin deformación por cortante (Euler-Bernoulli, como la app)
 SECTYPE,4,BEAM,ASEC
 SECDATA,36.45000000,27.33750000,0,27.33750000,0,54.67500000
-SECCONTROL,4.283798014e+14,4.283798014e+14        ! rigidez a cortante 1000 veces la de flexión del elemento más corto: viga de Euler-Bernoulli como en la app
 MP,EX,5,5000000.000          ! pilar
 MP,PRXY,5,0.3
+MP,GXY,5,5.000000000e+10          ! G = 10 000 E: sin deformación por cortante (Euler-Bernoulli, como la app)
 SECTYPE,5,BEAM,ASEC
 SECDATA,36.45000000,27.33750000,0,27.33750000,0,54.67500000
-SECCONTROL,4.479245722e+12,4.479245722e+12        ! rigidez a cortante 1000 veces la de flexión del elemento más corto: viga de Euler-Bernoulli como en la app
 ! --- nodos (Y, Z)
 N,1,0,31.66373092,-6.039214891
 N,2,0,32.69440880,-5.657196894

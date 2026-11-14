@@ -36,3 +36,9 @@ ASEC en su versión (BEAM188 es una viga de Timoshenko y los pilares son cortos 
 node generar_modeloC_apdl.js ../../plataforma/index.html ../../plataforma/data/modelo_c.json salida
 python3 verificar_mac.py salida/balta_modeloC_2D.mac salida/frecuencias_referencia_app.csv
 ```
+
+Segunda corrida (BEAM188 cúbica, 4 elementos por barra, `SECCONTROL` para anular el cortante): 6,998 · 7,174 · 7,409 · 8,476 · 9,162 · 9,443 · 14,914 · 15,064 Hz (−3 a −6 %).
+Un cálculo con viga de Timoshenko (G = E/2,6, área de cortante = A) reproduce esos valores a 0,4–2,8 %: Ansys **sí** incluyó la
+deformación por cortante (`SECCONTROL` no se aplica a la sección ASEC). Por eso hay dos macros:
+- `balta_modeloC_2D.mac`: G = 10 000 E con `MP,GXY` → Euler-Bernoulli, la misma hipótesis de la app (verificación).
+- `balta_modeloC_2D_timoshenko.mac`: G = E/2,6 → con deformación por cortante; mide cuánto sobrestima la app al despreciarla.
