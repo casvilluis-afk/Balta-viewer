@@ -14,14 +14,15 @@ const N = fr.nodes.length, p = fr.p;
 /* materiales y secciones: una combinación (E, A, I) por grupo */
 const props = [], key = j => [fr.E[j], fr.A[j], fr.I[j]].join('|'), pid = {};
 fr.el.forEach((_, j) => { const k = key(j); if (!(k in pid)) { pid[k] = props.length + 1; props.push({ E: fr.E[j], A: fr.A[j], I: fr.I[j], grp: fr.grp[j].replace(/_.*/, '') }); } });
-const f6 = v => Number(v).toPrecision(10);
+const f6 = v => Number(v).toPrecision(10), NSUB = 4;
+fr.el.forEach(([i, j], t) => { const q = props[pid[key(t)] - 1], L = Math.hypot(fr.nodes[j][0] - fr.nodes[i][0], fr.nodes[j][1] - fr.nodes[i][1]) / NSUB, v = 1000 * 12 * q.E * q.I / (L * L); q.kGA = Math.max(q.kGA || 0, v); }); /* cada barra del modelo se divide en NSUB elementos (nodos intermedios sin masa) */
 let s = `! =====================================================================================
 ! Puente Balta - Modelo C de la plataforma PuenteGemelo, replicado en Ansys Mechanical APDL
 ! Generado por app/ansys/generar_modeloC_apdl.js a partir de data/modelo_c.json (geometría ajustada a la nube TLS)
 ! Pórtico plano en el plano Y-Z (Y: eje del puente, Z: vertical). Unidades: kN, m, t, s (E en kN/m2, masa en t).
 ! Secciones: SUPUESTAS (equivalentes de la plataforma, no medidas). Este modelo sirve para VERIFICAR que Ansys
 ! reproduce las frecuencias del modelo de la app, no para afirmar las frecuencias reales del puente.
-! Nodos: ${N}   Elementos viga: ${fr.el.length}   Masas: ${N}
+! Nodos: ${N} con masa + ${fr.el.length * (NSUB - 1)} intermedios   Elementos viga: ${fr.el.length * NSUB} (BEAM188 cúbica)   Masas: ${N}
 ! Frecuencias de referencia (código de la app): ${R.f.map(v => v.toFixed(3)).join(', ')} Hz
 ! =====================================================================================
 FINISH
@@ -29,14 +30,18 @@ FINISH
 /TITLE,Puente Balta - Modelo C (verificacion de la plataforma PuenteGemelo)
 /PREP7
 ET,1,BEAM188            ! viga 3D (se restringe al plano)
+KEYOPT,1,3,3            ! funciones de forma cúbicas (con la opción lineal por defecto la malla gruesa sale rígida: +4 a +30 %)
 ET,2,MASS21             ! masa puntual con inercia rotacional (KEYOPT(3)=0)
 ! --- materiales y secciones (ASEC: A, Iyy, Iyz, Izz, Iw, J); Iyy = Izz para no depender de la orientación
 `;
-props.forEach((q, k) => { const id = k + 1; s += `MP,EX,${id},${f6(q.E)}          ! ${q.grp}\nMP,PRXY,${id},0.3\nSECTYPE,${id},BEAM,ASEC\nSECDATA,${f6(q.A)},${f6(q.I)},0,${f6(q.I)},0,${f6(2 * q.I)}\nSECCONTROL,1E14,1E14        ! rigidez a cortante muy alta: viga de Euler-Bernoulli como en la app\n`; });
+props.forEach((q, k) => { const id = k + 1; s += `MP,EX,${id},${f6(q.E)}          ! ${q.grp}\nMP,PRXY,${id},0.3\nSECTYPE,${id},BEAM,ASEC\nSECDATA,${f6(q.A)},${f6(q.I)},0,${f6(q.I)},0,${f6(2 * q.I)}\nSECCONTROL,${f6(q.kGA)},${f6(q.kGA)}        ! rigidez a cortante 1000 veces la de flexión del elemento más corto: viga de Euler-Bernoulli como en la app\n`; });
 s += `! --- nodos (Y, Z)\n`;
 fr.nodes.forEach(([y, z], i) => { s += `N,${i + 1},0,${f6(y)},${f6(z)}\n`; });
 s += `! --- elementos viga\nTYPE,1\n`;
-fr.el.forEach(([i, j], t) => { const id = pid[key(t)]; s += `MAT,${id}\nSECNUM,${id}\nE,${i + 1},${j + 1}          ! ${fr.grp[t]}\n`; });
+let nid = N; const extra = [];
+fr.el.forEach(([i, j], t) => { const id = pid[key(t)]; s += `MAT,${id}\nSECNUM,${id}          ! ${fr.grp[t]}\n`; let prev = i + 1; const [y1, z1] = fr.nodes[i], [y2, z2] = fr.nodes[j];
+  for (let k = 1; k < NSUB; k++) { nid++; extra.push(`N,${nid},0,${f6(y1 + (y2 - y1) * k / NSUB)},${f6(z1 + (z2 - z1) * k / NSUB)}`); s += `E,${prev},${nid}\n`; prev = nid; } s += `E,${prev},${j + 1}\n`; });
+s = s.replace('! --- elementos viga\n', '! --- nodos intermedios (sin masa; ' + NSUB + ' elementos por barra)\n' + extra.join('\n') + '\n! --- elementos viga\n');
 s += `! --- masas concentradas (tablero: peso/g por longitud tributaria; arcos y montantes: rho*A*L/2 a cada extremo)\nTYPE,2\n`;
 for (let i = 0; i < N; i++) { const m = fr.mass[i]; s += `R,${100 + i},${f6(m)},${f6(m)},${f6(m)},${f6(m * 1e-4)},${f6(m * 1e-4)},${f6(m * 1e-4)}\nREAL,${100 + i}\nE,${i + 1}\n`; }
 s += `! --- condiciones de borde (pilares empotrados en la base, arranques extremos ${p.springing === 'fixed' ? 'empotrados' : 'articulados'}, extremos del tablero con apoyo simple)\n`;

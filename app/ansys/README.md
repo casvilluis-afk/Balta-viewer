@@ -25,6 +25,8 @@ Sirve para **verificar** que un programa comercial obtiene las mismas frecuencia
 | 7 | 15,435 |
 | 8 | 15,556 |
 
+Primera corrida en Ansys Student 2026 R1 con BEAM188 lineal (opción por defecto), 1 elemento por barra: 7,761 · 7,949 · 8,176 · 10,526 · 12,162 · 12,665 · 18,426 · 18,918 Hz (+4 a +30 %). Causa: el elemento lineal con una sola división por barra es demasiado rígido en flexión. Corrección: `KEYOPT,1,3,3` (forma cúbica) y 4 elementos por barra.
+
 El contenido del macro se comprobó con `verificar_mac.py` (lee el .mac y resuelve el mismo problema con numpy): coincide con la app
 a menos de 0,01 % en los 8 modos. Diferencias de Ansys de hasta ~1 % son esperables solo si `SECCONTROL` no se aplica a la sección
 ASEC en su versión (BEAM188 es una viga de Timoshenko y los pilares son cortos y gruesos); más de 2 % indicaría un error.

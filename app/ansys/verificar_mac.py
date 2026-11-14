@@ -35,6 +35,11 @@ for i, j, E, A, I in els:
 for n, (m, Ir) in mass.items(): M[3*ix[n]] = M[3*ix[n]+1] = m; M[3*ix[n]+2] = Ir
 fx = set(3*ix[n] + {'UY':0,'UZ':1,'ROTX':2}[d] for n, d in fix)
 free = [g for g in range(nd) if g not in fx]
+# grados de libertad sin masa (nodos intermedios): condensación estática exacta (Guyan) antes del problema de valores propios
+ms = [g for g in free if M[g] == 0]; mm = [g for g in free if M[g] > 0]
+if ms:
+    Kss = K[np.ix_(ms, ms)]; Ksm = K[np.ix_(ms, mm)]; K2 = K[np.ix_(mm, mm)] - Ksm.T @ np.linalg.solve(Kss, Ksm)
+    Kp = np.zeros_like(K); Kp[np.ix_(mm, mm)] = K2; K = Kp; free = mm
 Kf = K[np.ix_(free, free)]; Kf = .5 * (Kf + Kf.T)
 # problema mal condicionado (masas rotacionales 1e-4 m): se resuelve completo, no por subconjunto, para que sea exacto
 w2 = np.sort(eigh(Kf, np.diag(M[free]), eigvals_only=True))[:8]
