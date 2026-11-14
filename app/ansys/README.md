@@ -42,3 +42,18 @@ Un cálculo con viga de Timoshenko (G = E/2,6, área de cortante = A) reproduce 
 deformación por cortante (`SECCONTROL` no se aplica a la sección ASEC). Por eso hay dos macros:
 - `balta_modeloC_2D.mac`: G = 10 000 E con `MP,GXY` → Euler-Bernoulli, la misma hipótesis de la app (verificación).
 - `balta_modeloC_2D_timoshenko.mac`: G = E/2,6 → con deformación por cortante; mide cuánto sobrestima la app al despreciarla.
+
+## Resultados en Ansys Student 2026 R1 (13-nov-2026)
+
+| Modo | App (Hz) | Ansys, BEAM188 lineal, 1 elem./barra | Ansys Euler-Bernoulli (cúbica, 4 elem./barra) | Dif. | Ansys Timoshenko | Efecto del cortante |
+|---|---|---|---|---|---|---|
+| 1 | 7.4368 | 7.761 (+4.4 %) | 7.4368 | -0.0006 % | 6.9709 | -6.26 % |
+| 2 | 7.5174 | 7.949 (+5.7 %) | 7.5174 | +0.0000 % | 7.1452 | -4.95 % |
+| 3 | 7.7123 | 8.176 (+6.0 %) | 7.7123 | +0.0001 % | 7.3785 | -4.33 % |
+| 4 | 8.7424 | 10.526 (+20.4 %) | 8.7424 | -0.0001 % | 8.3497 | -4.49 % |
+| 5 | 9.4788 | 12.162 (+28.3 %) | 9.4787 | -0.0007 % | 9.0175 | -4.87 % |
+| 6 | 9.7670 | 12.665 (+29.7 %) | 9.7670 | +0.0002 % | 9.2955 | -4.83 % |
+| 7 | 15.4348 | 18.426 (+19.4 %) | 15.4348 | -0.0002 % | 14.5129 | -5.97 % |
+| 8 | 15.5561 | 18.918 (+21.6 %) | 15.5561 | -0.0003 % | 14.6527 | -5.81 % |
+
+Verificación: con la misma hipótesis (Euler-Bernoulli) Ansys reproduce las 8 frecuencias de la app con diferencias menores de 0,001 %. La malla gruesa con elemento lineal sobrestima hasta +30 % (estudio de convergencia). La deformación por cortante, que la app desprecia, baja las frecuencias entre 4,3 y 6,3 % en este modelo (pilares de 3 m y nervios de radio de giro 0,26 m).
