@@ -57,3 +57,12 @@ deformación por cortante (`SECCONTROL` no se aplica a la sección ASEC). Por es
 | 8 | 15.5561 | 18.918 (+21.6 %) | 15.5561 | -0.0003 % | 14.6527 | -5.81 % |
 
 Verificación: con la misma hipótesis (Euler-Bernoulli) Ansys reproduce las 8 frecuencias de la app con diferencias menores de 0,001 %. La malla gruesa con elemento lineal sobrestima hasta +30 % (estudio de convergencia). La deformación por cortante, que la app desprecia, baja las frecuencias entre 4,3 y 6,3 % en este modelo (pilares de 3 m y nervios de radio de giro 0,26 m).
+
+## Modelo 3D de barras (`balta_modelo3D.mac`)
+
+Generado por `generar_modelo3D.py` sobre la misma geometría (arcos ajustados a la nube, caras de pilares medidas): 6 nervios por arco,
+6 largueros, montantes bajo cada larguero, vigas transversales, diagonales del tablero, arriostres entre nervios y pilares como
+6 columnas unidas por una viga de cabeza. 936 nodos de estructura, 7042 elementos BEAM188 cúbicos, 5790 nodos en total.
+Todas las secciones de los elementos secundarios y la separación de nervios son supuestas (ver el encabezado del generador).
+Vigas de Timoshenko (G = E/2,6). `verificar_mac3D.py` relee el macro y coincide con el generador a menos de 0,001 %.
+Frecuencias de referencia en `frecuencias_referencia_3D.csv` (modos 1-3 transversales, 4-12 verticales).

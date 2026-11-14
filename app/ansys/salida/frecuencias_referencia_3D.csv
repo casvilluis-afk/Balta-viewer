@@ -1,0 +1,13 @@
+modo,f_Hz,forma,fraccion_energia_X_Y_Z
+1,4.9652,"transversal (X), máx. en arco central (Y = 72.2 m)","[1.0, 0.0, 0.0]"
+2,5.3341,"transversal (X), máx. en arco izquierdo (Y = 45.1 m)","[0.99, 0.0, 0.01]"
+3,5.3663,"transversal (X), máx. en arco derecho (Y = 99.3 m)","[0.99, 0.0, 0.01]"
+4,6.5413,"vertical (Z), máx. en arco izquierdo (Y = 44.0 m)","[0.0, 0.0, 1.0]"
+5,6.7044,"vertical (Z), máx. en arco derecho (Y = 100.3 m)","[0.0, 0.0, 1.0]"
+6,6.7995,"vertical (Z), con torsión, máx. en arco izquierdo (Y = 44.0 m)","[0.01, 0.0, 0.99]"
+7,6.9216,"vertical (Z), máx. en arco central (Y = 72.2 m)","[0.0, 0.0, 1.0]"
+8,6.9465,"vertical (Z), con torsión, máx. en arco derecho (Y = 100.3 m)","[0.01, 0.0, 0.99]"
+9,7.1427,"vertical (Z), con torsión, máx. en arco central (Y = 72.2 m)","[0.01, 0.0, 0.99]"
+10,7.8444,"vertical (Z), máx. en arco central (Y = 67.0 m)","[0.0, 0.07, 0.93]"
+11,8.4703,"vertical (Z), máx. en arco izquierdo (Y = 38.9 m)","[0.0, 0.02, 0.98]"
+12,8.7294,"vertical (Z), máx. en arco derecho (Y = 105.4 m)","[0.0, 0.02, 0.98]"
