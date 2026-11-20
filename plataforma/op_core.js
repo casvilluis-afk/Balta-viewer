@@ -601,6 +601,46 @@ function buildTruss(G, p) { // armadura Pratt de tablero inferior, vanos simplem
   fr.zoneOf = el.map(([i, j]) => { const m = (nodes[i][0] + nodes[j][0]) / 2; for (let k = 0; k < spans.length; k++) { const S = spans[k]; if (m >= S.a - 1e-6 && m <= S.b + 1e-6) return 3 * k + Math.min(2, Math.max(0, Math.floor((m - S.a) / (S.b - S.a) * 3))); } return -1; });
   return fr;
 }
+/* ---------- exportación del modelo de barras a Ansys Mechanical APDL ----------
+   Escribe un macro (.mac) que reproduce EXACTAMENTE el pórtico 2D que la app resuelve (nodos, barras, E, A, I, masas, apoyos),
+   para verificarlo en un programa comercial. BEAM188 cúbica (KEYOPT 3 = 3) con NSUB elementos por barra; masas MASS21 en los
+   nodos (traslación + inercia rotacional 1e-4·m, como la app); plano Y-Z (Y a lo largo del puente, Z vertical).
+   opt.cortante = false: G = 10 000 E → viga de Euler-Bernoulli, la misma hipótesis de la app (verificación).
+   opt.cortante = true:  G = E / 2,6 → viga de Timoshenko (mide el efecto de la deformación por cortante).
+   El macro deja frecuencias_<nombre>.txt y modos_<nombre>.txt (UY, UZ, ROTX de cada nodo de la app en cada modo). */
+function exportarAnsys(fr, opt = {}) {
+  const NM = opt.nm || 8, NSUB = opt.nsub || 4, TIMO = !!opt.cortante, N = fr.nodes.length, f6 = v => Number(v).toPrecision(10);
+  const nom = String(opt.nombre || 'puente').normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^\w\-]+/g, '_').replace(/^_+|_+$/g, '').slice(0, 24) || 'puente';
+  const props = [], pid = {}; fr.el.forEach((_, j) => { const k = [fr.E[j], fr.A[j], fr.I[j]].join('|'); if (!(k in pid)) { pid[k] = props.length + 1; props.push({ E: fr.E[j], A: fr.A[j], I: fr.I[j], grp: String(fr.grp[j]).replace(/_.*/, '') }); } });
+  const L = [], A = s => L.push(s);
+  A('! ' + '='.repeat(96));
+  A(`! ${nom} - modelo de barras de la plataforma PuenteGemelo ${opt.version || ''} exportado a Ansys Mechanical APDL`);
+  A(`! Portico plano en Y-Z (Y a lo largo del puente, Z vertical). Unidades: kN, m, t, s (E en kN/m2, masa en t).`);
+  A(`! Nodos: ${N} de la app + ${fr.el.length * (NSUB - 1)} intermedios. Barras: ${fr.el.length} (${fr.el.length * NSUB} BEAM188 cubicas). Masas: ${N}.`);
+  A(`! Hipotesis: ${TIMO ? 'viga de Timoshenko (G = E/2,6)' : 'viga de Euler-Bernoulli (G = 10 000 E), la misma de la app'}.`);
+  if (opt.ref && opt.ref.length) A(`! Frecuencias de la app (Hz): ${opt.ref.slice(0, NM).map(v => v.toFixed(4)).join(', ')}`);
+  A('! Geometria desde la nube de puntos; secciones, material y cargas segun los datos ingresados en la app (revise su origen en el informe).');
+  A('! ' + '='.repeat(96));
+  A('FINISH'); A('/CLEAR,NOSTART'); A(`/TITLE,${nom} - modelo de la plataforma PuenteGemelo (${TIMO ? 'Timoshenko' : 'Euler-Bernoulli'})`); A('/PREP7');
+  A('ET,1,BEAM188'); A('KEYOPT,1,3,3            ! forma cubica'); A('ET,2,MASS21');
+  props.forEach((q, k) => { const id = k + 1; A(`MP,EX,${id},${f6(q.E)}          ! ${q.grp}`); A(`MP,PRXY,${id},0.3`); if (!TIMO) A(`MP,GXY,${id},${f6(1e4 * q.E)}`);
+    A(`SECTYPE,${id},BEAM,ASEC`); A(`SECDATA,${f6(q.A)},${f6(q.I)},0,${f6(q.I)},0,${f6(2 * q.I)}`); });
+  fr.nodes.forEach(([y, z], i) => A(`N,${i + 1},0,${f6(y)},${f6(z)}`));
+  let nid = N; const ln = [], le = ['TYPE,1'];
+  fr.el.forEach(([i, j], t) => { const id = pid[[fr.E[t], fr.A[t], fr.I[t]].join('|')]; le.push(`MAT,${id}`, `SECNUM,${id}          ! ${fr.grp[t]}`); let prev = i + 1; const [y1, z1] = fr.nodes[i], [y2, z2] = fr.nodes[j];
+    for (let k = 1; k < NSUB; k++) { nid++; ln.push(`N,${nid},0,${f6(y1 + (y2 - y1) * k / NSUB)},${f6(z1 + (z2 - z1) * k / NSUB)}`); le.push(`E,${prev},${nid}`); prev = nid; } le.push(`E,${prev},${j + 1}`); });
+  L.push(...ln, ...le); A('TYPE,2');
+  for (let i = 0; i < N; i++) { const m = fr.mass[i]; A(`R,${100 + i},${f6(m)},${f6(m)},${f6(m)},${f6(m * 1e-4)},${f6(m * 1e-4)},${f6(m * 1e-4)}`); A(`REAL,${100 + i}`); A(`E,${i + 1}`); }
+  const dof = ['UY', 'UZ', 'ROTX']; for (let i = 0; i < N; i++) for (let d = 0; d < 3; d++) if (fr.fx[3 * i + d]) A(`D,${i + 1},${dof[d]},0`);
+  A('NSEL,ALL'); A('D,ALL,UX,0'); A('D,ALL,ROTY,0'); A('D,ALL,ROTZ,0'); A('FINISH');
+  A('/SOLU'); A('ANTYPE,MODAL'); A(`MODOPT,LANB,${NM}`); A(`MXPAND,${NM},,,YES`); A('SOLVE'); A('FINISH');
+  A('/POST1'); A('SET,LIST'); A(`*DIM,FREQ,ARRAY,${NM}`); A(`*DO,I,1,${NM}`); A('  *GET,FREQ(I),MODE,I,FREQ'); A('*ENDDO');
+  A(`*CFOPEN,frecuencias_${nom},txt`); A('*VWRITE'); A("('    Modo        f_Hz')"); A(`*DO,I,1,${NM}`); A('*VWRITE,I,FREQ(I)'); A('(F8.0,F12.4)'); A('*ENDDO'); A('*CFCLOS');
+  A(`*CFOPEN,modos_${nom},txt`); A('*VWRITE'); A("(' Modo   Nodo              UY              UZ            ROTX')");
+  A(`*DO,M,1,${NM}`); A('  SET,1,M'); A(`  *DO,K,1,${N}`); A('    *GET,UYK,NODE,K,U,Y'); A('    *GET,UZK,NODE,K,U,Z'); A('    *GET,RXK,NODE,K,ROT,X'); A('    *VWRITE,M,K,UYK,UZK,RXK'); A('(F5.0,F7.0,3E16.7)'); A('  *ENDDO'); A('*ENDDO'); A('*CFCLOS');
+  A('/RGB,INDEX,100,100,100,0'); A('/RGB,INDEX,0,0,0,15'); A('/PBC,ALL,,0'); A('ESEL,S,TYPE,,1'); A('/VUP,1,Z'); A('/VIEW,1,1,0,0'); A('/ESHAPE,0'); A('/AUTO,1'); A('SET,1,1'); A('PLDISP,1');
+  return { texto: L.join('\r\n') + '\r\n', nombre: nom, nodos: nid, barras: fr.el.length, elementos: fr.el.length * NSUB };
+}
 function build(type, G, p) { return type === 'arco' ? buildArch(G, p) : type === 'viga' ? buildGirder(G, p) : buildTruss(G, p); }
 function sensorsOf(fr) { const out = []; fr.spans.forEach(S => [.25, .5, .75].forEach(r => { const y = S.a + r * (S.b - S.a); const d = fr.deckNodes.reduce((b, v) => Math.abs(v.s - y) < Math.abs(b.s - y) ? v : b, fr.deckNodes[0]); out.push({ s: y, node: d.node, dof: 3 * d.node + 1 }); })); return out; }
 
@@ -2520,7 +2560,7 @@ function apoyosArco(O, dk, gr, la, W = { R: 15, BW: 2, NB: 10, NMIN: 150, VERT: 
   const a = uno(la.a), b = uno(la.b); return a != null && b != null ? { a: +a.toFixed(1), b: +b.toFixed(1), L: +(b - a).toFixed(1) } : null;
 }
 
-return { completarNube, completitud, regularizar, contrasteEspejo, desviaciones, MTC, fichaInspeccion, alMundo, exportarIFC, elementos, compararNubes, orientarComo, atributosNube, subCloud, ATR, dimensiones, ejeCurvo, ejePoli, desenrollar, ejeAuto, composicion, calidadNube, supra, superestructura, apoyosArco, gapProfile, gapEnds, estribosHueco, GAP_W, hipotesis, clearanceProfile, iaEstribos, HIP_W, EST_W, iaFeatures, iaPredict, iaClusters, iaRefine, IA_NAMES, IA_REGLA, fftInPlace, detrend, csdMatrix, fdd, efdd, fddModes, pickPeaks, staticPrep, fiberStress, influence, HL93, hl93Extremes, liveLoad, CS_WF, pTrans, markovStep, elemHI, bridgeHI, calibrateAlpha, maintenancePlan, Dxf, bridgePlans, sensorsOf, readAccel, sdof, spectrum, seismic, freqCampaign, setConcMin, suggestType, applySkew, coherence, f1Band, geomSigmas, perturbGeom, archRise, peakCampaign, csdAverage, calibrateModel, nelderMead, trainFreqIA, trainVecIA, trainModalIA, modalFeat, modalMeasFeat, modalMeasFeatBase, freqPredict, build, modal, archAll, parseCloud, orient, bounds, deckLevel, groundLevel, detectSupports, spansOf, envelope, fitParabola, polyval, archGeometry, spanCoverage, MATERIALS,
+return { exportarAnsys, completarNube, completitud, regularizar, contrasteEspejo, desviaciones, MTC, fichaInspeccion, alMundo, exportarIFC, elementos, compararNubes, orientarComo, atributosNube, subCloud, ATR, dimensiones, ejeCurvo, ejePoli, desenrollar, ejeAuto, composicion, calidadNube, supra, superestructura, apoyosArco, gapProfile, gapEnds, estribosHueco, GAP_W, hipotesis, clearanceProfile, iaEstribos, HIP_W, EST_W, iaFeatures, iaPredict, iaClusters, iaRefine, IA_NAMES, IA_REGLA, fftInPlace, detrend, csdMatrix, fdd, efdd, fddModes, pickPeaks, staticPrep, fiberStress, influence, HL93, hl93Extremes, liveLoad, CS_WF, pTrans, markovStep, elemHI, bridgeHI, calibrateAlpha, maintenancePlan, Dxf, bridgePlans, sensorsOf, readAccel, sdof, spectrum, seismic, freqCampaign, setConcMin, suggestType, applySkew, coherence, f1Band, geomSigmas, perturbGeom, archRise, peakCampaign, csdAverage, calibrateModel, nelderMead, trainFreqIA, trainVecIA, trainModalIA, modalFeat, modalMeasFeat, modalMeasFeatBase, freqPredict, build, modal, archAll, parseCloud, orient, bounds, deckLevel, groundLevel, detectSupports, spansOf, envelope, fitParabola, polyval, archGeometry, spanCoverage, MATERIALS,
   build, sensorsOf, modal, signConvention, features, campaign, trainIA, forestPredict, LEVELS, noisy, mulberry, gaussR, quantile, median };
 })();
 if (typeof module !== 'undefined') module.exports = OPC;

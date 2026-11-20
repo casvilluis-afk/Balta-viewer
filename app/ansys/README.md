@@ -83,3 +83,10 @@ Fierro fundido gris E = 100 GPa, ν = 0,26, ρ = 7,15 t/m³; mampostería de pie
 (supuesta); tablero: 94,7 kN/m de masa no estructural (120 kN/m menos el peso de los largueros). Tres mallas: barras primarias
 2/4/8 divisiones, secundarias 1/2/4, hexaedros de 1,0/0,5/0,3 m (2 925 / 8 364 / 23 302 nodos).
 Control propio (`verificar_material.py`, masa consistente, hexaedros con integración completa): `salida/frecuencias_control_material.csv`.
+
+## Exportación desde la app (2.18.0)
+
+`OPC.exportarAnsys(fr, {nombre, cortante, ref})` escribe el macro del pórtico que la app resuelve para cualquier puente (botón
+«Exportar a Ansys (.mac)» en el paso 4). Prueba con 8 puentes procesados por la misma cadena de la app (`exportados/`): releídos con
+`verificar_mac.py`, todos reproducen las frecuencias de la app con diferencias ≤ 0,005 % (Rayitos, Wonli, bridge_1 y bridge_6,
+tranvía de Schipluiden 0,0000 %; Waalbrug y Nijmegen 0,0007 %; Balta como arco 0,0044 %).

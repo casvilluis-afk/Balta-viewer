@@ -320,6 +320,13 @@ ok('Modelo C: 20 zonas de daño (15 de arcos, 3 de tablero y 2 de pilares por so
     const lista = C ? C.lista.map(l => `${l.id}/${l.parte} ${l.n}`).join(', ') : 'sin resultado';
     ok('Nube completada: el hueco de la calzada se rellena con la sección medida (≥ 90 % a < 10 cm) y la cara no vista del pilar se repone copiando el pilar gemelo', C && enHueco >= 250 && bien / enHueco >= .9 && cara >= 500, `${C ? C.n : 0} generados · en el hueco ${enHueco} (${enHueco ? Math.round(100 * bien / enHueco) : 0} % a < 10 cm) · cara del pilar ${cara} · ${lista}`); }
 
+  // Exportación a Ansys: el macro del modelo del Balta tiene todos los nodos (app + intermedios), una BEAM188 por subdivisión, una masa
+  // por nodo y los mismos apoyos que el modelo de la app (la equivalencia numérica se comprueba con app/ansys/verificar_mac.py)
+  { const X = OPC.exportarAnsys(frB, { nombre: 'Puente Balta (prueba)', ref: mdB.f }), T = X.texto, cnt = re => (T.match(re) || []).length;
+    const nfx = Array.from(frB.fx).filter(Boolean).length, nN = frB.nodes.length + frB.el.length * 3;
+    ok('Exportar a Ansys: nodos, elementos BEAM188, masas y apoyos del macro coinciden con el modelo de la app', cnt(/^N,/gm) === nN && cnt(/^E,\d+,\d+\r?$/gm) === frB.el.length * 4 && cnt(/^E,\d+\r?$/gm) === frB.nodes.length && cnt(/^D,\d+,/gm) === nfx && X.nombre === 'Puente_Balta_prueba' && /MODOPT,LANB,8/.test(T),
+      `nodos ${cnt(/^N,/gm)}/${nN} · vigas ${cnt(/^E,\d+,\d+\r?$/gm)} · masas ${cnt(/^E,\d+\r?$/gm)} · apoyos ${cnt(/^D,\d+,/gm)}/${nfx} · ${X.nombre}`); }
+
 // 17. Solver 2D de la plataforma contra OpenSees: se verifica en el navegador (pestaña Validación) con los 450 casos de data/fem_525.csv
 ok('Dataset OpenSees presente', fs.existsSync(path.join(P, 'data', 'fem_525.csv')));
 

@@ -79,7 +79,7 @@ async function opIARev(after) {
   OP.iaBusy = true; const st = $('#opIAst'); if (st) st.textContent = 'La IA está revisando los apoyos…';
   try {
     await new Promise(r => setTimeout(r, 30));
-    OP.iaModel = OP.iaModel || await fetch('data/ia_apoyos.json?v=2.17.1').then(r => { if (!r.ok) throw new Error('sin modelo'); return r.json(); });
+    OP.iaModel = OP.iaModel || await fetch('data/ia_apoyos.json?v=2.18.0').then(r => { if (!r.ok) throw new Error('sin modelo'); return r.json(); });
     if (OP.O !== O || OP.supports !== sup0) return;
     const t0 = performance.now(), R = OPC.iaRefine(OP.O, OP.deckTop, OP.ground, OP.supports, OP.iaModel);
     const rev = { usado: R.usado, motivo: R.motivo || '', veto: R.veto.map(f), rescate: R.rescate.map(f), aEstribo: R.aEstribo.map(f) };
@@ -478,8 +478,10 @@ function opModesShow() {
    <div class="tw" style="margin-top:8px"><table class="data"><thead><tr><th>Modo</th><th class="n">f (Hz)</th><th class="n">T (s)</th><th class="n">Part. vertical</th><th class="n">Part. longitudinal</th></tr></thead><tbody>${r.f.map((f, i) => `<tr${i === OP.modeSel ? ' class="hl"' : ''}><td class="mono">${i + 1}</td><td class="n">${fmt(f, 3)}</td><td class="n">${fmt(1 / f, 4)}</td><td class="n">${pct(r.part[i].Z, 1)}</td><td class="n">${pct(r.part[i].Y, 1)}</td></tr>`).join('')}</tbody></table></div>
    ${(() => { const iv = r.part.findIndex(p => p.Z >= .2 && p.Z >= p.Y), Ls = OP.type === 'arco' ? OP.geo.arches.filter(a => a.ok).map(a => a.L) : opCenterSpans(), xs = fr.nodes.map(n => n[0]);
      return opCoh('modos', { f1v: iv >= 0 ? r.f[iv] : null, Lmax: Math.max(...Ls), massPerM: r.totalMass / (Math.max(...xs) - Math.min(...xs)) }); })()}
-   <p class="help">${fr.nodes.length} nodos · ${fr.el.length} elementos · masa ${fmt(r.totalMass, 0)} t · <button class="btn line" id="opDxf4" style="padding:1px 8px">Planos DXF</button></p>`;
-  $('#opModOut').querySelectorAll('[data-m]').forEach(b => b.onclick = () => { OP.modeSel = +b.dataset.m; opModesShow(); }); const dx4 = $('#opDxf4'); if (dx4) dx4.onclick = opPlans;
+   <p class="help">${fr.nodes.length} nodos · ${fr.el.length} elementos · masa ${fmt(r.totalMass, 0)} t · <button class="btn line" id="opDxf4" style="padding:1px 8px">Planos DXF</button> <button class="btn line" id="opAnsys" style="padding:1px 8px">Exportar a Ansys (.mac)</button> <label style="font-size:.8rem"><input type="checkbox" id="opAnsysT"> con deformación por cortante</label></p>
+   <p class="help keep" id="opAnsysNota">El macro reproduce este mismo modelo en Ansys Mechanical APDL (BEAM188 cúbica, 4 elementos por barra, masas en los nodos). Ábralo en Mechanical APDL con File → Read Input from; deja las frecuencias en <code>frecuencias_…txt</code> y las formas modales en <code>modos_…txt</code> en la carpeta de trabajo. Sin cortante debe dar las frecuencias de esta tabla (diferencia menor de 0,01 %); con cortante, algo menores.</p>`;
+  $('#opModOut').querySelectorAll('[data-m]').forEach(b => b.onclick = () => { OP.modeSel = +b.dataset.m; opModesShow(); }); const dx4 = $('#opDxf4'); if (dx4) dx4.onclick = opPlans; const an = $('#opAnsys'); if (an) an.onclick = () => { const T = !!($('#opAnsysT') || {}).checked, r = OPC.modal(fr, 8), X = OPC.exportarAnsys(fr, { nombre: OP.name || 'puente', cortante: T, ref: T ? null : r.f, version: typeof APP_VERSION !== 'undefined' ? APP_VERSION : '' });
+      download(X.nombre + (T ? '_timoshenko' : '') + '.mac', 'text/plain', new Blob([X.texto], { type: 'text/plain' })); };
   $('#opSheet').innerHTML = sheet({ no: 'T-01', model: `${fr.nodes.length} n · ${fr.el.length} e`, title: `${OP_TYPES[OP.type]} · modo ${OP.modeSel + 1} · ${fmt(r.f[OP.modeSel], 2)} Hz`, scale: 'esquema', content: opFrameSVG(fr, r.phi[OP.modeSel]), notes: `<text x="40" y="470">${esc(OP.name)}</text><text x="40" y="484">Geometría desde la nube; secciones y cargas según supuestos del usuario</text>` });
 }
 function opFrameSVG(fr, phi, hl) {
