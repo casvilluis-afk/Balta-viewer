@@ -75,3 +75,11 @@ resuelve con hexaedros de integración completa (control aproximado; SOLID185 us
 pilares de barras, verticales dentro de ±0,5 %. Resultado en `balta_modelo3D_solido_control.csv`.
 
 Resultado en Ansys Student 2026 R1 (pilares sólidos): 4,8037 · 5,2361 · 5,2832 · 6,5195 · 6,6916 · 6,7682 · 6,9129 · 6,9250 · 7,1362 · 7,8756 · 8,4725 · 8,6380 Hz (0,02-0,8 % bajo el control propio; frente a pilares de barras: laterales −1,5 a −3,3 %, verticales ±0,5 %).
+
+## Modelo 3D con materiales y convergencia de malla (`balta_3D_material_{grueso,medio,fino}.mac`)
+
+`generar_modelo3D_material.py`: masa por densidad de cada material (masa consistente) en vez de masas concentradas a mano.
+Fierro fundido gris E = 100 GPa, ν = 0,26, ρ = 7,15 t/m³; mampostería de piedra de los pilares E = 5 GPa, ν = 0,20, ρ = 2,2 t/m³
+(supuesta); tablero: 94,7 kN/m de masa no estructural (120 kN/m menos el peso de los largueros). Tres mallas: barras primarias
+2/4/8 divisiones, secundarias 1/2/4, hexaedros de 1,0/0,5/0,3 m (2 925 / 8 364 / 23 302 nodos).
+Control propio (`verificar_material.py`, masa consistente, hexaedros con integración completa): `salida/frecuencias_control_material.csv`.
