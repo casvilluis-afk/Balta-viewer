@@ -323,6 +323,17 @@ ok('Modelo C: 20 zonas de daño (15 de arcos, 3 de tablero y 2 de pilares por so
     const p2 = X.find(e => e.id === 'P2'), p2g = p2 ? p2.caras.some(c => c.generados > 0) && p2.texto.some(t => /gemelo/.test(t)) : false;
     ok('Detalle del completado por elemento: la mancha de 12 m² de la calzada se localiza en planta y el texto del pilar P2 explica que se completó con el pilar gemelo', X.length && Am >= 10 && Am <= 14 && p2g && X.every(e => e.texto.length), `${X.length} elementos · mancha ${Am.toFixed(1)} m² en ${man.length} tablero(s) · P2 gemelo ${p2g}`); }
 
+  // Importar resultados de Ansys (nivel 2): archivos con el formato Fortran exacto del macro (F8.0,F12.4 y F5.0,F7.0,3E16.7). (a) mismos modos → todos concuerdan;
+  // (b) modos 2 y 3 intercambiados y con signo cambiado → el MAC los empareja bien; (c) frecuencias 5 % menores (como con cortante) → se marcan; (d) otro modelo (nodos distintos) → aviso
+  { const md8 = OPC.modal(frB, 8), N = frB.nodes.length, E7 = v => { if (!v) return '  0.0000000E+00'; const e = Math.floor(Math.log10(Math.abs(v))) + 1, m = Math.abs(v) / 10 ** e; return (v < 0 ? ' -' : '  ') + '0.' + Math.round(m * 1e7).toString().padStart(7, '0') + 'E' + (e < 0 ? '-' : '+') + String(Math.abs(e)).padStart(2, '0'); };
+    const Ff = (f, orden = [0, 1, 2, 3, 4, 5, 6, 7], esc = 1) => '    Modo        f_Hz\n' + orden.map((k, j) => `${String(j + 1).padStart(7)}.${(f[k] * esc).toFixed(4).padStart(12)}`).join('\n');
+    const Fm = (orden = [0, 1, 2, 3, 4, 5, 6, 7], sg = [1, 1, 1, 1, 1, 1, 1, 1], n = N) => ' Modo   Nodo              UY              UZ            ROTX\n' + orden.map((k, j) => { const u = md8.phi[k]; let L = []; for (let i = 0; i < n; i++) L.push(`${String(j + 1).padStart(4)}.${String(i + 1).padStart(6)}.${E7(sg[j] * 0.37 * u[3 * i])}${E7(sg[j] * 0.37 * u[3 * i + 1])}${E7(sg[j] * 0.37 * u[3 * i + 2])}`); return L.join('\n'); }).join('\n');
+    const a = OPC.compararAnsys(md8, OPC.leerAnsys(Ff(md8.f), Fm()), N);
+    const o2 = [0, 2, 1, 3, 4, 5, 6, 7], b = OPC.compararAnsys(md8, OPC.leerAnsys(Ff(md8.f, o2), Fm(o2, [1, -1, -1, 1, 1, 1, 1, 1])), N);
+    const c = OPC.compararAnsys(md8, OPC.leerAnsys(Ff(md8.f, undefined, .95), Fm()), N), d = OPC.compararAnsys(md8, OPC.leerAnsys(Ff(md8.f), Fm(undefined, undefined, N - 5)), N);
+    const okA = a.ok === 8 && a.dmax < 1e-4 && a.filas.every(r => r.mac > .999), okB = b.filas[1].modoApp === 3 && b.filas[2].modoApp === 2 && b.ok === 8, okC = c.ok === 0 && c.filas.every(r => Math.abs(r.df + .05) < 1e-3), okD = !d.conFormas && d.avisos.length > 0;
+    ok('Importar resultados de Ansys: lee el formato del macro, empareja por MAC aunque cambie el orden o el signo, marca una diferencia de 5 % y avisa si el modelo no es el mismo', okA && okB && okC && okD, `iguales ${a.ok}/8 (Δf máx ${(100 * a.dmax).toFixed(4)} %) · orden cambiado ${b.filas[1].modoApp},${b.filas[2].modoApp} · −5 %: ${c.ok}/8 concuerdan · nodos distintos: ${d.avisos.length ? 'aviso' : 'sin aviso'}`); }
+
   // Exportación a Ansys: el macro del modelo del Balta tiene todos los nodos (app + intermedios), una BEAM188 por subdivisión, una masa
   // por nodo y los mismos apoyos que el modelo de la app (la equivalencia numérica se comprueba con app/ansys/verificar_mac.py)
   { const X = OPC.exportarAnsys(frB, { nombre: 'Puente Balta (prueba)', ref: mdB.f }), T = X.texto, cnt = re => (T.match(re) || []).length;

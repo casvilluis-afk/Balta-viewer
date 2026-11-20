@@ -2665,7 +2665,38 @@ function apoyosArco(O, dk, gr, la, W = { R: 15, BW: 2, NB: 10, NMIN: 150, VERT: 
   const a = uno(la.a), b = uno(la.b); return a != null && b != null ? { a: +a.toFixed(1), b: +b.toFixed(1), L: +(b - a).toFixed(1) } : null;
 }
 
-return { detalleCompletado, exportarAnsys, completarNube, completitud, regularizar, contrasteEspejo, desviaciones, MTC, fichaInspeccion, alMundo, exportarIFC, elementos, compararNubes, orientarComo, atributosNube, subCloud, ATR, dimensiones, ejeCurvo, ejePoli, desenrollar, ejeAuto, composicion, calidadNube, supra, superestructura, apoyosArco, gapProfile, gapEnds, estribosHueco, GAP_W, hipotesis, clearanceProfile, iaEstribos, HIP_W, EST_W, iaFeatures, iaPredict, iaClusters, iaRefine, IA_NAMES, IA_REGLA, fftInPlace, detrend, csdMatrix, fdd, efdd, fddModes, pickPeaks, staticPrep, fiberStress, influence, HL93, hl93Extremes, liveLoad, CS_WF, pTrans, markovStep, elemHI, bridgeHI, calibrateAlpha, maintenancePlan, Dxf, bridgePlans, sensorsOf, readAccel, sdof, spectrum, seismic, freqCampaign, setConcMin, suggestType, applySkew, coherence, f1Band, geomSigmas, perturbGeom, archRise, peakCampaign, csdAverage, calibrateModel, nelderMead, trainFreqIA, trainVecIA, trainModalIA, modalFeat, modalMeasFeat, modalMeasFeatBase, freqPredict, build, modal, archAll, parseCloud, orient, bounds, deckLevel, groundLevel, detectSupports, spansOf, envelope, fitParabola, polyval, archGeometry, spanCoverage, MATERIALS,
+
+/* Nivel 2 de la conexión con Ansys: leer lo que escribe el macro exportado (frecuencias_<nombre>.txt y modos_<nombre>.txt) y compararlo con la app.
+   Los nodos 1..N del macro son los nodos de la app en el mismo orden; UY = a lo largo del puente, UZ = vertical, ROTX = giro en el plano. */
+function leerAnsys(txtF, txtM) {
+  const num = l => (l.match(/[-+]?\d*\.?\d+(?:[EeDd][-+]?\d+)?/g) || []).map(x => +x.replace(/[Dd]/, 'E'));
+  const out = { f: [], modos: {}, nodos: 0, avisos: [] };
+  if (txtF) for (const l of txtF.split(/\r?\n/)) { const v = num(l); if (v.length === 2 && Number.isInteger(v[0]) && v[0] >= 1 && v[1] > 0) out.f[v[0] - 1] = v[1]; }
+  if (txtM) { const filas = []; for (const l of txtM.split(/\r?\n/)) { const v = num(l); if (v.length === 5 && Number.isInteger(v[0]) && Number.isInteger(v[1]) && v[0] >= 1 && v[1] >= 1) filas.push(v); }
+    for (const [m, k] of filas) out.nodos = Math.max(out.nodos, k);
+    for (const [m, k, uy, uz, rx] of filas) { const u = out.modos[m] || (out.modos[m] = new Float64Array(3 * out.nodos)); u[3 * (k - 1)] = uy; u[3 * (k - 1) + 1] = uz; u[3 * (k - 1) + 2] = rx; } }
+  out.f = Array.from(out.f).filter(v => v != null);
+  if (!out.f.length && !Object.keys(out.modos).length) out.avisos.push('No se encontraron frecuencias ni formas modales con el formato del macro exportado por la app.');
+  return out;
+}
+/* compara con los modos de la app: MAC con las traslaciones (UY, UZ) de los nodos de la app; cada modo de Ansys se empareja con el modo de la app de mayor MAC
+   (si no hay formas, por orden). Veredicto con los mismos criterios usados al verificar el modelo C: |Δf| ≤ 1 % y MAC ≥ 0,95 = concuerda */
+function compararAnsys(md, A, N) {
+  const NA = A.f.length, tieneM = Object.keys(A.modos).length > 0, avisos = A.avisos.slice();
+  if (tieneM && A.nodos !== N) { avisos.push(`El archivo de formas tiene ${A.nodos} nodos y el modelo de la app ${N}: no es el macro de este modelo (vuelva a exportarlo y a correrlo). Se comparan solo las frecuencias, por orden.`); }
+  const usaM = tieneM && A.nodos === N;
+  const tr = u => { const v = new Float64Array(2 * N); for (let i = 0; i < N; i++) { v[2 * i] = u[3 * i]; v[2 * i + 1] = u[3 * i + 1]; } return v; };
+  const mac = (a, b) => { let ab = 0, aa = 0, bb = 0; for (let i = 0; i < a.length; i++) { ab += a[i] * b[i]; aa += a[i] * a[i]; bb += b[i] * b[i]; } return aa && bb ? ab * ab / (aa * bb) : 0; };
+  const P = md.phi.map(tr), M = []; if (usaM) for (let j = 0; j < NA; j++) { const u = A.modos[j + 1]; M.push(P.map(p => u ? mac(tr(u), p) : 0)); }
+  const filas = A.f.map((fa, j) => { let k = j, m = null; if (usaM) { k = M[j].indexOf(Math.max(...M[j])); m = M[j][k]; } const fp = md.f[k];
+    const df = fp ? (fa - fp) / fp : null; return { modo: j + 1, fAnsys: fa, modoApp: k + 1, fApp: fp ?? null, df, mac: m, concuerda: df != null && Math.abs(df) <= .01 && (m == null || m >= .95) }; });
+  const usados = filas.map(r => r.modoApp), rep = usados.filter((k, i) => usados.indexOf(k) !== i);
+  if (rep.length) avisos.push(`Más de un modo de Ansys se parece al mismo modo de la app (${[...new Set(rep)].join(', ')}): modos cercanos o el modelo no es el mismo.`);
+  const n = filas.length, ok = filas.filter(r => r.concuerda).length, dmax = Math.max(...filas.map(r => Math.abs(r.df ?? 0)));
+  return { filas, matriz: usaM ? M : null, n, ok, dmax, conFormas: usaM, avisos };
+}
+
+return { leerAnsys, compararAnsys, detalleCompletado, exportarAnsys, completarNube, completitud, regularizar, contrasteEspejo, desviaciones, MTC, fichaInspeccion, alMundo, exportarIFC, elementos, compararNubes, orientarComo, atributosNube, subCloud, ATR, dimensiones, ejeCurvo, ejePoli, desenrollar, ejeAuto, composicion, calidadNube, supra, superestructura, apoyosArco, gapProfile, gapEnds, estribosHueco, GAP_W, hipotesis, clearanceProfile, iaEstribos, HIP_W, EST_W, iaFeatures, iaPredict, iaClusters, iaRefine, IA_NAMES, IA_REGLA, fftInPlace, detrend, csdMatrix, fdd, efdd, fddModes, pickPeaks, staticPrep, fiberStress, influence, HL93, hl93Extremes, liveLoad, CS_WF, pTrans, markovStep, elemHI, bridgeHI, calibrateAlpha, maintenancePlan, Dxf, bridgePlans, sensorsOf, readAccel, sdof, spectrum, seismic, freqCampaign, setConcMin, suggestType, applySkew, coherence, f1Band, geomSigmas, perturbGeom, archRise, peakCampaign, csdAverage, calibrateModel, nelderMead, trainFreqIA, trainVecIA, trainModalIA, modalFeat, modalMeasFeat, modalMeasFeatBase, freqPredict, build, modal, archAll, parseCloud, orient, bounds, deckLevel, groundLevel, detectSupports, spansOf, envelope, fitParabola, polyval, archGeometry, spanCoverage, MATERIALS,
   build, sensorsOf, modal, signConvention, features, campaign, trainIA, forestPredict, LEVELS, noisy, mulberry, gaussR, quantile, median };
 })();
 if (typeof module !== 'undefined') module.exports = OPC;

@@ -90,3 +90,12 @@ Control propio (`verificar_material.py`, masa consistente, hexaedros con integra
 «Exportar a Ansys (.mac)» en el paso 4). Prueba con 8 puentes procesados por la misma cadena de la app (`exportados/`): releídos con
 `verificar_mac.py`, todos reproducen las frecuencias de la app con diferencias ≤ 0,005 % (Rayitos, Wonli, bridge_1 y bridge_6,
 tranvía de Schipluiden 0,0000 %; Waalbrug y Nijmegen 0,0007 %; Balta como arco 0,0044 %).
+
+## Nivel 2: traer los resultados de Ansys a la app (2.20.0)
+1. En la app, paso 4: **Calcular modos** → **Exportar a Ansys (.mac)** (marque «con deformación por cortante» si quiere medir el efecto del cortante).
+2. Copie el `.mac` a `C:\ansys\balta` (sin espacios ni tildes) y córralo en Mechanical APDL (*Working Directory* = esa carpeta; File → Read Input from).
+3. Al terminar, en esa carpeta quedan `frecuencias_<nombre>.txt` y `modos_<nombre>.txt`.
+4. En la app, paso 4: **Cargar resultados de Ansys** y elija los dos archivos. La tabla muestra, por modo, f de Ansys, el modo de la app con la forma más parecida, Δf y MAC. Concuerda si |Δf| ≤ 1 % y MAC ≥ 0,95.
+
+`simular_salida_ansys.py modelo.mac carpeta [--timoshenko]` escribe archivos con el mismo formato resolviendo el `.mac` con numpy. Sirve solo para probar la importación: **no son resultados de Ansys**.
+Prueba con Rayitos: sin cortante, 8/8 modos con Δf ≤ 0,001 % y MAC 1,000. Con cortante, −0,9 a −3,7 % en los modos de flexión y 0 % en el longitudinal; además los modos 7 y 8 cambian de orden y el MAC los empareja bien. Pendiente: probarlo con los archivos de una corrida real.
