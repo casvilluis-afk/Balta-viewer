@@ -1566,7 +1566,7 @@ function completarNube(O, R, F, opt = {}) {
   /* autovalidación en la misma nube: se ocultan parches (esferas de 1,5 m alrededor de puntos al azar de cada cara, ≈ 10 % de sus puntos), se completa con
      todas las reglas y se mide, parche por parche, qué fracción de lo generado cae a ≤ τ de un punto oculto (precisión) y qué fracción de lo oculto
      recupera un vecino generado (recuperación). Una regla solo queda activa en este puente si su precisión ≥ 80 % con al menos 50 puntos evaluados.
-     Si ninguna cara produjo prueba, la regla se deja activa pero marcada «sin validar». */
+     Si ninguna cara produjo prueba (menos de 50 puntos juzgados), la regla queda desactivada y marcada «sin validar». */
   let seed = 7; const rnd = () => { seed = (seed * 1103515245 + 12345) % 2147483648; return seed / 2147483648; }, tau = Math.max(2 * esp, .05), RP = 1.5;
   const oculto = new Uint8Array(O.n), centros = [];
   for (const it of F.elementos) for (const c of it.cajas || []) { if (!c.bins) continue; const idx = []; for (let i = 0; i < O.n; i++) if (O.s[i] >= c.s0 && O.s[i] < c.s1 && O.t[i] >= c.t0 && O.t[i] <= c.t1 && O.z[i] >= c.z0 && O.z[i] <= c.z1) idx.push(i); if (idx.length < 200) continue;
@@ -1582,7 +1582,7 @@ function completarNube(O, R, F, opt = {}) {
   const ev = {}; for (const k of Object.keys(REGLAS)) ev[k] = { n: 0, ok: 0, vacio: 0 }; const gen = new Set();
   for (let i = 0; i < prueba.n; i++) { const s = prueba.xyz[3 * i], t = prueba.xyz[3 * i + 1], z = prueba.xyz[3 * i + 2]; if (!enParche(s, t, z)) continue; const k = prueba.fuentes[prueba.cod[i]].regla, e = ev[k]; gen.add(H2(vt(s), vt(t), vt(z))); if (cerca(s, t, z, ocultos)) { e.n++; e.ok++; } else if (cerca3(s, t, z)) e.n++; else e.vacio++; }
   let rec = 0, tot = 0; for (let i = 0; i < O.n; i += 3) { if (!oculto[i]) continue; tot++; if (cerca(O.s[i], O.t[i], O.z[i], gen)) rec++; }
-  const activas = new Set(), validacion = []; for (const [k, nombre] of Object.entries(REGLAS)) { const e = ev[k], prec = e.n ? e.ok / e.n : null, activa = e.n < 50 ? true : prec >= .8; if (activa) activas.add(k); validacion.push({ regla: k, nombre, n: e.n, vacio: e.vacio, prec: prec == null ? null : +prec.toFixed(2), activa, sinValidar: e.n < 50 }); }
+  const activas = new Set(), validacion = []; for (const [k, nombre] of Object.entries(REGLAS)) { const e = ev[k], prec = e.n ? e.ok / e.n : null, activa = e.n >= 50 && prec >= .8; /* una regla que no se pudo poner a prueba en esta nube no se aplica: nada sin comprobar */ if (activa) activas.add(k); validacion.push({ regla: k, nombre, n: e.n, vacio: e.vacio, prec: prec == null ? null : +prec.toFixed(2), activa, sinValidar: e.n < 50 }); }
   const out = corre(null, activas); out.validacion = { reglas: validacion, tau: +tau.toFixed(3), ocultos: tot * 3, recuperacion: tot ? +(rec / tot).toFixed(2) : null, parches: centros.length }; return out;
 }
 function regularizar(pos, a, b) { /* serie casi regular: paso = mediana de las separaciones; se rellenan huecos que son múltiplos del paso (±25 %) */
