@@ -704,7 +704,8 @@ function modal(fr, nmodes = 8, esc = null, tol = 1e-12) {
   }
   const f = lam.slice(0, nmodes).map(l => Math.sqrt(Math.max(l, 0)) / (2 * Math.PI)), phi = X.slice(0, nmodes).map(v => { const u = new Float64Array(nd); free.forEach((g, a) => u[g] = v[a]); return u; });
   let mt = 0; for (let i = 0; i < N; i++) mt += Md[3 * i];
-  const part = phi.map(u => { let mm = 0; for (let i = 0; i < nd; i++) mm += u[i] * u[i] * Md[i]; const g = [0, 1].map(dd => { let s = 0; for (let i = 0; i < N; i++) s += u[3 * i + dd] * Md[3 * i + dd]; return s / mm; }); return { Y: g[0] ** 2 * mm / mt, Z: g[1] ** 2 * mm / mt }; });
+  const part = phi.map(u => { let mm = 0; for (let i = 0; i < nd; i++) mm += u[i] * u[i] * Md[i]; const g = [0, 1].map(dd => { let s = 0; for (let i = 0; i < N; i++) s += u[3 * i + dd] * Md[3 * i + dd]; return s / mm; }); let eY = 0, eZ = 0; for (let k = 0; k < N; k++) { eY += u[3 * k] ** 2 * Md[3 * k]; eZ += u[3 * k + 1] ** 2 * Md[3 * k + 1]; } /* reparto de la energía cinética: dice si el modo es vertical o longitudinal aunque su masa participante sea baja (modos antisimétricos) */
+    return { eY: eY / (eY + eZ), eZ: eZ / (eY + eZ), Y: g[0] ** 2 * mm / mt, Z: g[1] ** 2 * mm / mt }; });
   return { f, phi, part, totalMass: mt };
 }
 // rasgos medibles: Δf de NM modos emparejados por MAC y formas de 4 modos en los sensores (signo: componente máxima positiva)
@@ -2038,7 +2039,8 @@ function dimensiones(O, dk, gr, supports, W = {}) {
     // solo con al menos 6 niveles y un ajuste limpio (residuo ≤ 5 % del espesor); si no, la inclinación no se informa
     if (P.length >= 6) { const mz = P.reduce((x, y) => x + y[0], 0) / P.length, ms = P.reduce((x, y) => x + y[1], 0) / P.length; let num = 0, den = 0; for (const [z, s] of P) { num += (z - mz) * (s - ms); den += (z - mz) ** 2; } const b = den ? num / den : 0;
       const rs = Math.sqrt(P.reduce((x, [z, s]) => x + (s - ms - b * (z - mz)) ** 2, 0) / P.length), esp = Ss[Ss.length - 1] - Ss[0] + .25; if (den && rs <= .05 * esp + .02) incl = 1000 * b; }
-    return { i: i + 1, s: +sc.toFixed(1), sCentro: +((pct(Ps, .99) + pct(Ps, .01)) / 2).toFixed(2), n: idx.length, espesor: +(pct(Ps, .99) - pct(Ps, .01)).toFixed(2), ancho: +(pct(Pt, .99) - pct(Pt, .01)).toFixed(2), columnas: cols.length,
+    const eF = pct(Ps, .99) - pct(Ps, .01), eC = p.b - p.a > .3 ? p.b - p.a : null; /* caras del apoyo (paso 2) frente al fuste continuo visto */
+    return { i: i + 1, s: +sc.toFixed(1), sCentro: +((pct(Ps, .99) + pct(Ps, .01)) / 2).toFixed(2), n: idx.length, espesor: +eF.toFixed(2), espesorCaras: eC != null ? +eC.toFixed(2) : null, fusteParcial: eC != null && eF < .6 * eC, ancho: +(pct(Pt, .99) - pct(Pt, .01)).toFixed(2), columnas: cols.length,
       anchoColumna: +(Math.max(...cols.map(c => c.b - c.a + 1)) * .25).toFixed(2), completo: (pct(Pt, .99) - pct(Pt, .01)) >= .25 * B, /* fuste angosto bajo un tablero ancho: visto solo en parte */ altura: +(zt + .3 + hTab - z0 + .5).toFixed(2), inclinacion: incl != null ? +incl.toFixed(1) : null }; });
   let dTop = []; for (let k = 0; k < nq; k++) if (top0[k] === top0[k]) dTop.push(topS[k] - q.deck[k]); dTop.sort((a, b) => a - b); const sobre = dTop.length ? dTop[dTop.length >> 1] : 0;
   return { calzadaSobreReferencia: +sobre.toFixed(2), anchoTablero: +B.toFixed(2), canto: cantoMed != null ? +cantoMed.toFixed(2) : null, cantoN: cs.length, vanos, pilares: pil };
@@ -2216,11 +2218,12 @@ function elementos(O, dk, gr, supports, opt = {}) {
   const q = opt.calidad || calidadNube(O, dk, gr, supports); if (!q) return null;
   const D = opt.dims || dimensiones(O, dk, gr, supports), SS = opt.superestructura || superestructura(O, dk, gr);
   const deckAt = s => { const k = Math.floor((s - q.s0) / q.bw); return q.deck[Math.max(0, Math.min(q.deck.length - 1, k))]; };
+  /* ancho que se informa: el de «Dimensiones medidas» (borde a borde de la calzada), el mismo en toda la app; t0/t1 siguen definiendo la franja de trabajo */
   const zcal = superficieCalzada(O, q), nbz = q.deck.length;
   const top = s => { const k = Math.max(0, Math.min(nbz - 1, Math.floor((s - q.s0) / q.bw))); if (zcal[k] != null) return zcal[k]; for (let d = 1; d < nbz; d++) { if (zcal[k - d] != null) return zcal[k - d]; if (zcal[k + d] != null) return zcal[k + d]; } return deckAt(s) + (D && D.calzadaSobreReferencia > .5 ? D.calzadaSobreReferencia : 0); }, canto = D && D.canto ? D.canto : null;
   const tt = []; for (let i = 0; i < O.n; i += 3) if (Math.abs(O.z[i] - deckAt(O.s[i])) < .4) tt.push(O.t[i]); tt.sort((a, b) => a - b);
   /* bordes del tablero: el ancho medido solo donde la calzada está elevada (calidadNube); el suelo al mismo nivel junto a los estribos no cuenta */
-  const t0 = q.tb ? q.tb[0] : tt[Math.floor(tt.length * .03)], t1 = q.tb ? q.tb[1] : tt[Math.floor(tt.length * .97)], tm = (t0 + t1) / 2, B = t1 - t0;
+  const t0 = q.tb ? q.tb[0] : tt[Math.floor(tt.length * .03)], t1 = q.tb ? q.tb[1] : tt[Math.floor(tt.length * .97)], tm = (t0 + t1) / 2, B = t1 - t0, BW = D && D.anchoTablero ? D.anchoTablero : B;
   const sp = supports.slice().sort((a, b) => a.a - b.a), mid = p => (p.a + p.b) / 2, E = [], r2 = v => +v.toFixed(2);
   // picos de puntos a lo largo del eje (celdas de 0,5 m suavizadas) dentro de un filtro; separación mínima entre miembros
   const picos = (f, a, b, sep) => { const bw = .5, nb = Math.max(1, Math.ceil((b - a) / bw)), h = new Float32Array(nb);
@@ -2232,19 +2235,19 @@ function elementos(O, dk, gr, supports, opt = {}) {
   // tablero por vano
   for (let k = 1; k < sp.length; k++) { const a = sp[k - 1].b, b = sp[k].a; if (b - a < 1) continue; const v = D && D.vanos.find(x => Math.abs(x.a - a) < .5);
     const sm = (a + b) / 2, perfil = []; for (let s = a; s <= b + 1e-6; s += Math.max(1, (b - a) / 20)) perfil.push([r2(s), r2(top(s))]);
-    E.push({ tipo: 'tablero', id: 'T' + k, vano: k, a: r2(a), b: r2(b), luz: r2(b - a), ancho: r2(B), t0: r2(t0), t1: r2(t1), canto: v && v.canto != null ? v.canto : canto, cota: r2(top(sm)), perfil, fuente: v && v.canto != null ? 'canto medido en este vano' : canto ? 'canto medido (mediana del puente)' : 'canto no visible' }); }
+    E.push({ tipo: 'tablero', id: 'T' + k, vano: k, a: r2(a), b: r2(b), luz: r2(b - a), ancho: r2(BW), t0: r2(t0), t1: r2(t1), canto: v && v.canto != null ? v.canto : canto, cota: r2(top(sm)), perfil, fuente: v && v.canto != null ? 'canto medido en este vano' : canto ? 'canto medido (mediana del puente)' : 'canto no visible' }); }
   // pilares y estribos
   for (const p of sp) { if (p.tipo === 'pilar') { const d = D && D.pilares.find(x => Math.abs(x.s - mid(p)) < 1.5);
-      E.push({ tipo: 'pilar', id: 'P' + (E.filter(e => e.tipo === 'pilar').length + 1), s: r2(d && d.espesor >= .3 && d.sCentro != null && Math.abs(d.sCentro - mid(p)) < 1.5 ? d.sCentro : mid(p)), /* centro del fuste medido (las dos caras), no la cara detectada */ espesor: d && d.espesor != null ? d.espesor : p.b - p.a > .1 ? r2(p.b - p.a) : null, ancho: d && d.ancho != null ? d.ancho : null, columnas: d && d.columnas || 1, anchoColumna: d && d.anchoColumna || null,
+      E.push({ tipo: 'pilar', id: 'P' + (E.filter(e => e.tipo === 'pilar').length + 1), s: r2(d && d.fusteParcial ? mid(p) : d && d.espesor >= .3 && d.sCentro != null && Math.abs(d.sCentro - mid(p)) < 1.5 ? d.sCentro : mid(p)), /* centro del fuste medido (las dos caras), no la cara detectada */ espesor: d && d.fusteParcial ? d.espesorCaras : d && d.espesor != null ? d.espesor : p.b - p.a > .1 ? r2(p.b - p.a) : null, ancho: d && d.ancho != null ? d.ancho : null, columnas: d && d.columnas || 1, anchoColumna: d && d.anchoColumna || null,
         zBase: r2(gr), zTop: r2(top(mid(p)) - (canto || .5)), inclinacion: d ? d.inclinacion : null, completo: d ? !!d.completo : false, fuente: p.inferido ? 'inferido por arranque de arcos (fuste no visto)' : d && d.espesor != null ? 'fuste medido' : 'caras del apoyo', inferido: !!p.inferido }); }
-    else E.push({ tipo: 'estribo', id: 'E' + (E.filter(e => e.tipo === 'estribo').length + 1), s: r2(mid(p)), espesor: r2(Math.max(1, p.b - p.a)), ancho: r2(B), zBase: r2(gr), zTop: r2(top(mid(p))) }); }
+    else E.push({ tipo: 'estribo', id: 'E' + (E.filter(e => e.tipo === 'estribo').length + 1), s: r2(mid(p)), espesor: r2(Math.max(1, p.b - p.a)), ancho: r2(BW), zBase: r2(gr), zTop: r2(top(mid(p))) }); }
   // arcos bajo el tablero (vanos de arco) y sus montantes
   const ARC = opt.arcos || []; ARC.forEach((A, k) => { if (!A || !A.coef) return; const zA = s => polyval(A.coef, s), cr = (A.a + A.b) / 2; let zc = -Infinity, sc = cr; for (let s = A.a; s <= A.b; s += .5) if (zA(s) > zc) { zc = zA(s); sc = s; }
     const mont = picos(i => { const s = O.s[i], z = O.z[i], t = O.t[i]; if (t < t0 - 1 || t > t1 + 1) return false; const za = zA(s), zd = top(s) - (canto || .5) - .3; return zd - za > 1.5 && z > za + .8 && z < zd; }, A.a + 1, A.b - 1, 1.5);
-    E.push({ tipo: 'arco', id: 'A' + (k + 1), a: r2(A.a), b: r2(A.b), luz: r2(A.b - A.a), flecha: r2(zc - Math.min(zA(A.a), zA(A.b))), coef: A.coef.map(c => +c.toPrecision(8)), zClave: r2(zc), ancho: r2(B), montantes: mont }); });
+    E.push({ tipo: 'arco', id: 'A' + (k + 1), a: r2(A.a), b: r2(A.b), luz: r2(A.b - A.a), flecha: r2(zc - Math.min(zA(A.a), zA(A.b))), coef: A.coef.map(c => +c.toPrecision(8)), zClave: r2(zc), ancho: r2(BW), montantes: mont }); });
   /* vanos de arco sin tablero propio (el primer o último apoyo del arco no quedó entre los apoyos): se agrega el tablero sobre ese arco */
   for (const A of E.filter(e => e.tipo === 'arco')) if (!E.some(e => e.tipo === 'tablero' && Math.min(e.b, A.b) - Math.max(e.a, A.a) > .5 * A.luz)) { const perfil = []; for (let s = A.a; s <= A.b + 1e-6; s += Math.max(1, A.luz / 20)) perfil.push([r2(s), r2(top(s))]);
-    E.push({ tipo: 'tablero', id: 'T' + A.id, vano: 'arco ' + A.id, a: A.a, b: A.b, luz: A.luz, ancho: r2(B), t0: r2(t0), t1: r2(t1), canto, cota: r2(top((A.a + A.b) / 2)), perfil, fuente: canto ? 'canto medido (mediana del puente)' : 'canto no visible' }); }
+    E.push({ tipo: 'tablero', id: 'T' + A.id, vano: 'arco ' + A.id, a: A.a, b: A.b, luz: A.luz, ancho: r2(BW), t0: r2(t0), t1: r2(t1), canto, cota: r2(top((A.a + A.b) / 2)), perfil, fuente: canto ? 'canto medido (mediana del puente)' : 'canto no visible' }); }
   // superestructura sobre la calzada
   for (const g of SS || []) {
     if (g.tipo === 'arco_superior' && g.luzArco) { const la = g.luzArco, c = (la.a + la.b) / 2, h = la.L / 2, zA = s => top(s) + la.flecha * (1 - ((s - c) / h) ** 2);
@@ -2268,7 +2271,7 @@ function elementos(O, dk, gr, supports, opt = {}) {
   const nVis = bord.filter(Boolean).length;
   ['izquierda', 'derecha'].forEach((lado, w) => { const ph = hb[w].filter(v => v.length >= 3).map(v => { v.sort((a, b) => a - b); return v[Math.floor(v.length * .95)]; }), cob = ph.length / Math.max(1, nVis);
     if (nVis >= 5 && cob >= .5) { ph.sort((a, b) => a - b); const tb = bord.filter(Boolean).map(e => e[w]).sort((a, b) => a - b); E.push({ tipo: 'baranda', id: 'B' + (w + 1), lado, t: r2(tb[tb.length >> 1]), a: r2(L0), b: r2(L1), altura: r2(ph[ph.length >> 1]), cobertura: r2(cob) }); } });
-  return { elementos: E, marco: { t0: r2(t0), t1: r2(t1), ancho: r2(B) }, calzada: { s0: q.s0, bw: q.bw, z: zcal.map(v => v == null ? null : r2(v)) } };
+  return { elementos: E, marco: { t0: r2(t0), t1: r2(t1), ancho: r2(BW) }, calzada: { s0: q.s0, bw: q.bw, z: zcal.map(v => v == null ? null : r2(v)) } };
 }
 
 /* ---------- Mapa de desviaciones: dónde la superficie medida se aparta de la forma ideal del elemento ----------
