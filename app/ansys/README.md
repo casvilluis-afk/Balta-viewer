@@ -99,3 +99,8 @@ tranvía de Schipluiden 0,0000 %; Waalbrug y Nijmegen 0,0007 %; Balta como arco 
 
 `simular_salida_ansys.py modelo.mac carpeta [--timoshenko]` escribe archivos con el mismo formato resolviendo el `.mac` con numpy. Sirve solo para probar la importación: **no son resultados de Ansys**.
 Prueba con Rayitos: sin cortante, 8/8 modos con Δf ≤ 0,001 % y MAC 1,000. Con cortante, −0,9 a −3,7 % en los modos de flexión y 0 % en el longitudinal; además los modos 7 y 8 cambian de orden y el MAC los empareja bien. Pendiente: probarlo con los archivos de una corrida real.
+
+### Corrida real (20-11-2026, Ansys Student 2026 R1)
+Macro `balta_full.mac`: nube completa del Balta, 156 nodos de la app y 900 BEAM188. Resultado: 7,3476 · 7,3550 · 7,5822 · 8,4752 · 8,9727 · 9,2045 · 14,9632 · 15,0903 Hz. Al cargarlo en la app: 8/8 modos con Δf ≤ 0,001 % y MAC 1,000. Los archivos están en `salida/corrida_real_balta_full/`.
+Correcciones en 2.20.1: el macro escribía la lista de frecuencias repetida; la app lee bien esos archivos y el macro nuevo escribe una fila por modo. Además, el macro lleva una firma del modelo y la app avisa si los resultados son de un modelo distinto del actual.
+Si Ansys se cierra con «memory (-m) size requested … not available», en el Launcher → Customization/Preferences ponga Total Workspace 1024 MB y Database 256 MB, y use SMP con 2 núcleos.

@@ -334,6 +334,14 @@ ok('Modelo C: 20 zonas de daño (15 de arcos, 3 de tablero y 2 de pilares por so
     const okA = a.ok === 8 && a.dmax < 1e-4 && a.filas.every(r => r.mac > .999), okB = b.filas[1].modoApp === 3 && b.filas[2].modoApp === 2 && b.ok === 8, okC = c.ok === 0 && c.filas.every(r => Math.abs(r.df + .05) < 1e-3), okD = !d.conFormas && d.avisos.length > 0;
     ok('Importar resultados de Ansys: lee el formato del macro, empareja por MAC aunque cambie el orden o el signo, marca una diferencia de 5 % y avisa si el modelo no es el mismo', okA && okB && okC && okD, `iguales ${a.ok}/8 (Δf máx ${(100 * a.dmax).toFixed(4)} %) · orden cambiado ${b.filas[1].modoApp},${b.filas[2].modoApp} · −5 %: ${c.ok}/8 concuerdan · nodos distintos: ${d.avisos.length ? 'aviso' : 'sin aviso'}`); }
 
+  // Archivos de una corrida real de Ansys 2026 R1 (Student) del macro del Balta exportado con 2.20.0, cuyo *VWRITE repetía la lista de frecuencias:
+  // se leen bien (primera fila de cada modo); y la firma del modelo separa un macro de este modelo de uno exportado con otros datos
+  { const fF = '    Modo        f_Hz\n' + [[1,7.3476],[1,7.3550],[1,7.5822],[2,7.3550],[2,7.5822],[3,7.5822]].map(([m, f]) => `${String(m).padStart(7)}.${f.toFixed(4).padStart(12)}`).join('\n');
+    const A = OPC.leerAnsys(fF, ''), X = OPC.exportarAnsys(frB, { nombre: 'b' }), fm = (X.texto.match(/firma ([0-9A-Z]+)/) || [])[1];
+    const PB2 = Object.assign({}, PB, { E: PB.E * 1.01 }), otra = OPC.firmaModelo(OPC.build('arco', GB, PB2));
+    const B = OPC.leerAnsys('    Modo        f_Hz   firma ' + fm + '\n      1.      7.3476', ''), c1 = OPC.compararAnsys(mdB, B, frB.nodes.length, OPC.firmaModelo(frB)), c2 = OPC.compararAnsys(mdB, B, frB.nodes.length, otra);
+    ok('Resultados de Ansys: lista repetida del macro 2.20.0 leída bien y firma del modelo que detecta un macro de otros datos', A.f.join(',') === '7.3476,7.355,7.5822' && fm && fm === OPC.firmaModelo(frB) && !c1.otroModelo && c2.otroModelo && otra !== fm, `f ${A.f.join(' / ')} · firma ${fm} · mismo modelo ${!c1.otroModelo} · E +1 %: ${c2.otroModelo ? 'aviso' : 'sin aviso'}`); }
+
   // Exportación a Ansys: el macro del modelo del Balta tiene todos los nodos (app + intermedios), una BEAM188 por subdivisión, una masa
   // por nodo y los mismos apoyos que el modelo de la app (la equivalencia numérica se comprueba con app/ansys/verificar_mac.py)
   { const X = OPC.exportarAnsys(frB, { nombre: 'Puente Balta (prueba)', ref: mdB.f }), T = X.texto, cnt = re => (T.match(re) || []).length;
