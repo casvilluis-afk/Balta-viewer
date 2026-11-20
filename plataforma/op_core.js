@@ -441,7 +441,7 @@ function coherence(step, d) {
     if (d.tipo === 'arco') (d.arches || []).forEach((a, i) => { if (!a.ok) return; const r = a.rise / a.L;
       if (r < 1 / 12 || r > 1 / 2) add('revisar', `Arco ${i + 1}: flecha/luz = ${f(r, 2)}, fuera de lo habitual (1/12 a 1/2).`);
       if (a.rms > .1) add('revisar', `Arco ${i + 1}: la parábola se separa ${f(100 * a.rms, 0)} cm de los puntos; puede no ser una parábola o haber vegetación.`);
-      if (a.comp && a.comp.total < .3) add('revisar', `Arco ${i + 1}: la nube solo muestra el ${f(100 * a.comp.total, 0)} % del arco.`); });
+      if (a.comp && a.comp.total < .3) add('revisar', `Arco ${i + 1}: la nube muestra solo el ${f(100 * a.comp.total, 0)} % del intradós del arco (la curva que se ajusta); la luz y la flecha de ese arco son menos seguras.`); });
     else (d.spans || []).forEach((s, i) => { if (s.cov != null && s.cov < .3) add('revisar', `Vano ${i + 1}: la nube muestra poco de la parte inferior (${f(100 * s.cov, 0)} %).`); });
     if (!out.length) add('ok', 'La geometría es coherente con el tipo de puente elegido.'); }
   if (step === 'modos') { const L = d.Lmax, f1 = d.f1v; if (L && f1) { const b = f1Band(L);
@@ -1669,11 +1669,15 @@ function detalleCompletado(O, R, F, C) {
             if (toca && (bMax - bMin + 1) * cell <= 1) continue; } let rel = 0; const rg = {}; let s0 = Infinity, s1 = -Infinity, t0 = Infinity, t1 = -Infinity;
           for (const k of cel) { const x = k % nu, y = (k - x) / nu; s0 = Math.min(s0, U[0] + x * cell); s1 = Math.max(s1, U[0] + (x + 1) * cell); t0 = Math.min(t0, V[0] + y * cell); t1 = Math.max(t1, V[0] + (y + 1) * cell); if (gN[k] >= 2) { rel++; rg[gR[k]] = (rg[gR[k]] || 0) + 1; } }
           manchas.push({ area: +A_.toFixed(2), s0: +s0.toFixed(1), s1: +s1.toFixed(1), t0: +t0.toFixed(1), t1: +t1.toFixed(1), relleno: +(rel / cel.length).toFixed(2), reglas: Object.entries(rg).sort((x, y) => y[1] - x[1]).map(([r]) => OP_RNOM[r]) }); }
-        manchas.sort((x, y) => y.area - x.area); }
+        manchas.sort((x, y) => y.area - x.area);
+        /* una cara inferior vista a lo largo pero casi vacía en planta no es una losa continua (vigas, largueros o arriostres vistos por separado):
+           ahí las «manchas» serían el espacio entre vigas, no oclusiones, así que se cuenta solo a lo largo */
+        if (c.parte !== 'calzada' && area.antes != null && area.antes < .5) { area = { antes: null, noLosa: true, cubierta: area.antes }; manchas = []; } }
       E.caras.push({ parte: c.parte, eje: ez ? 'z' : 's', antes: +cubre(antes).toFixed(2), despues: +cubre(despues).toFixed(2), generados: gen.reduce((a, b) => a + b, 0), extra: (() => { const enH = new Set(); for (const x of huecos) for (let q = Math.floor(x.desde - base); q < Math.ceil(x.hasta - base); q++) enH.add(q); const r = {}; porR.forEach((o, q) => { if (enH.has(q)) return; for (const [k, n] of Object.entries(o)) r[k] = (r[k] || 0) + n; }); return Object.entries(r).sort((x, y) => y[1] - x[1]).map(([k, n]) => { const [rg, tp, ...o] = k.split('|'); return { nombre: NOMR[rg] || rg, origen: o.join('|'), n, acierto: val[rg + '|' + tp] ? val[rg + '|' + tp].prec : null }; }); })(), huecos, area, manchas, mapa: { plano, nu, nv, cell: +cell.toFixed(3), U, V, celdas: mapa } }); }
     /* texto: qué se vio, qué faltaba, cómo se completó, qué queda */
     E.texto = E.caras.map(f => { const h = f.huecos, L = h.reduce((a, x) => a + x.largo, 0), dim = f.eje === 'z' ? 'de altura' : 'de largo';
       let t = `${f.parte}: la nube cubría ${pc(f.antes)} ${dim === 'de altura' ? 'de la altura' : 'del largo'}${h.length ? `, con ${h.length} hueco${h.length > 1 ? 's' : ''} (${L} m ${dim})` : ', sin huecos'}; con la nube completada ${pc(f.despues)}.`;
+      if (f.area && f.area.noLosa) t += ` En planta solo ${pc(f.area.cubierta)} de la superficie tiene puntos: no es una losa continua (vigas o largueros vistos por separado), así que se evalúa solo a lo largo.`;
       if (f.area && f.area.antes != null) { const M = f.manchas, A = M.reduce((a, x) => a + x.area, 0); t += ` En planta, la nube cubría ${pc(f.area.antes)} de la superficie (${pc(f.area.despues)} con la nube completada)${M.length ? `, con ${M.length} mancha${M.length > 1 ? 's' : ''} sin puntos de al menos 0,5 m² (${c1(A)} m² en total); la mayor, de ${c1(M[0].area)} m² entre el eje ${c1(M[0].s0)} y ${c1(M[0].s1)} m, quedó ${M[0].relleno >= .95 ? 'rellena' : M[0].relleno > 0 ? 'rellena en ' + pc(M[0].relleno) : 'sin rellenar'}${M[0].reglas.length ? ' con ' + M[0].reglas.join(' y ') : ''}` : ''}.`; }
       for (const x of h) { const rng = `${x.eje === 'z' ? 'Z' : 'eje'} ${c1(x.desde)} a ${c1(x.hasta)} m`;
         if (x.reglas.length) t += ` ${rng}: ${x.estado}${x.estado === 'parcial' ? ` (${x.metrosCompletados} de ${x.largo} m)` : ''} con ${x.reglas.map(r => `${r.nombre} — ${r.origen}${r.acierto != null ? `, acierto en la autovalidación ${pc(r.acierto)}` : ''} (${r.n} puntos)`).join('; ')}.`;
@@ -2505,7 +2509,7 @@ function fichaInspeccion(O, R, ex = {}) {
   // medidas que el inspector debe revisar
   for (const it of items) { const e = it.medidas;
     if (it.tipo === 'pilar' && e.completo === false && e.espesor != null) it.evid.push({ fuente: 'medición', nivel: 'medio', texto: 'fuste visto en parte (ancho medido < 1/4 del tablero): sus medidas no son completas' });
-    if (it.tipo === 'pilar' && e.inclinacion != null) it.evid.push({ fuente: 'medición', nivel: 'info', texto: `inclinación medida del fuste ${e.inclinacion} mm/m (con ruido de la nube; compárela con la de otra campaña)` });
+    if (it.tipo === 'pilar' && e.inclinacion != null) it.evid.push({ fuente: 'medición', nivel: 'info', texto: `inclinación medida del fuste ${String(e.inclinacion).replace(".", ",")} mm/m (con ruido de la nube; compárela con la de otra campaña)` });
     if (it.tipo === 'tablero' && e.canto == null) it.evid.push({ fuente: 'medición', nivel: 'medio', texto: 'canto no medido: no se separa una cara inferior del tablero en la nube' }); }
   // huecos de la nube sobre el tablero
   for (const h of (ex.calidad && ex.calidad.huecos) || []) { const b = caja(h.a, h.b, m.t0, m.t1, -1e9, 1e9, ['tablero']); if (b) b.it.evid.push({ fuente: 'cobertura', nivel: 'alto', a: h.a, b: h.b, texto: `hueco sin puntos en la calzada de ${c1(h.a)} a ${c1(h.b)} m` }); }
