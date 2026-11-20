@@ -1500,6 +1500,7 @@ function gapEnds(G, W = GAP_W) {
    la misma regla de reparación que Yang et al. 2026) y con el origen de cada punto. Lo medido no se toca. */
 function completarNube(O, R, F, opt = {}) {
   if (!R || !F || !R.elementos) return null; const E = R.elementos, Z = R.calzada, m = R.marco, esp = opt.espaciado || .05, r = Math.max(1.5 * esp, .05), g = Math.max(r, .12);
+  const TIPO = id => { const e = E.find(x => x.id === id); return e ? e.tipo : 'otro'; }; /* cada regla se pone a prueba por TIPO de elemento: la simetría que vale para pilares puede no valer para arcos */
   const REGLAS = { simetria_t: 'simetría transversal', simetria_propia: 'simetría del propio elemento', gemelo: 'elemento gemelo', seccion: 'sección transversal repetida' };
   /* corre(oculto, activas): genera con las reglas activas tratando como inexistentes los puntos marcados en «oculto» (autovalidación) */
   const corre = (oculto, activas) => {
@@ -1509,7 +1510,7 @@ function completarNube(O, R, F, opt = {}) {
   for (let i = 0; i < O.n; i++) { if (oculto && oculto[i]) continue; occ.add(H(vox(O.s[i]), vox(O.t[i]), vox(O.z[i]))); }
   const libre = (s, t, z) => { const a = vox(s), b = vox(t), c = vox(z); return !(occ.has(H(a, b, c)) || occ.has(H(a + 1, b, c)) || occ.has(H(a - 1, b, c)) || occ.has(H(a, b + 1, c)) || occ.has(H(a, b - 1, c)) || occ.has(H(a, b, c + 1)) || occ.has(H(a, b, c - 1))); };
   const nuevo = new Set(), out = [], cod = [], fuentes = [], lista = [];
-  const add = (pts, id, parte, origen, regla) => { if (activas && !activas.has(regla)) return 0; let n = 0; let k = fuentes.findIndex(f => f.origen === origen && f.id === id); if (k < 0) { k = fuentes.length; fuentes.push({ id, parte, origen, regla }); }
+  const add = (pts, id, parte, origen, regla) => { const tipo = TIPO(id); if (activas && !activas.has(regla + '|' + tipo)) return 0; let n = 0; let k = fuentes.findIndex(f => f.origen === origen && f.id === id); if (k < 0) { k = fuentes.length; fuentes.push({ id, parte, origen, regla, tipo }); }
     for (let i = 0; i < pts.length; i += 3) { const s = pts[i], t = pts[i + 1], z = pts[i + 2]; const key = H(vox(s), vox(t), vox(z)); if (nuevo.has(key) || !libre(s, t, z)) continue; nuevo.add(key); out.push(s, t, z); cod.push(k); n++; }
     if (n) lista.push({ id, parte, n, origen, regla }); return n; };
   const F_ = id => F.elementos.find(x => x.id === id), cob = (id, parte) => { const it = F_(id); const c = it && it.cobertura.find(q => q.parte === parte); return c ? c.f : 0; }, caja = (id, parte) => { const it = F_(id); return it && it.cajas.find(q => q.parte === parte); };
@@ -1542,11 +1543,14 @@ function completarNube(O, R, F, opt = {}) {
   /* 2. arcos: simetría del propio arco respecto de su clave y copia del arco vecino ajustada a la parábola propia */
   const arc = E.filter(e => e.tipo === 'arco' && e.coef);
   for (const e of arc) { if (cob(e.id, 'arco y montantes') >= .9) continue; const c = caja(e.id, 'arco y montantes'); if (!c) continue; const yv = -e.coef[1] / (2 * e.coef[0]), zA = s => e.coef[0] * s * s + e.coef[1] * s + e.coef[2];
-    { const P = recoge(c); if (P.length >= 300) { const aj = ajusta(P, (P, i, d) => [2 * d - P[3 * i], P[3 * i + 1], P[3 * i + 2]], yv, 1, .05), Q = []; if (aj.solape >= .1) for (let i = 0; i < P.length; i += 3) { const s2 = 2 * aj.d - P[i]; if (s2 >= e.a && s2 <= e.b) Q.push(s2, P[i + 1], P[i + 2]); } add(Q, e.id, 'arco y montantes', `simetría del propio arco respecto de su clave (clave medida s = ${aj.d.toFixed(2).replace('.', ',')} m)`, 'simetria_propia'); } }
+    /* solo el NERVIO del arco (franja de −0,2 a +0,9 m sobre el intradós ajustado) se refleja o se copia: los montantes no están necesariamente en posiciones
+       simétricas respecto de la clave, así que reflejarlos los pondría entre los reales; se tratan aparte (serie regular, «completitud») */
+    const enNervio = (s, z) => { const d = z - zA(s); return d >= -.2 && d <= .9; }, nervio = P0 => { const P = []; for (let i = 0; i < P0.length; i += 3) if (enNervio(P0[i], P0[i + 2])) P.push(P0[i], P0[i + 1], P0[i + 2]); return P; };
+    { const P = nervio(recoge(c)); if (P.length >= 300) { const aj = ajusta(P, (P, i, d) => [2 * d - P[3 * i], P[3 * i + 1], P[3 * i + 2]], yv, 1, .05), Q = []; if (aj.solape >= .1) for (let i = 0; i < P.length; i += 3) { const s2 = 2 * aj.d - P[i]; if (s2 >= e.a && s2 <= e.b) Q.push(s2, P[i + 1], P[i + 2]); } add(Q, e.id, 'arco y montantes', `simetría del nervio del arco respecto de su clave (clave medida s = ${aj.d.toFixed(2).replace('.', ',')} m; solo el nervio, no los montantes)`, 'simetria_propia'); } }
     const don = arc.filter(d => d !== e && cob(d.id, 'arco y montantes') >= .8 && Math.abs(d.luz - e.luz) <= .15 * Math.max(d.luz, e.luz)).sort((a, b) => cob(b.id, 'arco y montantes') - cob(a.id, 'arco y montantes'))[0];
     if (don) { const cd = caja(don.id, 'arco y montantes'), P = recoge(cd), Q = [], k = (e.b - e.a) / (don.b - don.a), zD = s => don.coef[0] * s * s + don.coef[1] * s + don.coef[2];
-      const M = []; for (let i = 0; i < P.length; i += 3) { const s2 = e.a + (P[i] - don.a) * k; M.push(s2, P[i + 1], P[i + 2] - zD(P[i]) + zA(s2)); } const aj = M.length >= 300 ? ajusta(M, (P, i, d) => [P[3 * i] + d, P[3 * i + 1], P[3 * i + 2]], 0, 1.5, .05) : { d: 0, solape: 0 }; if (aj.solape < .1) continue; /* la copia debe encajar con la parte vista de este arco */
-      for (let i = 0; i < M.length; i += 3) { const s2 = M[i] + aj.d; if (s2 < e.a || s2 > e.b) continue; Q.push(s2, M[i + 1], M[i + 2]); } add(Q, e.id, 'arco y montantes', `copia del arco vecino ${don.id} (visto ${Math.round(cob(don.id, 'arco y montantes') * 100)} %), llevada a la parábola medida de este arco`, 'gemelo'); } }
+      const M = []; for (let i = 0; i < P.length; i += 3) { const dz = P[i + 2] - zD(P[i]); if (dz < -.2 || dz > .9) continue; /* solo el nervio del arco vecino */ const s2 = e.a + (P[i] - don.a) * k; M.push(s2, P[i + 1], dz + zA(s2)); } const aj = M.length >= 300 ? ajusta(M, (P, i, d) => [P[3 * i] + d, P[3 * i + 1], P[3 * i + 2]], 0, 1.5, .05) : { d: 0, solape: 0 }; if (aj.solape < .1) continue; /* la copia debe encajar con la parte vista de este arco */
+      for (let i = 0; i < M.length; i += 3) { const s2 = M[i] + aj.d; if (s2 < e.a || s2 > e.b) continue; Q.push(s2, M[i + 1], M[i + 2]); } add(Q, e.id, 'arco y montantes', `copia del arco vecino ${don.id} (visto ${Math.round(cob(don.id, 'arco y montantes') * 100)} %), llevada a la parábola medida de este arco; solo el nervio`, 'gemelo'); } }
   /* 3. tablero (calzada y cara inferior) y barandas: la sección transversal medida en el tramo visto, repetida donde falta, siguiendo el perfil de la calzada */
   /* sección transversal local: celdas (t, dz = z − cota de calzada) de lado g, con la lista de metros (bins de 1 m a lo largo de s) donde cada celda se midió.
      Al rellenar en s solo se usan las celdas medidas a ≤ 12 m por los dos lados (interpolación entre tramos vistos), o a ≤ 1,5 m por un lado en los extremos: nada se extrapola de lejos */
@@ -1554,36 +1558,130 @@ function completarNube(O, R, F, opt = {}) {
     return { cel: [...cel.values()].filter(a => a.bins.size >= 2), vis }; };
   /* una celda se repite solo si es un rasgo continuo del elemento (está en ≥ 50 % de los metros vistos: losa, pasamanos, cara inferior; no un poste o un
      montante aislado) y solo entre dos metros vistos a ≤ 12 m (interpolación); en los dos metros extremos basta un lado a ≤ 2 m */
-  const repite = (c, S, s0, s1) => { const Q = [], nb = Math.ceil(s1 - s0), nv = S.vis.size, cel = S.cel.filter(p => p.bins.size >= .5 * nv);
+  const repite = (c, S, s0, s1) => { const Q = [], nb = Math.ceil(c.s1 - c.s0), nv = S.vis.size, cel = S.cel.filter(p => p.bins.size >= .5 * nv);
     for (let s = s0 + g / 2; s < s1; s += g) { const zt = top(s), b = Math.floor(s - c.s0); for (const p of cel) { if (p.bins.has(b)) continue; let L = false, R = false; for (let d = 1; d <= 12 && !(L && R); d++) { if (p.bins.has(b - d)) L = true; if (p.bins.has(b + d)) R = true; }
         const ok = (L && R) || ((b < 2 && (p.bins.has(b + 1) || p.bins.has(b + 2))) || (b >= nb - 2 && (p.bins.has(b - 1) || p.bins.has(b - 2)))); if (ok) Q.push(s, p.t, zt + p.dz); } } return Q; };
-  for (const e of E) { if (e.tipo === 'tablero') for (const parte of ['calzada', 'cara inferior']) { const c = caja(e.id, parte); if (!c) continue; const prof = seccion(c); if (prof.cel.length < 3) continue;
-      add(repite(c, prof, c.s0, c.s1), e.id, parte, `sección transversal medida en el tramo visto de ${e.id}, repetida siguiendo el perfil de la calzada`, 'seccion'); }
+  /* el tablero es continuo sobre las pilas: la sección de un tramo se mide también hasta 12 m dentro de los tramos vecinos, así un hueco que llega a la
+     pila se interpola con lo visto al otro lado; los extremos siguen siendo los del tablero entero (nada se extrapola más allá) */
+  const extT = parte => { let a = Infinity, b = -Infinity; for (const x of E) if (x.tipo === 'tablero') { const q = caja(x.id, parte); if (q) { a = Math.min(a, q.s0); b = Math.max(b, q.s1); } } return [a, b]; };
+  for (const e of E) { if (e.tipo === 'tablero') for (const parte of ['calzada', 'cara inferior']) { const c0 = caja(e.id, parte); if (!c0) continue; const [d0, d1] = extT(parte), c = Object.assign({}, c0, { s0: Math.max(d0, c0.s0 - 12), s1: Math.min(d1, c0.s1 + 12) }); const prof = seccion(c); if (prof.cel.length < 3) continue;
+      add(repite(c, prof, c0.s0, c0.s1), e.id, parte, `sección transversal medida en ${e.id} y hasta 12 m dentro de los tramos vecinos (el tablero es continuo sobre las pilas), repetida siguiendo el perfil de la calzada`, 'seccion'); }
     else if (e.tipo === 'baranda') { const c = caja(e.id, 'baranda'); if (!c) continue; const prof = seccion(c); if (prof.cel.length < 3) continue; add(repite(c, prof, c.s0, c.s1), e.id, 'baranda', `sección de la baranda medida donde se vio, repetida a lo largo del tablero`, 'seccion'); } }
   return { xyz: Float32Array.from(out), cod: Uint8Array.from(cod), fuentes, lista, n: out.length / 3, r: +r.toFixed(3), paso: +g.toFixed(3) };
   }; /* fin de corre */
   if (opt.validar === false) return Object.assign(corre(null, null), { validacion: null });
-  /* autovalidación en la misma nube: se ocultan parches (esferas de 1,5 m alrededor de puntos al azar de cada cara, ≈ 10 % de sus puntos), se completa con
-     todas las reglas y se mide, parche por parche, qué fracción de lo generado cae a ≤ τ de un punto oculto (precisión) y qué fracción de lo oculto
-     recupera un vecino generado (recuperación). Una regla solo queda activa en este puente si su precisión ≥ 80 % con al menos 50 puntos evaluados.
-     Si ninguna cara produjo prueba (menos de 50 puntos juzgados), la regla queda desactivada y marcada «sin validar». */
-  let seed = 7; const rnd = () => { seed = (seed * 1103515245 + 12345) % 2147483648; return seed / 2147483648; }, tau = Math.max(2 * esp, .05), RP = 1.5;
-  const oculto = new Uint8Array(O.n), centros = [];
+  /* autovalidación en la misma nube, con sombras como las de un escáner: en cada cara se elige un punto de vista (sobre la calzada, bajo el tablero o
+     al costado, a un lado elegido al azar) y se ocultan los puntos de esa cara más cercanos a él dentro de un cono de ±45° (≈ 10 % de sus puntos): es lo
+     que tapa un obstáculo delante del escáner. Se completa con todas las reglas y se mide qué fracción de lo generado cerca de lo ocultado (≤ 0,5 m) cae a
+     ≤ τ de un punto oculto (acierto). Una regla solo queda activa si se pudo probar (≥ 50 puntos juzgados) y acierta ≥ 80 %; si no, queda desactivada. */
+  let seed = 7; const rnd = () => { seed = (seed * 1103515245 + 12345) % 2147483648; return seed / 2147483648; }, tau = Math.max(2 * esp, .05);
+  const oculto = new Uint8Array(O.n), tmid = (m.t0 + m.t1) / 2, anch = Math.max(2, m.t1 - m.t0); let nparches = 0;
   for (const it of F.elementos) for (const c of it.cajas || []) { if (!c.bins) continue; const idx = []; for (let i = 0; i < O.n; i++) if (O.s[i] >= c.s0 && O.s[i] < c.s1 && O.t[i] >= c.t0 && O.t[i] <= c.t1 && O.z[i] >= c.z0 && O.z[i] <= c.z1) idx.push(i); if (idx.length < 200) continue;
-    let quitados = 0, intentos = 0; while (quitados < .1 * idx.length && intentos < 12) { intentos++; const i0 = idx[Math.floor(rnd() * idx.length)], cs = O.s[i0], ct = O.t[i0], cz = O.z[i0]; centros.push([cs, ct, cz]); for (const i of idx) { if (oculto[i]) continue; const d = (O.s[i] - cs) ** 2 + (O.t[i] - ct) ** 2 + (O.z[i] - cz) ** 2; if (d <= RP * RP) { oculto[i] = 1; quitados++; } } } }
+    const sm = c.s0 + (c.s1 - c.s0) * (.2 + .6 * rnd()), zm = (c.z0 + c.z1) / 2, lado = rnd() < .5 ? -1 : 1;
+    const V = c.parte === 'calzada' ? [sm, tmid + lado * anch * .3, c.z1 + 40] : c.parte === 'baranda' ? [sm, tmid, c.z1 + 2] : /inferior|arco|nervios|tirantes/.test(c.parte) ? [sm, tmid + lado * 2 * anch, c.z0 - 4] : [sm, tmid + lado * 3 * anch, zm];
+    const dir = [(c.s0 + c.s1) / 2 - V[0], tmid - V[1], zm - V[2]], dn = Math.hypot(...dir), L = [];
+    for (const i of idx) { const ds = O.s[i] - V[0], dt = O.t[i] - V[1], dz = O.z[i] - V[2], d = Math.sqrt(ds * ds + dt * dt + dz * dz); if ((ds * dir[0] + dt * dir[1] + dz * dir[2]) / (d * dn) >= Math.SQRT1_2) L.push([d, i]); }
+    L.sort((x, y) => x[0] - y[0]); const k = Math.round(.1 * idx.length); for (let q = 0; q < Math.min(k, L.length); q++) oculto[L[q][1]] = 1; if (L.length) nparches++; }
+  const centros = { length: nparches };
   const prueba = corre(oculto, null), H2 = (a, b, c) => ((a * 73856093) ^ (b * 19349663) ^ (c * 83492791)) >>> 0, vt = v => Math.floor(v / tau), ocultos = new Set();
   for (let i = 0; i < O.n; i++) if (oculto[i]) ocultos.add(H2(vt(O.s[i]), vt(O.t[i]), vt(O.z[i])));
   const cerca = (s, t, z, S) => { const a = vt(s), b = vt(t), c = vt(z); for (let da = -1; da <= 1; da++) for (let db = -1; db <= 1; db++) for (let dc = -1; dc <= 1; dc++) if (S.has(H2(a + da, b + db, c + dc))) return true; return false; };
-  const enParche = (s, t, z) => { for (const q of centros) if ((s - q[0]) ** 2 + (t - q[1]) ** 2 + (z - q[2]) ** 2 <= RP * RP) return true; return false; };
+  const v5 = v => Math.floor(v / .5), zonaOc = new Set(); for (let i = 0; i < O.n; i++) if (oculto[i]) zonaOc.add(H2(v5(O.s[i]), v5(O.t[i]), v5(O.z[i])));
+  const enParche = (s, t, z) => { const a = v5(s), b = v5(t), c = v5(z); for (let da = -1; da <= 1; da++) for (let db = -1; db <= 1; db++) for (let dc = -1; dc <= 1; dc++) if (zonaOc.has(H2(a + da, b + db, c + dc))) return true; return false; };
   /* un punto generado dentro de un parche cuenta como acierto si está a ≤ τ de un punto oculto, como error si hay nube original a ≤ 3 τ pero no a ≤ τ (está desplazado
      de una superficie real) y no cuenta si no hay nada original a 3 τ (rellena un vacío real del levantamiento: no se puede juzgar) */
+  /* acierto = el punto generado cae sobre la superficie real (a ≤ τ de algún punto de la nube original, oculto o no) */
+  const origT = new Set(); for (let i = 0; i < O.n; i++) origT.add(H2(vt(O.s[i]), vt(O.t[i]), vt(O.z[i])));
   const v3 = v => Math.floor(v / (3 * tau)), todos = new Set(); for (let i = 0; i < O.n; i++) todos.add(H2(v3(O.s[i]), v3(O.t[i]), v3(O.z[i])));
   const cerca3 = (s, t, z) => { const a = v3(s), b = v3(t), c = v3(z); for (let da = -1; da <= 1; da++) for (let db = -1; db <= 1; db++) for (let dc = -1; dc <= 1; dc++) if (todos.has(H2(a + da, b + db, c + dc))) return true; return false; };
-  const ev = {}; for (const k of Object.keys(REGLAS)) ev[k] = { n: 0, ok: 0, vacio: 0 }; const gen = new Set();
-  for (let i = 0; i < prueba.n; i++) { const s = prueba.xyz[3 * i], t = prueba.xyz[3 * i + 1], z = prueba.xyz[3 * i + 2]; if (!enParche(s, t, z)) continue; const k = prueba.fuentes[prueba.cod[i]].regla, e = ev[k]; gen.add(H2(vt(s), vt(t), vt(z))); if (cerca(s, t, z, ocultos)) { e.n++; e.ok++; } else if (cerca3(s, t, z)) e.n++; else e.vacio++; }
+  const ev = {}; const gen = new Set();
+  for (let i = 0; i < prueba.n; i++) { const s = prueba.xyz[3 * i], t = prueba.xyz[3 * i + 1], z = prueba.xyz[3 * i + 2]; if (!enParche(s, t, z)) continue; const fu = prueba.fuentes[prueba.cod[i]], k = fu.regla + '|' + fu.tipo, e = ev[k] = ev[k] || { n: 0, ok: 0, vacio: 0 }; gen.add(H2(vt(s), vt(t), vt(z))); if (cerca(s, t, z, ocultos) || cerca(s, t, z, origT)) { e.n++; e.ok++; } else if (cerca3(s, t, z)) e.n++; else e.vacio++; }
   let rec = 0, tot = 0; for (let i = 0; i < O.n; i += 3) { if (!oculto[i]) continue; tot++; if (cerca(O.s[i], O.t[i], O.z[i], gen)) rec++; }
-  const activas = new Set(), validacion = []; for (const [k, nombre] of Object.entries(REGLAS)) { const e = ev[k], prec = e.n ? e.ok / e.n : null, activa = e.n >= 50 && prec >= .8; /* una regla que no se pudo poner a prueba en esta nube no se aplica: nada sin comprobar */ if (activa) activas.add(k); validacion.push({ regla: k, nombre, n: e.n, vacio: e.vacio, prec: prec == null ? null : +prec.toFixed(2), activa, sinValidar: e.n < 50 }); }
-  const out = corre(null, activas); out.validacion = { reglas: validacion, tau: +tau.toFixed(3), ocultos: tot * 3, recuperacion: tot ? +(rec / tot).toFixed(2) : null, parches: centros.length }; return out;
+  const TN = { tablero: 'tableros', pilar: 'pilares', estribo: 'estribos', arco: 'arcos', arco_superior: 'arcos superiores', pilono: 'pilonos', baranda: 'barandas', otro: 'otros' };
+  const tipos = [...new Set(E.map(e => e.tipo))], activas = new Set(), validacion = [];
+  for (const [rg, nombre] of Object.entries(REGLAS)) for (const tp of tipos) { const k = rg + '|' + tp, e = ev[k] || { n: 0, ok: 0, vacio: 0 }, prec = e.n ? e.ok / e.n : null, activa = e.n >= 50 && prec >= .8; /* lo que no se pudo poner a prueba en esta nube no se aplica: nada sin comprobar */
+    if (activa) activas.add(k); if (e.n || e.vacio) validacion.push({ regla: rg, tipo: tp, clave: k, nombre: nombre + ' · ' + (TN[tp] || tp), n: e.n, vacio: e.vacio, prec: prec == null ? null : +prec.toFixed(2), activa, sinValidar: e.n < 50 }); }
+  const todasR = corre(null, null); /* lo que generarían todas las reglas: sirve para explicar qué completaría una regla desactivada */
+  const out = corre(null, activas); out.sinFiltro = { xyz: todasR.xyz, cod: todasR.cod, fuentes: todasR.fuentes, n: todasR.n }; out.validacion = { reglas: validacion, tau: +tau.toFixed(3), ocultos: tot * 3, recuperacion: tot ? +(rec / tot).toFixed(2) : null, parches: centros.length }; return out;
+}
+/* ---------- detalle del completado por elemento ----------
+   Para cada elemento y cada cara: cobertura antes y después de la nube completada (mismos tramos de 1 m que la ficha), los huecos de la nube
+   (tramos seguidos con < 5 puntos) y, para cada hueco, con qué regla se completó, con qué parámetro medido y con qué acierto en la autovalidación,
+   o por qué no se pudo completar. Además, un mapa de la cara (celdas: medido / generado por regla / vacío) para dibujarlo. */
+function detalleCompletado(O, R, F, C) {
+  if (!R || !F || !C) return null; const m = R.marco, tm = (m.t0 + m.t1) / 2;
+  const NOMR = { simetria_t: 'simetría transversal', simetria_propia: 'simetría del propio elemento', gemelo: 'elemento gemelo', seccion: 'sección transversal repetida' };
+  const RID = { simetria_t: 2, simetria_propia: 3, gemelo: 4, seccion: 5 }; const OP_RNOM = { 2: 'simetría transversal', 3: 'simetría del propio elemento', 4: 'elemento gemelo', 5: 'sección transversal repetida' };
+  const val = {}; for (const v of (C.validacion && C.validacion.reglas) || []) val[v.clave] = v; const VK = f => f.regla + '|' + (f.tipo || it.tipo);
+  const c1 = v => String(+(+v).toFixed(1)).replace('.', ','), pc = v => Math.round(v * 100) + ' %';
+  const out = [];
+  for (const it of F.elementos) { const E = { id: it.id, nombre: it.nombre, tipo: it.tipo, caras: [], formas: [] };
+    for (const c of it.cajas || []) { if (!c.bins) continue; const ez = c.eje === 'z', nb = c.bins.length, base = ez ? c.z0 : c.s0;
+      const gen = new Uint32Array(nb), porR = Array.from({ length: nb }, () => ({}));
+      /* plano del mapa: calzada y cara inferior en planta (s, t); pilares y estribos de frente (t, z); arcos, barandas y cables en alzado (s, z) */
+      const plano = ez ? 'tz' : /calzada|inferior/.test(c.parte) ? 'st' : 'sz', U = plano === 'tz' ? [c.t0, c.t1] : [c.s0, c.s1], V = plano === 'st' ? [c.t0, c.t1] : [c.z0, c.z1];
+      const cell = Math.max(.25, (U[1] - U[0]) / 140, (V[1] - V[0]) / 50), nu = Math.max(1, Math.ceil((U[1] - U[0]) / cell)), nv = Math.max(1, Math.ceil((V[1] - V[0]) / cell));
+      const med = new Uint16Array(nu * nv), gR = new Uint8Array(nu * nv), gN = new Uint16Array(nu * nv);
+      const uv = (s, t, z) => { const u = plano === 'tz' ? t : s, v = plano === 'st' ? t : z; const a = Math.floor((u - U[0]) / cell), b = Math.floor((v - V[0]) / cell); return a < 0 || b < 0 || a >= nu || b >= nv ? -1 : b * nu + a; };
+      const dentro = (s, t, z) => s >= c.s0 && s < c.s1 && t >= c.t0 && t <= c.t1 && z >= c.z0 && z <= c.z1;
+      for (let i = 0; i < O.n; i++) { const s = O.s[i], t = O.t[i], z = O.z[i]; if (!dentro(s, t, z)) continue; const k = uv(s, t, z); if (k >= 0 && med[k] < 65535) med[k]++; }
+      /* solo lo generado para ESTE elemento y ESTA cara; la sección repetida genera la sección entera del elemento (calzada, cara inferior, vigas)
+         con una sola fuente, así que sus puntos se asignan a la cara por la caja medida */
+      const propio = f => f.id === it.id && (f.parte === c.parte || f.regla === 'seccion');
+      const enCara = (f, s, t, z) => f.parte === c.parte ? dentroG(s, t, z) : dentro(s, t, z);
+      /* lo generado para el elemento se cuenta aunque caiga fuera de la caja de lo visto (la cara oculta de un pilar repuesta desde su gemelo queda
+         fuera de la caja medida, que solo abarca la cara vista); basta que esté en el tramo del eje de cobertura y cerca de la caja */
+      const dentroG = (s, t, z) => (ez ? z >= c.z0 && z <= c.z1 : s >= c.s0 && s < c.s1) && s >= c.s0 - 3 && s <= c.s1 + 3 && t >= c.t0 - 3 && t <= c.t1 + 3 && z >= c.z0 - 3 && z <= c.z1 + 3;
+      const posib = new Uint32Array(nb), posR = Array.from({ length: nb }, () => ({})); const SF = C.sinFiltro;
+      if (SF) for (let i = 0; i < SF.n; i++) { const f = SF.fuentes[SF.cod[i]]; if (!propio(f) || (val[VK(f)] && val[VK(f)].activa)) continue; const s = SF.xyz[3 * i], t = SF.xyz[3 * i + 1], z = SF.xyz[3 * i + 2]; if (!enCara(f, s, t, z)) continue; const b = Math.min(nb - 1, Math.floor((ez ? z : s) - base)); posib[b]++; posR[b][VK(f)] = (posR[b][VK(f)] || 0) + 1; }
+      for (let i = 0; i < C.n; i++) { const f = C.fuentes[C.cod[i]]; if (!propio(f)) continue; const s = C.xyz[3 * i], t = C.xyz[3 * i + 1], z = C.xyz[3 * i + 2]; if (!enCara(f, s, t, z)) continue; const b = Math.min(nb - 1, Math.floor((ez ? z : s) - base)); gen[b]++; const key = VK(f) + '|' + f.origen; porR[b][key] = (porR[b][key] || 0) + 1;
+        const k = uv(s, t, z); if (k >= 0) { gN[k]++; if (!gR[k]) gR[k] = RID[f.regla] || 2; } }
+      const antes = Array.from(c.bins), despues = antes.map((v, b) => v + gen[b]), cubre = a => a.filter(v => v >= 5).length / nb;
+      /* huecos: tramos seguidos de la nube original con < 5 puntos */
+      const huecos = []; for (let b = 0; b < nb;) { if (antes[b] >= 5) { b++; continue; } let e = b; while (e + 1 < nb && antes[e + 1] < 5) e++;
+        const ok = despues.slice(b, e + 1).filter(v => v >= 5).length, reg = {}; for (let q = b; q <= e; q++) for (const [k, n] of Object.entries(porR[q])) reg[k] = (reg[k] || 0) + n;
+        const reglas = Object.entries(reg).sort((x, y) => y[1] - x[1]).map(([k, n]) => { const [rg, tp, ...o] = k.split('|'), vk = rg + '|' + tp; return { regla: rg, nombre: NOMR[rg] || rg, origen: o.join('|'), n, acierto: val[vk] ? val[vk].prec : null }; });
+        let estado = ok === e - b + 1 ? 'completado' : ok ? 'parcial' : 'sin completar', motivo = '';
+        if (estado !== 'completado') { const pr = {}; for (let q = b; q <= e; q++) for (const [k, n] of Object.entries(posR[q])) pr[k] = (pr[k] || 0) + n;
+          const off = Object.keys(pr).map(k => { const v = val[k]; return `${NOMR[k.split('|')[0]]} lo cubriría, pero está desactivada en esta nube (${v && !v.sinValidar ? 'acierto ' + pc(v.prec) + ' en la autovalidación, menos del 80 % exigido' : 'no se pudo poner a prueba'})`; });
+          /* por qué no hay geometría de referencia, dicho con los datos de este elemento */
+          const visto = (x0, x1) => { let n = 0, k = 0; for (let q = Math.max(0, Math.floor(x0 - base)); q < Math.min(nb, Math.ceil(x1 - base)); q++) { n++; if (antes[q] >= 5) k++; } return n ? k / n : 0; };
+          let porque = antes.every(v => v < 5) ? 'el elemento no aparece en la nube (0 % visto): no hay nada medido de él que reflejar o copiar, hace falta escanearlo' : '';
+          if (porque) { } else if (it.tipo === 'arco' && it.medidas && it.medidas.coef) { const yv = -it.medidas.coef[1] / (2 * it.medidas.coef[0]), m0 = 2 * yv - (base + e + 1), m1 = 2 * yv - (base + b);
+            porque = visto(m0, m1) < .5 ? `la mitad simétrica respecto de la clave (eje ${c1(m0)} a ${c1(m1)} m) tampoco está en la nube` : 'la mitad simétrica sí se vio, pero el nervio visto no encaja lo suficiente con su reflejo (menos del 10 % de solape) para ubicar la clave con confianza'; }
+          else if (it.tipo === 'tablero') { const izq = visto(base + b - 12, base + b), der = visto(base + e + 1, base + e + 13); porque = izq < .2 || der < .2 ? `no hay tramos vistos de ${c.parte} a ambos lados del hueco a menos de 12 m (${izq < .2 ? 'antes' : 'después'} del hueco no hay)` : `la sección vista a ambos lados no es continua (cambia de un metro a otro), así que no se repite`; }
+          else if (it.tipo === 'pilar' || it.tipo === 'estribo') porque = ez ? 'esa altura no se vio en ninguna cara del elemento ni en un elemento gemelo visto entero' : 'no hay otra cara ni elemento gemelo visto';
+          motivo = off.length ? off.join('; ') : reglas.length ? 'las reglas aplicadas no alcanzan a cubrir todo el tramo' + (porque ? '; además, ' + porque : '') : (porque || 'ninguna regla tiene aquí una geometría de referencia medida (cara opuesta, mitad simétrica, elemento gemelo o sección medida a ambos lados a menos de 12 m)'); }
+        huecos.push({ desde: +(base + b).toFixed(1), hasta: +(base + e + 1).toFixed(1), largo: e - b + 1, eje: ez ? 'z' : 's', estado, motivo, reglas, metrosCompletados: ok }); b = e + 1; }
+      const mapa = new Uint8Array(nu * nv); for (let k = 0; k < nu * nv; k++) mapa[k] = med[k] >= 2 ? 1 : gN[k] >= 2 ? gR[k] : 0;
+      /* en la calzada y la cara inferior la forma de la cara se conoce (rectángulo largo × ancho del tablero): ahí los huecos se buscan en planta,
+         como manchas de celdas sin puntos (un auto o una persona tapan parte del ancho sin vaciar el metro entero) */
+      let area = null, manchas = [];
+      if (plano === 'st') { const dentroT = b_ => { const t = V[0] + (b_ + .5) * cell; return t >= m.t0 + .3 && t <= m.t1 - .3; }; let tot = 0, a0 = 0, a1 = 0; const vis = new Uint8Array(nu * nv);
+        for (let b_ = 0; b_ < nv; b_++) { if (!dentroT(b_)) continue; for (let a_ = 0; a_ < nu; a_++) { const k = b_ * nu + a_; tot++; if (med[k] >= 2) a0++; if (med[k] >= 2 || gN[k] >= 2) a1++; } }
+        area = { antes: tot ? +(a0 / tot).toFixed(3) : null, despues: tot ? +(a1 / tot).toFixed(3) : null, celda: cell };
+        for (let b_ = 0; b_ < nv; b_++) for (let a_ = 0; a_ < nu; a_++) { const k0 = b_ * nu + a_; if (vis[k0] || !dentroT(b_) || med[k0] >= 2) continue;
+          const pila = [k0], cel = []; vis[k0] = 1; while (pila.length) { const k = pila.pop(); cel.push(k); const x = k % nu, y = (k - x) / nu;
+            for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) { const X2 = x + dx, Y2 = y + dy; if (X2 < 0 || Y2 < 0 || X2 >= nu || Y2 >= nv || !dentroT(Y2)) continue; const k2 = Y2 * nu + X2; if (vis[k2] || med[k2] >= 2) continue; vis[k2] = 1; pila.push(k2); } }
+          const A_ = cel.length * cell * cell; if (A_ < .5) continue;
+          /* una franja fina pegada al borde de la calzada es el borde irregular del levantamiento (o la vereda), no una oclusión: no se cuenta */
+          { let bMin = Infinity, bMax = -Infinity, toca = false; for (const k of cel) { const y = (k - k % nu) / nu; bMin = Math.min(bMin, y); bMax = Math.max(bMax, y); if (!dentroT(y - 1) || !dentroT(y + 1)) toca = true; }
+            if (toca && (bMax - bMin + 1) * cell <= 1) continue; } let rel = 0; const rg = {}; let s0 = Infinity, s1 = -Infinity, t0 = Infinity, t1 = -Infinity;
+          for (const k of cel) { const x = k % nu, y = (k - x) / nu; s0 = Math.min(s0, U[0] + x * cell); s1 = Math.max(s1, U[0] + (x + 1) * cell); t0 = Math.min(t0, V[0] + y * cell); t1 = Math.max(t1, V[0] + (y + 1) * cell); if (gN[k] >= 2) { rel++; rg[gR[k]] = (rg[gR[k]] || 0) + 1; } }
+          manchas.push({ area: +A_.toFixed(2), s0: +s0.toFixed(1), s1: +s1.toFixed(1), t0: +t0.toFixed(1), t1: +t1.toFixed(1), relleno: +(rel / cel.length).toFixed(2), reglas: Object.entries(rg).sort((x, y) => y[1] - x[1]).map(([r]) => OP_RNOM[r]) }); }
+        manchas.sort((x, y) => y.area - x.area); }
+      E.caras.push({ parte: c.parte, eje: ez ? 'z' : 's', antes: +cubre(antes).toFixed(2), despues: +cubre(despues).toFixed(2), generados: gen.reduce((a, b) => a + b, 0), extra: (() => { const enH = new Set(); for (const x of huecos) for (let q = Math.floor(x.desde - base); q < Math.ceil(x.hasta - base); q++) enH.add(q); const r = {}; porR.forEach((o, q) => { if (enH.has(q)) return; for (const [k, n] of Object.entries(o)) r[k] = (r[k] || 0) + n; }); return Object.entries(r).sort((x, y) => y[1] - x[1]).map(([k, n]) => { const [rg, tp, ...o] = k.split('|'); return { nombre: NOMR[rg] || rg, origen: o.join('|'), n, acierto: val[rg + '|' + tp] ? val[rg + '|' + tp].prec : null }; }); })(), huecos, area, manchas, mapa: { plano, nu, nv, cell: +cell.toFixed(3), U, V, celdas: mapa } }); }
+    /* texto: qué se vio, qué faltaba, cómo se completó, qué queda */
+    E.texto = E.caras.map(f => { const h = f.huecos, L = h.reduce((a, x) => a + x.largo, 0), dim = f.eje === 'z' ? 'de altura' : 'de largo';
+      let t = `${f.parte}: la nube cubría ${pc(f.antes)} ${dim === 'de altura' ? 'de la altura' : 'del largo'}${h.length ? `, con ${h.length} hueco${h.length > 1 ? 's' : ''} (${L} m ${dim})` : ', sin huecos'}; con la nube completada ${pc(f.despues)}.`;
+      if (f.area && f.area.antes != null) { const M = f.manchas, A = M.reduce((a, x) => a + x.area, 0); t += ` En planta, la nube cubría ${pc(f.area.antes)} de la superficie (${pc(f.area.despues)} con la nube completada)${M.length ? `, con ${M.length} mancha${M.length > 1 ? 's' : ''} sin puntos de al menos 0,5 m² (${c1(A)} m² en total); la mayor, de ${c1(M[0].area)} m² entre el eje ${c1(M[0].s0)} y ${c1(M[0].s1)} m, quedó ${M[0].relleno >= .95 ? 'rellena' : M[0].relleno > 0 ? 'rellena en ' + pc(M[0].relleno) : 'sin rellenar'}${M[0].reglas.length ? ' con ' + M[0].reglas.join(' y ') : ''}` : ''}.`; }
+      for (const x of h) { const rng = `${x.eje === 'z' ? 'Z' : 'eje'} ${c1(x.desde)} a ${c1(x.hasta)} m`;
+        if (x.reglas.length) t += ` ${rng}: ${x.estado}${x.estado === 'parcial' ? ` (${x.metrosCompletados} de ${x.largo} m)` : ''} con ${x.reglas.map(r => `${r.nombre} — ${r.origen}${r.acierto != null ? `, acierto en la autovalidación ${pc(r.acierto)}` : ''} (${r.n} puntos)`).join('; ')}.`;
+        else t += ` ${rng}: sin completar, porque ${x.motivo}.`; }
+      if (f.extra && f.extra.length) { const N = f.extra.reduce((a, r) => a + r.n, 0); t += ` Además se agregaron ${N} puntos en tramos que la nube sí tenía, rellenando lo que dentro de ellos quedó sin puntos (una cara, un lado o franjas que el escáner no registró): ${f.extra.map(r => `${r.nombre} — ${r.origen}${r.acierto != null ? `, acierto en la autovalidación ${pc(r.acierto)}` : ''} (${r.n} puntos)`).join('; ')}.`; }
+      return t; });
+    out.push(E); }
+  return out;
 }
 function regularizar(pos, a, b) { /* serie casi regular: paso = mediana de las separaciones; se rellenan huecos que son múltiplos del paso (±25 %) */
   const p = pos.slice().sort((x, y) => x - y); if (p.length < 3) return { paso: null, inferidos: [] }; const d = []; for (let i = 1; i < p.length; i++) d.push(p[i] - p[i - 1]); d.sort((x, y) => x - y);
@@ -2563,7 +2661,7 @@ function apoyosArco(O, dk, gr, la, W = { R: 15, BW: 2, NB: 10, NMIN: 150, VERT: 
   const a = uno(la.a), b = uno(la.b); return a != null && b != null ? { a: +a.toFixed(1), b: +b.toFixed(1), L: +(b - a).toFixed(1) } : null;
 }
 
-return { exportarAnsys, completarNube, completitud, regularizar, contrasteEspejo, desviaciones, MTC, fichaInspeccion, alMundo, exportarIFC, elementos, compararNubes, orientarComo, atributosNube, subCloud, ATR, dimensiones, ejeCurvo, ejePoli, desenrollar, ejeAuto, composicion, calidadNube, supra, superestructura, apoyosArco, gapProfile, gapEnds, estribosHueco, GAP_W, hipotesis, clearanceProfile, iaEstribos, HIP_W, EST_W, iaFeatures, iaPredict, iaClusters, iaRefine, IA_NAMES, IA_REGLA, fftInPlace, detrend, csdMatrix, fdd, efdd, fddModes, pickPeaks, staticPrep, fiberStress, influence, HL93, hl93Extremes, liveLoad, CS_WF, pTrans, markovStep, elemHI, bridgeHI, calibrateAlpha, maintenancePlan, Dxf, bridgePlans, sensorsOf, readAccel, sdof, spectrum, seismic, freqCampaign, setConcMin, suggestType, applySkew, coherence, f1Band, geomSigmas, perturbGeom, archRise, peakCampaign, csdAverage, calibrateModel, nelderMead, trainFreqIA, trainVecIA, trainModalIA, modalFeat, modalMeasFeat, modalMeasFeatBase, freqPredict, build, modal, archAll, parseCloud, orient, bounds, deckLevel, groundLevel, detectSupports, spansOf, envelope, fitParabola, polyval, archGeometry, spanCoverage, MATERIALS,
+return { detalleCompletado, exportarAnsys, completarNube, completitud, regularizar, contrasteEspejo, desviaciones, MTC, fichaInspeccion, alMundo, exportarIFC, elementos, compararNubes, orientarComo, atributosNube, subCloud, ATR, dimensiones, ejeCurvo, ejePoli, desenrollar, ejeAuto, composicion, calidadNube, supra, superestructura, apoyosArco, gapProfile, gapEnds, estribosHueco, GAP_W, hipotesis, clearanceProfile, iaEstribos, HIP_W, EST_W, iaFeatures, iaPredict, iaClusters, iaRefine, IA_NAMES, IA_REGLA, fftInPlace, detrend, csdMatrix, fdd, efdd, fddModes, pickPeaks, staticPrep, fiberStress, influence, HL93, hl93Extremes, liveLoad, CS_WF, pTrans, markovStep, elemHI, bridgeHI, calibrateAlpha, maintenancePlan, Dxf, bridgePlans, sensorsOf, readAccel, sdof, spectrum, seismic, freqCampaign, setConcMin, suggestType, applySkew, coherence, f1Band, geomSigmas, perturbGeom, archRise, peakCampaign, csdAverage, calibrateModel, nelderMead, trainFreqIA, trainVecIA, trainModalIA, modalFeat, modalMeasFeat, modalMeasFeatBase, freqPredict, build, modal, archAll, parseCloud, orient, bounds, deckLevel, groundLevel, detectSupports, spansOf, envelope, fitParabola, polyval, archGeometry, spanCoverage, MATERIALS,
   build, sensorsOf, modal, signConvention, features, campaign, trainIA, forestPredict, LEVELS, noisy, mulberry, gaussR, quantile, median };
 })();
 if (typeof module !== 'undefined') module.exports = OPC;
