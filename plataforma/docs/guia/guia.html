@@ -76,6 +76,7 @@ figure{margin:4mm 0 5mm;break-inside:avoid}
 .fig{position:relative}
 .fig img,figure>img{width:100%;display:block;border:.5pt solid var(--linea)}
 figure.med>img,figure.med .fig{width:82%}
+figure.dg img{border:0;width:100%}
 .fig i{position:absolute;width:5mm;height:5mm;border-radius:50%;background:var(--az);color:#fff;font:600 8pt/5mm var(--sans);font-style:normal;text-align:center;transform:translate(-50%,-50%);box-shadow:0 0 0 .8mm #fff}
 figcaption{font-size:8.5pt;color:var(--gris);margin-top:2mm;display:flex;gap:2.5mm;line-height:1.35}
 figcaption b{color:var(--tinta);font-weight:600;white-space:nowrap}
@@ -198,6 +199,7 @@ td:first-child{font-weight:600}
  </ul>
 </section>
 <section>
+ <figure class="dg"><img src="img/dg_ciclo.svg" alt=""><figcaption><b>Figura 2.1</b> Ciclo de trabajo con PuenteGemelo: lo que se hace una sola vez y lo que se repite en cada campaña.</figcaption></figure>
  <h2 id="s22">2.2 Requisitos mínimos</h2>
  <table>
  <tr><th style="width:42mm">Elemento</th><th>Requisito</th></tr>
@@ -217,7 +219,7 @@ td:first-child{font-weight:600}
   <div><b>Inspección y gestión</b><span>Inspección de campo (MTC)</span><span>Carga vehicular HL-93</span><span>Deterioro y mantenimiento</span></div>
   <div><b>Verificación</b><span>Validación</span><span>Datos y procedencia</span></div>
  </div>
- <figcaption style="margin-bottom:5mm"><b>Figura 2.1</b> Mapa de navegación de PuenteGemelo.</figcaption>
+ <figcaption style="margin-bottom:5mm"><b>Figura 2.2</b> Mapa de navegación de PuenteGemelo.</figcaption>
  <table>
  <caption><b>Tabla 2.1</b> Funcionalidades por módulo.</caption>
  <tr><th style="width:38mm">Módulo</th><th>Funcionalidad</th></tr>
@@ -233,7 +235,7 @@ td:first-child{font-weight:600}
  <figure><div class="fig"><img src="img/w_puentes.jpg">
   <i style="left:51%;top:5.8%">1</i><i style="left:23.5%;top:9.4%">2</i><i style="left:55.5%;top:2.2%">3</i><i style="left:88%;top:5.8%">4</i>
   <i style="left:15%;top:13%">5</i><i style="left:45%;top:12.9%">6</i><i style="left:90%;top:13%">7</i><i style="left:33%;top:98.4%">8</i></div>
-  <figcaption><b>Figura 2.2</b> Pantalla principal en Inicio › Mis puentes.</figcaption></figure>
+  <figcaption><b>Figura 2.3</b> Pantalla principal en Inicio › Mis puentes.</figcaption></figure>
  <div class="leyenda">
   <i>1</i><span><b>Menú principal.</b> Cambia de módulo.</span>
   <i>2</i><span><b>Submenú.</b> Herramientas del módulo elegido; a la derecha, una descripción corta del módulo.</span>
@@ -323,6 +325,7 @@ td:first-child{font-weight:600}
  <h2 id="s44">4.4 Lo que la nube dice del puente</h2>
  <div class="ruta">Ubicación: <b>paso 2, debajo de la tabla de apoyos</b></div>
  <p>Debajo de los apoyos, el paso 2 muestra lo que se puede medir en la nube, ordenado en cinco secciones. Nada de esto reemplaza la visita: indica qué vio la nube y qué no.</p>
+ <figure class="dg"><img src="img/dg_paso2.svg" alt=""><figcaption><b>Figura 4.4</b> Qué se obtiene de la nube en el paso 2 y adónde va cada resultado. Los números indican la sección del paso 2.</figcaption></figure>
  <table>
  <caption><b>Tabla 4.1</b> Secciones del paso 2.</caption>
  <tr><th style="width:40mm">Sección</th><th>Contenido</th></tr>
@@ -332,59 +335,61 @@ td:first-child{font-weight:600}
  <tr><td>2.4 Forma y cambios</td><td>Desviaciones respecto de la forma ideal (hundimientos, abultamientos, pérdida de sección) y comparación con una nube de otra fecha.</td></tr>
  <tr><td>2.5 Evidencia</td><td>Lo que la nube muestra de cada elemento, listo para pasar a la ficha de inspección.</td></tr>
  </table>
- <figure><img src="img/p2_elm.jpg"><figcaption><b>Figura 4.4</b> Elementos identificados en la nube del Balta, con sus medidas y de dónde sale cada una.</figcaption></figure>
+ <figure><img src="img/p2_elm.jpg"><figcaption><b>Figura 4.5</b> Elementos identificados en la nube del Balta, con sus medidas y de dónde sale cada una.</figcaption></figure>
 
  <h3>Completitud y nube completada</h3>
  <p>La tabla de completitud da el porcentaje visto de cada cara. En el Balta el índice global es de 88 %; lo que falta es el estribo izquierdo, que no aparece en la nube.</p>
- <figure class="med"><img src="img/m_cmpl.jpg"><figcaption><b>Figura 4.5</b> Completitud del levantamiento del Balta, por elemento y por cara.</figcaption></figure>
+ <figure class="med"><img src="img/m_cmpl.jpg"><figcaption><b>Figura 4.6</b> Completitud del levantamiento del Balta, por elemento y por cara.</figcaption></figure>
  <p>Al pulsar <em class="ui">Generar nube completada</em>, la aplicación oculta primero parches de la propia nube, los completa con cada regla y mide cuántos puntos acertó. Una regla solo se aplica en ese puente si se pudo probar con al menos 50 puntos y acertó al menos el 80 %. En el Balta pasaron dos: la sección transversal repetida del tablero (99 %) y la simetría de los pilares (88 %).</p>
- <figure><img src="img/m_nube.jpg"><figcaption><b>Figura 4.6</b> Autovalidación y puntos generados por regla en la nube del Balta.</figcaption></figure>
+ <figure class="dg"><img src="img/dg_autoval.svg" alt=""><figcaption><b>Figura 4.7</b> Autovalidación: cada regla se prueba en la misma nube antes de usarse.</figcaption></figure>
+ <figure><img src="img/m_nube.jpg"><figcaption><b>Figura 4.8</b> Autovalidación y puntos generados por regla en la nube del Balta.</figcaption></figure>
  <p>En <em class="ui">Completado por elemento</em> se elige un elemento y se ve cada cara en un mapa de celdas: gris lo medido, en color lo generado según la regla y en blanco lo que sigue sin puntos. Para cada hueco se indica con qué regla se completó o por qué no se pudo.</p>
- <figure class="med"><img src="img/c_det.jpg"><figcaption><b>Figura 4.7</b> Calzada del tramo T1: en morado, lo generado con la sección transversal repetida.</figcaption></figure>
+ <figure class="med"><img src="img/c_det.jpg"><figcaption><b>Figura 4.9</b> Calzada del tramo T1: en morado, lo generado con la sección transversal repetida.</figcaption></figure>
  <div class="aviso"><span class="ic">i</span><div class="t"><b>Medido, inferido y no completable.</b> Lo inferido no sale de puntos de la nube sino de la geometría del propio puente, por ejemplo la otra cara de un pilar con su espesor medido. Lo que no se puede deducir, como un estribo ausente, se declara no completable y no se rellena. Lo generado no se usa para medir daños.</div></div>
 
  <h3>Desviaciones y evidencia</h3>
  <p>El mapa de desviaciones marca en rojo lo más bajo y en azul lo más alto que la forma ideal; debajo se listan las zonas para revisar. Son zonas para mirar en campo, no daños confirmados: un objeto suelto sobre la calzada también aparece.</p>
- <figure><img src="img/m_dev_mapa.jpg"><figcaption><b>Figura 4.8</b> Desviaciones de la forma ideal en la calzada del Balta.</figcaption></figure>
- <figure><img src="img/m_dev_zonas.jpg"><figcaption><b>Figura 4.9</b> Zonas para revisar, ordenadas por tamaño.</figcaption></figure>
+ <figure><img src="img/m_dev_mapa.jpg"><figcaption><b>Figura 4.10</b> Desviaciones de la forma ideal en la calzada del Balta.</figcaption></figure>
+ <figure><img src="img/m_dev_zonas.jpg"><figcaption><b>Figura 4.11</b> Zonas para revisar, ordenadas por tamaño.</figcaption></figure>
  <p>La sección de evidencia resume, elemento por elemento, cuánto lo vio la nube y lo que cae en él. El botón <em class="ui">Llevar al expediente de inspección (MTC)</em> pasa esta evidencia a la ficha (capítulo 6).</p>
- <figure><img src="img/m_fic.jpg"><figcaption><b>Figura 4.10</b> Evidencia de la nube por elemento.</figcaption></figure>
+ <figure><img src="img/m_fic.jpg"><figcaption><b>Figura 4.12</b> Evidencia de la nube por elemento.</figcaption></figure>
 
  <h2 id="s45">4.5 Pasos 3 y 4. Geometría, datos y modos</h2>
  <h3>Paso 3. Geometría</h3>
  <div class="paso"><span class="n">1</span><span>Elija el tipo de puente. La aplicación propone uno según la nube (arcos, vigas o armadura).</span></div>
  <div class="paso"><span class="n">2</span><span>Pulse <em class="ui">Calcular geometría</em>. Para arcos, la tabla muestra la luz, la flecha y qué parte del intradós se vio.</span></div>
- <figure class="med"><img src="img/m_w_paso3.jpg"><figcaption><b>Figura 4.11</b> Paso 3: arcos ajustados en la nube del Balta.</figcaption></figure>
+ <figure class="med"><img src="img/m_w_paso3.jpg"><figcaption><b>Figura 4.13</b> Paso 3: arcos ajustados en la nube del Balta.</figcaption></figure>
  <div class="aviso"><span class="ic">i</span><div class="t"><b>Tipo de puente.</b> Si el ajuste de arcos falla, casi siempre el puente es de vigas.</div></div>
  <h3>Paso 4. Datos del puente y modos</h3>
  <div class="paso"><span class="n">1</span><span>Elija el material y escriba los datos que la nube no muestra: secciones, peso del tablero y propiedades de los pilares. Las etiquetas amarillas marcan lo que todavía no se revisó.</span></div>
  <div class="paso"><span class="n">2</span><span>Pulse <em class="ui">Calcular modos</em>. La tabla muestra la frecuencia, el periodo y la dirección de cada modo.</span></div>
  <div class="paso"><span class="n">3</span><span>Pulse <em class="ui">Ver nube y modelo en 3D</em> para revisar el modelo sobre la nube.</span></div>
- <figure><img src="img/m_par.jpg"><figcaption><b>Figura 4.12</b> Material y datos del puente.</figcaption></figure>
- <figure><img src="img/m_modos.jpg"><figcaption><b>Figura 4.13</b> Modos de vibración del modelo del Balta.</figcaption></figure>
+ <figure><img src="img/m_par.jpg"><figcaption><b>Figura 4.14</b> Material y datos del puente.</figcaption></figure>
+ <figure><img src="img/m_modos.jpg"><figcaption><b>Figura 4.15</b> Modos de vibración del modelo del Balta.</figcaption></figure>
 
  <h2 id="s46" class="np">4.6 Verificación del modelo con Ansys</h2>
  <div class="ruta">Ubicación: <b>paso 4, debajo de la tabla de modos</b></div>
  <p>La aplicación exporta el mismo modelo a un macro de Ansys Mechanical APDL (elementos BEAM188, masas en los nodos, mismos apoyos) y compara después los resultados de Ansys con los suyos, modo por modo.</p>
+ <figure class="dg"><img src="img/dg_ansys.svg" alt=""><figcaption><b>Figura 4.16</b> Flujo de la verificación con Ansys. Si el archivo no corresponde al modelo actual, la comparación no se acepta.</figcaption></figure>
  <div class="paso"><span class="n">1</span><span>Pulse <em class="ui">Exportar a Ansys (.mac)</em>. Marque <em class="ui">con deformación por cortante</em> solo si quiere incluir ese efecto; sin marcarlo, Ansys debe dar las mismas frecuencias.</span></div>
  <div class="paso"><span class="n">2</span><span>En Mechanical APDL use <em class="ui">File › Read Input from</em> y elija el macro. Al terminar quedan <i>frecuencias_…txt</i> y <i>modos_…txt</i> en la carpeta de trabajo.</span></div>
  <div class="paso"><span class="n">3</span><span>En la aplicación pulse <em class="ui">Cargar resultados de Ansys</em> y elija los dos archivos.</span></div>
  <div class="paso"><span class="n">4</span><span>Revise la tabla. Un modo concuerda si la diferencia de frecuencia es de 1 % o menos y el MAC (parecido de la forma modal) es de 0,95 o más.</span></div>
- <figure><img src="img/p4_ansys.jpg"><figcaption><b>Figura 4.14</b> Comparación con Ansys del modelo del Balta: los 8 modos concuerdan.</figcaption></figure>
+ <figure><img src="img/p4_ansys.jpg"><figcaption><b>Figura 4.17</b> Comparación con Ansys del modelo del Balta: los 8 modos concuerdan.</figcaption></figure>
  <div class="aviso imp"><span class="ic">!</span><div class="t"><b>Resultados de otro modelo.</b> Si los archivos son de otro macro (otro puente, otros apoyos o datos cambiados después de exportar), la aplicación lo indica en rojo y no toma la comparación como verificación. Exporte el macro otra vez y vuelva a correrlo.</div></div>
 
  <h2 id="s47">4.7 Pasos 5 a 7. IA, prueba e informe</h2>
  <h3>Paso 5. Entrenar la IA</h3>
  <div class="paso"><span class="n">1</span><span>Pulse <em class="ui">Entrenar la IA</em>. La aplicación simula unas 1300 combinaciones de daño en las zonas del puente; con el Balta tarda alrededor de medio minuto.</span></div>
  <div class="paso"><span class="n">2</span><span>Lea el resumen: daños detectados, zona correcta, vano correcto y falsas alarmas.</span></div>
- <figure class="med"><img src="img/m_ia.jpg"><figcaption><b>Figura 4.15</b> Resultado del entrenamiento de la IA para el Balta.</figcaption></figure>
+ <figure class="med"><img src="img/m_ia.jpg"><figcaption><b>Figura 4.18</b> Resultado del entrenamiento de la IA para el Balta.</figcaption></figure>
  <div class="aviso imp"><span class="ic">!</span><div class="t"><b>Daños simulados.</b> Estos porcentajes se calculan con daños simulados. Con un puente real el acierto será menor; por eso la IA se usa para decidir dónde mirar primero y no para reemplazar la inspección.</div></div>
  <h3>Paso 6. Probar la IA</h3>
  <p>Se elige una zona y un porcentaje de daño; la aplicación simula una medición con error y la IA, sin conocer la respuesta, indica la zona que cree dañada. <em class="ui">Repetir 100 mediciones</em> muestra con qué frecuencia acierta.</p>
- <figure class="med"><img src="img/m_w_paso6.jpg"><figcaption><b>Figura 4.16</b> Prueba de la IA con un daño simulado en el arco 1.</figcaption></figure>
+ <figure class="med"><img src="img/m_w_paso6.jpg"><figcaption><b>Figura 4.19</b> Prueba de la IA con un daño simulado en el arco 1.</figcaption></figure>
  <h3>Paso 7. Prioridades e informe</h3>
  <p>Ordena las zonas para la inspección de campo según cuánto afecta su daño a la vibración, cuánto de ellas no se vio en la nube y qué tan difícil le resulta a la IA. Debajo está el informe completo del registro, que se puede copiar o descargar.</p>
- <figure class="med"><img src="img/m_w_paso7.jpg"><figcaption><b>Figura 4.17</b> Orden de verificación en campo para el Balta.</figcaption></figure>
+ <figure class="med"><img src="img/m_w_paso7.jpg"><figcaption><b>Figura 4.20</b> Orden de verificación en campo para el Balta.</figcaption></figure>
  <h3>Sismo registrado</h3>
  <div class="ruta">Ubicación: <b>Gemelo digital › Sismo registrado</b></div>
  <p>Aplica un registro sísmico del CISMID o del IGP al modelo del puente y muestra su respuesta.</p>
@@ -407,7 +412,8 @@ td:first-child{font-weight:600}
  <div class="paso"><span class="n">4</span><span>Pulse <em class="ui">Diagnosticar con IA</em> e interprete el resultado con la tabla 5.1.</span></div>
 </section>
 <section>
- <figure class="med"><img src="img/m_v_011.jpg"><figcaption><b>Figura 5.1</b> Diagnóstico con IA: daño localizado en el tercio izquierdo del vano 1.</figcaption></figure>
+ <figure class="dg"><img src="img/dg_diag.svg" alt=""><figcaption><b>Figura 5.1</b> Cómo se llega al diagnóstico a partir de una medición.</figcaption></figure>
+ <figure class="med"><img src="img/m_v_011.jpg"><figcaption><b>Figura 5.2</b> Diagnóstico con IA: daño localizado en el tercio izquierdo del vano 1.</figcaption></figure>
  <table>
  <caption><b>Tabla 5.1</b> Resultados del diagnóstico.</caption>
  <tr><th style="width:44mm">Resultado</th><th>Qué hacer</th></tr>
