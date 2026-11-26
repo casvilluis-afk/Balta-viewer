@@ -1,216 +1,393 @@
 <!doctype html>
-<html lang="es"><head><meta charset="utf-8"><title>Guía de PuenteGemelo para inspectores</title>
+<html lang="es"><head><meta charset="utf-8"><title>Manual de usuario de PuenteGemelo</title>
 <style>
-@page{size:A4;margin:16mm 17mm 18mm}
+@page{size:A4}
 *{box-sizing:border-box}
-body{font:10.5pt/1.45 "Inter","Segoe UI",Arial,sans-serif;color:#1d232b;margin:0}
-.top{font-size:8pt;color:#555;margin-bottom:6mm}
-h1{font-size:22pt;margin:0 0 2mm}
-h2{font-size:14pt;margin:7mm 0 2mm;padding-top:2mm;border-top:1.5px solid #1d232b;break-after:avoid}
-h2.first{border-top:0;margin-top:0}
-h3{font-size:11pt;margin:4mm 0 1mm;break-after:avoid}
-p{margin:0 0 2.2mm}
-.lead{font-size:11.5pt;color:#333}
-.steps{display:grid;grid-template-columns:repeat(4,1fr);gap:3mm;margin:4mm 0}
-.steps div{border:1px solid #c8ced6;border-top:3px solid #2b5ea7;padding:2mm 2.5mm;font-size:9pt}
-.steps b{display:block;font-size:9.5pt}
-.box{border-left:3px solid #2b5ea7;background:#f1f5fb;padding:2.5mm 3.5mm;margin:3mm 0}
-.warn{border-left-color:#b7791f;background:#fbf6ec}
-table{border-collapse:collapse;width:100%;font-size:9pt;margin:2mm 0 3mm}
-th,td{border:1px solid #c8ced6;padding:1.6mm 2mm;text-align:left;vertical-align:top}
-th{background:#eef1f5}
-td:first-child{white-space:nowrap;font-weight:600}
-td.w{white-space:normal}
-figure{margin:3mm 0 4mm;break-inside:avoid}
-figure img{width:100%;max-height:150mm;object-fit:contain;object-position:left top;border:1px solid #c8ced6;display:block}
-figcaption{font-size:8.5pt;color:#555;margin-top:1.2mm}
-.pb{break-before:page}
-ol,ul{margin:0 0 2.5mm;padding-left:6mm}
-li{margin-bottom:1mm}
-.q{font-weight:700;margin:3mm 0 .8mm;break-after:avoid}
-.foot{font-size:8pt;color:#555;margin-top:8mm}
+body{font:10.5pt/1.4 Arial,Helvetica,sans-serif;color:#000;margin:0}
+h1{font-size:13pt;margin:0 0 3mm;text-transform:uppercase;break-after:avoid}
+h2{font-size:11.5pt;margin:6mm 0 2mm;break-after:avoid}
+h3{font-size:10.5pt;margin:5mm 0 1.5mm;break-after:avoid}
+h4{font-size:10.5pt;font-weight:normal;font-style:italic;margin:3mm 0 1mm;break-after:avoid}
+p{margin:0 0 2mm;text-align:justify}
+.nb{break-before:page}
+ol,ul{margin:0 0 2.5mm;padding-left:7mm}
+li{margin-bottom:.8mm;text-align:justify}
+table{border-collapse:collapse;width:100%;font-size:9.5pt;margin:1mm 0 3mm}
+caption{caption-side:top;text-align:left;font-size:9pt;margin-bottom:1mm}
+th,td{border:1px solid #000;padding:1.2mm 2mm;text-align:left;vertical-align:top}
+th{background:#d9d9d9}
+table.ficha{break-inside:avoid}tr{break-inside:avoid}table.ficha td:first-child{width:28mm;background:#f2f2f2;font-weight:bold}
+figure{margin:3mm 0 4mm;text-align:center;break-inside:avoid}
+figure img{max-width:100%;max-height:120mm;border:1px solid #808080}
+figcaption{font-size:9pt;margin-top:1.5mm}
+.nota{border-left:2px solid #000;padding:0 0 0 3mm;margin:2mm 0 3mm}
+.portada{height:250mm;display:flex;flex-direction:column;justify-content:space-between;text-align:center;padding-top:30mm}
+.portada .t1{font-size:22pt;font-weight:bold;letter-spacing:.5pt}
+.portada .t2{font-size:15pt;margin-top:6mm}
+.portada .t3{font-size:11pt;margin-top:4mm}
+.portada table{width:120mm;margin:0 auto;font-size:10pt}
+.indice div{display:flex;align-items:baseline;font-size:10pt;margin:1mm 0}
+.indice div span.d{flex:1;border-bottom:1px dotted #000;margin:0 1.5mm;transform:translateY(-1mm)}
+.indice .l2{padding-left:6mm}.indice .l3{padding-left:12mm}
+.anot{position:relative;display:inline-block;max-width:100%}
+.anot img{display:block;width:100%;max-height:none}
+.anot b{position:absolute;width:6mm;height:6mm;border-radius:50%;background:#000;color:#fff;font-size:8.5pt;line-height:6mm;text-align:center;transform:translate(-50%,-50%)}
+.mapa{display:grid;grid-template-columns:repeat(5,1fr);gap:2mm;font-size:8.5pt;margin:3mm 0}
+.mapa div{border:1px solid #000}
+.mapa div b{display:block;background:#d9d9d9;border-bottom:1px solid #000;padding:1mm;text-align:center}
+.mapa div span{display:block;padding:.8mm 1.5mm;border-bottom:1px dotted #999}
+.mapa div span:last-child{border-bottom:0}
+.raiz{text-align:center;border:1px solid #000;width:55mm;margin:3mm auto 1mm;padding:1.5mm;font-weight:bold;font-size:9.5pt}
 </style></head><body>
 
-<div class="top">PuenteGemelo 2.20.1 · Guía de uso</div>
-<h1>Guía para inspectores</h1>
-<p class="lead">Cómo inspeccionar un puente histórico con PuenteGemelo, paso a paso.</p>
+<section class="portada">
+ <div>
+  <div class="t1">MANUAL DE USUARIO</div>
+  <div class="t2">PuenteGemelo</div>
+  <div class="t3">Plataforma digital para la inspección de puentes históricos con inteligencia artificial</div>
+  <div class="t3">Versión de la aplicación: 2.20.2</div>
+ </div>
+ <table>
+  <tr><td style="width:40mm"><b>Elaborado por</b></td><td>Luis Anthony Ñuñuvero Castillo<br>Anthony Boris Tarazona Cerna</td></tr>
+  <tr><td><b>Asesor</b></td><td>Rick Milton Delgadillo Ayala</td></tr>
+  <tr><td><b>Institución</b></td><td>Universidad Peruana de Ciencias Aplicadas (UPC)</td></tr>
+  <tr><td><b>Caso de estudio</b></td><td>Puente Balta (Lima)</td></tr>
+  <tr><td><b>Fecha</b></td><td>26/11/2026</td></tr>
+ </table>
+ <div style="font-size:9pt">Lima, Perú · 2026</div>
+</section>
 
-<h2 class="first">La app en tres frases</h2>
-<p>PuenteGemelo guarda la <b>ficha de inspección</b> de cada puente (Guía del MTC), con sus fotos y su historia.</p>
-<p>Con la nube de puntos del puente arma un <b>modelo</b> que sabe cómo debería vibrar ese puente. Así puede comparar ese modelo con la vibración que usted mide en campo. El modelo se puede verificar en Ansys con un macro que exporta la propia app.</p>
-<p>Una <b>inteligencia artificial</b>, entrenada con ese modelo, le dice en qué zona conviene mirar primero. La IA no reemplaza la inspección: la orienta.</p>
-<div class="steps">
- <div><b>1. Agregar el puente</b>Una sola vez, con su nube de puntos.</div>
- <div><b>2. Inspeccionar</b>Ficha MTC, calificaciones y fotos.</div>
- <div><b>3. Medir la vibración</b>Con acelerómetros o el celular.</div>
- <div><b>4. Revisar el estado</b>Alertas, historia y mantenimiento.</div>
+<section class="nb">
+<h1>Índice</h1>
+<div class="indice" id="indice"></div>
+</section>
+
+<section class="nb">
+<h1 id="s1">1. Objetivo</h1>
+<p>Este manual explica cómo usar PuenteGemelo para registrar un puente a partir de su nube de puntos, obtener su modelo estructural y sus modos de vibración, entrenar la inteligencia artificial que orienta la inspección y llevar la ficha de inspección del puente según la guía del MTC. Está dirigido a los inspectores y a los ingenieros que usan la aplicación, no a quienes la programan.</p>
+
+<h1 id="s2">2. Alcance</h1>
+<p>El manual cubre la versión 2.20.2 de la aplicación, tanto en su versión web como en el programa de escritorio para Windows, macOS y Linux, que tienen las mismas funciones. Describe los cinco módulos del menú principal (Inicio, Gemelo digital, Monitoreo con IA, Inspección y gestión y Verificación) y la conexión con Ansys Mechanical APDL. Los ejemplos y las figuras usan la nube de puntos del Puente Balta.</p>
+<p>No forma parte de este manual la teoría de los métodos que usa la aplicación (detección de apoyos, modelo de barras, análisis modal, entrenamiento de la IA); esa parte se desarrolla en la tesis.</p>
+
+<h1 id="s3">3. Documentos a consultar</h1>
+<ul>
+<li>Ministerio de Transportes y Comunicaciones. Guía para Inspección de Puentes (Directiva N.° 01-2006-MTC/14).</li>
+<li>Ministerio de Transportes y Comunicaciones. Manual de Puentes (camión de diseño HL-93).</li>
+<li>Ñuñuvero Castillo, L. A. y Tarazona Cerna, A. B. (2026). <i>Implementación de una plataforma digital para la inspección de puentes históricos con inteligencia artificial: caso Puente Balta</i>. Tesis, UPC.</li>
+<li>Documentación de CloudCompare, para convertir nubes E57 o LAZ a PLY.</li>
+<li>Documentación de Ansys Mechanical APDL, para correr el macro exportado por la aplicación.</li>
+</ul>
+
+<h1 id="s4" class="nb">4. Desarrollo</h1>
+<h2 id="s41">4.1 Sobre el sistema</h2>
+<h3 id="s411">4.1.1 Descripción</h3>
+<p>PuenteGemelo es una plataforma que reúne, para cada puente, su ficha de inspección, un modelo estructural obtenido de la nube de puntos (gemelo digital) y una inteligencia artificial entrenada con ese modelo. La aplicación compara la vibración medida en campo con la del modelo y la IA indica en qué zona conviene revisar primero. La decisión sobre el estado del puente es siempre del inspector.</p>
+<p>Todos los cálculos se hacen en la computadora del usuario. La nube de puntos y los datos del puente no se envían a ningún servidor.</p>
+
+<h3 id="s412">4.1.2 Características</h3>
+<ul>
+<li>Lee nubes de puntos en formato PLY, LAS, XYZ, TXT o CSV.</li>
+<li>Detecta el tablero, los pilares y los estribos, mide las dimensiones principales y separa los elementos del puente, que se pueden descargar como modelo IFC.</li>
+<li>Informa qué parte de cada elemento quedó registrada en la nube y completa los huecos con la geometría del mismo puente, marcando siempre lo generado.</li>
+<li>Arma un modelo de barras y calcula sus modos de vibración. El modelo se puede exportar a Ansys y comparar con sus resultados.</li>
+<li>Entrena una IA (bosque aleatorio) que señala la zona probablemente dañada a partir de las frecuencias y formas modales.</li>
+<li>Lleva la ficha de inspección del MTC, el inventario, los defectos y el panel fotográfico, y genera el informe imprimible.</li>
+</ul>
+
+<h3 id="s413">4.1.3 Requisitos mínimos</h3>
+<table>
+<tr><th style="width:42mm">Elemento</th><th>Requisito</th></tr>
+<tr><td>Versión web</td><td>Navegador actualizado (Chrome, Edge o Firefox) con conexión a internet para abrir la página y para la vista 3D.</td></tr>
+<tr><td>Programa de escritorio</td><td>Windows, macOS o Linux. Funciona sin internet una vez instalado.</td></tr>
+<tr><td>Nube de puntos</td><td>Coordenadas x, y, z en las tres primeras columnas, en metros, centímetros o milímetros. En las pruebas se usaron nubes de hasta 1,2 millones de puntos.</td></tr>
+<tr><td>Medición de vibración (opcional)</td><td>Archivo CSV de acelerómetros o de un celular con la aplicación phyphox.</td></tr>
+<tr><td>Ansys (opcional)</td><td>Ansys Mechanical APDL. La versión Student admite hasta 128 000 nodos y elementos, suficiente para los modelos que exporta la aplicación.</td></tr>
+</table>
+
+<h3 id="s414">4.1.4 Principales funcionalidades</h3>
+<table>
+<tr><th style="width:42mm">Módulo</th><th>Funcionalidad</th></tr>
+<tr><td>Inicio</td><td>Lista de puentes, puente activo, importación y exportación de proyectos (.puente), estado del puente y alertas.</td></tr>
+<tr><td>Gemelo digital</td><td>Registro del puente en siete pasos: nube de puntos, tablero y apoyos, geometría, datos del puente y modos, entrenamiento de la IA, prueba de la IA, prioridades e informe. Incluye el registro sísmico.</td></tr>
+<tr><td>Monitoreo con IA</td><td>Carga de la medición de vibración, identificación de frecuencias, comparación con el modelo y diagnóstico con la IA.</td></tr>
+<tr><td>Inspección y gestión</td><td>Ficha de inspección del MTC, carga vehicular HL-93 y proyección del deterioro con el plan de mantenimiento.</td></tr>
+<tr><td>Verificación</td><td>Comparación del modelo con OpenSees, pruebas de la IA en varios tipos de puente y procedencia de los datos.</td></tr>
+</table>
+
+<h3 id="s415">4.1.5 Mapa de navegación</h3>
+<p>El menú principal tiene cinco pestañas. Cada una abre un submenú con sus herramientas (Figura 1).</p>
+<div class="raiz">PuenteGemelo</div>
+<div class="mapa">
+ <div><b>Inicio</b><span>Mis puentes</span><span>Estado del puente</span></div>
+ <div><b>Gemelo digital</b><span>Nube, modelo e IA<br>(pasos 1 a 7)</span><span>Sismo registrado</span></div>
+ <div><b>Monitoreo con IA</b><span>Vibración medida e IA</span></div>
+ <div><b>Inspección y gestión</b><span>Inspección de campo (MTC)</span><span>Carga vehicular HL-93</span><span>Deterioro y mantenimiento</span></div>
+ <div><b>Verificación</b><span>Validación</span><span>Datos y procedencia</span></div>
 </div>
-<div class="box"><b>Dónde está la app.</b> En la web (no hay que instalar nada) o como programa para Windows, Mac y Linux. Las dos versiones son iguales. Cada puente se guarda en la computadora o en el navegador donde lo cargó. Para llevarlo a otra computadora, use «Exportar .puente» en <i>Mis puentes</i>.</div>
-<p class="foot">Tesis «Implementación de una plataforma digital para la inspección de puentes históricos con inteligencia artificial: caso Puente Balta». UPC, 2026. Luis Ñuñuvero Castillo y Anthony Tarazona Cerna. Código abierto (MIT).</p>
+<p style="text-align:center;font-size:9pt">Figura 1. Mapa de navegación de PuenteGemelo.</p>
+<p>Con el Puente Balta de ejemplo activo, la pestaña Gemelo digital muestra además el material de la primera parte de la tesis (modelo 3D y nube, simulación e IA, comparación de escenarios y dinámica) y la pestaña Inspección y gestión agrega las prioridades de inspección de ese modelo.</p>
 
-<h2 class="pb first">Antes de empezar: la pantalla</h2>
-<figure><img src="img/old_000.jpg" style="width:80%"><figcaption>Mis puentes. Arriba a la derecha, «Puente activo» indica con qué puente está trabajando.</figcaption></figure>
-<ul>
-<li><b>Puente activo</b> (arriba a la derecha): todo lo que haga se guarda en ese puente. Desde ahí también puede agregar otro.</li>
-<li><b>Pestañas</b>: Inicio (puentes y estado), Gemelo digital (la nube y el modelo), Monitoreo con IA (vibración), Inspección y gestión (ficha MTC, carga y mantenimiento) y Verificación (pruebas de la app).</li>
-<li><b>Mostrar ayuda</b>: muestra una explicación corta en cada pantalla. Úsela las primeras veces.</li>
-<li><b>Más opciones</b>: las opciones técnicas están plegadas. Los valores que vienen puestos sirven en la mayoría de los casos.</li>
-</ul>
-<p>El Puente Balta viene como ejemplo, para practicar sin cargar nada.</p>
-
-<h2>Antes de escanear: cómo tomar una nube que la app pueda aprovechar</h2>
-<p>La mayor parte de lo que la app no puede medir se decide en campo, no en la computadora. Estas reglas salen de las pruebas con las nubes del Puente Balta y de otros puentes.</p>
-<ul>
-<li><b>Las dos márgenes y las dos caras.</b> Estacione a ambos lados del río o de la vía: una sola margen deja sin ver una cara de cada pilar y de cada arco, y con una sola cara el espesor del pilar no se puede medir.</li>
-<li><b>Debajo del tablero.</b> Es la parte que más se pierde (en el Balta, bajo el tramo 2 solo el 68 % del largo tiene puntos). Si se puede bajar al lecho o al estribo, una estación bajo cada vano vale más que tres desde arriba.</li>
-<li><b>Los estribos y los extremos.</b> Siga el tablero 10 o 15 m más allá de cada estribo y escanee la cara del estribo desde el frente. En el Balta el estribo de la margen izquierda no está en la nube (0 %) y la app no puede inventarlo.</li>
-<li><b>Densidad.</b> Con 5 cm entre puntos sobre la estructura la app mide bien; con 15 cm o más sigue detectando los apoyos, pero el canto y el espesor pierden precisión y las barandas y péndolas finas desaparecen.</li>
-<li><b>Registre bien las estaciones.</b> Un error de registro aparece después como un «escalón» en el mapa de desviaciones y como caras dobles en los pilares.</li>
-<li><b>Recorte antes de cargar.</b> Calles, edificios y el río completo solo estorban; si no puede recortar en el escáner, hágalo en el paso 1.</li>
-<li><b>Después de cargar, mire «Completitud».</b> El panel dice qué cara quedó corta y desde dónde volver; lleve esa lista a la segunda campaña.</li>
-</ul>
-
-<h2>Paso 1. Agregar el puente (una sola vez)</h2>
-<p>Necesita la nube de puntos del puente (escáner láser o dron), en PLY, LAS, XYZ o CSV. Si viene en E57 o LAZ, conviértala a PLY con CloudCompare. Pulse <b>Agregar un puente</b> y siga los 7 pasos de la izquierda.</p>
-<table><tr><th>Paso</th><th>Qué hace usted</th></tr>
-<tr><td>1. Nube de puntos</td><td class="w">Elija el archivo, revise que esté en metros y escriba el nombre del puente.</td></tr>
-<tr><td>2. Tablero y apoyos</td><td class="w">La app marca el tablero y los apoyos. Revise que cada pilar real tenga su fila y que no haya árboles marcados como pilares (los dudosos dicen «Confirme»). Si falta uno, haga clic en la elevación. Debajo aparece lo que mide la nube, en cinco partes: 2.1 calidad de la nube, 2.2 medidas y elementos, 2.3 completitud y nube completada por elemento, 2.4 forma y cambios en el tiempo y 2.5 evidencia para la inspección.</td></tr>
-<tr><td>3. Geometría</td><td class="w">Elija el tipo de puente (arcos, vigas o armadura) y pulse «Calcular geometría».</td></tr>
-<tr><td>4. Datos del puente</td><td class="w">Elija el material y escriba los datos que la nube no muestra (secciones, peso del tablero). Las etiquetas amarillas indican valores que aún no revisó. Pulse «Calcular modos». Si quiere, exporte el modelo a Ansys y cargue después sus resultados para compararlos.</td></tr>
-<tr><td>5. Entrenar la IA</td><td class="w">Pulse «Entrenar la IA». Tarda entre segundos y un minuto. Al terminar, la app dice cuánto acierta.</td></tr>
-<tr><td>6 y 7</td><td class="w">Opcionales: probar la IA con daños simulados y ver el informe con el orden de verificación en campo.</td></tr>
+<h3 id="s416" class="nb">4.1.6 Partes de la pantalla</h3>
+<figure><div class="anot"><img src="img/w_puentes.jpg">
+ <b style="left:51%;top:5.8%">1</b><b style="left:23.5%;top:9.4%">2</b><b style="left:55.5%;top:2.2%">3</b><b style="left:88%;top:5.8%">4</b>
+ <b style="left:15%;top:13%">5</b><b style="left:45%;top:12.9%">6</b><b style="left:90%;top:13%">7</b><b style="left:33%;top:98.6%">8</b></div>
+ <figcaption>Figura 2. Pantalla principal (Inicio → Mis puentes).</figcaption></figure>
+<table>
+<tr><th style="width:10mm">N.°</th><th style="width:40mm">Parte</th><th>Uso</th></tr>
+<tr><td>1</td><td>Menú principal</td><td>Cambia de módulo.</td></tr>
+<tr><td>2</td><td>Submenú</td><td>Herramientas del módulo elegido. A la derecha se muestra una descripción corta del módulo.</td></tr>
+<tr><td>3</td><td>Puente activo</td><td>Indica con qué puente se está trabajando. Todo lo que se haga se guarda en ese puente. Desde la lista también se agrega un puente nuevo.</td></tr>
+<tr><td>4</td><td>Mostrar ayuda, Guía, Acerca de</td><td>«Mostrar ayuda» muestra un texto explicativo en cada pantalla; «Guía» abre este manual.</td></tr>
+<tr><td>5</td><td>Panel izquierdo</td><td>Acciones o pasos de la herramienta abierta. En el registro de un puente muestra los siete pasos y cuáles están listos.</td></tr>
+<tr><td>6</td><td>Área de trabajo</td><td>Contenido de la herramienta: tablas, gráficos, formularios.</td></tr>
+<tr><td>7</td><td>Panel derecho</td><td>Indicaciones cortas sobre lo que se ve en el área de trabajo.</td></tr>
+<tr><td>8</td><td>Barra de estado</td><td>Puente activo y versión de la aplicación.</td></tr>
 </table>
-<figure><img src="img/c_elev.jpg"><figcaption>Paso 2 con la nube del Puente Balta: líneas rojas = apoyos detectados (E = estribo, P = pilar) y tabla con la confianza de cada uno. Revise que coincidan con el puente real.</figcaption></figure>
 
-<h2 class="pb first">Paso 1 (continuación). Lo que la nube le dice del puente</h2>
-<p>En el paso 2, debajo de los apoyos, la app muestra lo que puede medir en la nube. Nada de esto reemplaza la visita: le dice qué vio y qué no.</p>
-<table><tr><th>Panel</th><th>Para qué le sirve</th></tr>
-<tr><td>Confianza de cada apoyo</td><td class="w">La app vuelve a buscar los apoyos recorriendo la nube al revés (en espejo). Un apoyo que sale igual en los dos sentidos tiene confianza <b>alta</b>; si solo aparece en uno, <b>media</b>. Un pilar marcado <b>inferido</b> no tiene fuste en la nube: la app lo pone donde arrancan dos arcos seguidos.</td></tr>
-<tr><td>2.1 Calidad de la nube</td><td class="w">Huecos sin puntos, extremos cortados, pilares o parte inferior poco vistos. Si la nube trae intensidad o color, separa la vegetación y busca zonas anómalas.</td></tr>
-<tr><td>2.2 Medidas y elementos</td><td class="w">Ancho del tablero, canto, espesor y ancho de cada pilar. «Identificar elementos» separa tablero, pilares, estribos, arcos, péndolas, tirantes y barandas con sus medidas; «Descargar modelo IFC» entrega el modelo para Revit, Tekla, BlenderBIM u otro visor IFC.</td></tr>
-<tr><td>2.3 Completitud</td><td class="w">Qué parte de cada elemento vio la nube, cara por cara, un índice global y, para cada cara vista en menos del 60 %, desde dónde volver a escanear.</td></tr>
-<tr><td>2.3 Nube completada</td><td class="w">«Generar nube completada» rellena los huecos con la geometría medida en otra parte del mismo puente (la cara opuesta reflejada, la mitad vista del arco, el pilar gemelo, la sección del tablero a ambos lados del hueco). Antes se autovalida en su nube y solo usa las reglas que aciertan. Se descarga en PLY con lo generado en color y con su origen.</td></tr>
-<tr><td>2.3 Completado por elemento</td><td class="w">Elija un elemento y vea su cara en un mapa de celdas: gris lo medido, en color lo generado (según la regla) y en blanco lo que sigue sin puntos. Para cada hueco dice con qué regla se completó y con qué acierto, o por qué no se pudo (por ejemplo, «no hay tramos vistos a ambos lados»). En tableros con losa también lista las manchas sin puntos en planta. Se descarga en CSV.</td></tr>
-<tr><td>2.4 Desviaciones y otra fecha</td><td class="w">Dónde la calzada, el intradós de los arcos, las caras de los pilares o las barandas se apartan de su forma ideal (hundimientos, abultamientos, pérdida de sección, golpes). Son zonas para revisar: un objeto suelto o un parche también aparecen. Con otra nube del mismo puente puede ver qué cambió entre fechas.</td></tr>
-<tr><td>2.5 Evidencia para la inspección</td><td class="w">Para cada elemento: cuánto lo vio la nube y lo que cae en él. Pulse <b>Llevar al expediente de inspección (MTC)</b>: esa evidencia y las cantidades que mide la nube pasan a su ficha.</td></tr>
+<h2 id="s42" class="nb">4.2 Funcionalidades</h2>
+<p>Las funcionalidades se describen por módulo, en el orden del menú. Cada una indica dónde se encuentra, para qué sirve y el procedimiento a seguir.</p>
+
+<h3 id="s421">4.2.1 Inicio</h3>
+<h4>a) Mis puentes</h4>
+<table class="ficha">
+<tr><td>Ubicación</td><td>Inicio → Mis puentes</td></tr>
+<tr><td>Descripción</td><td>Lista los puentes guardados en la computadora o en el navegador y el puente de ejemplo (Balta). Permite agregar un puente, abrir un archivo .puente y exportar un puente para llevarlo a otra computadora.</td></tr>
 </table>
-<figure><img src="img/p2_elm.jpg"><figcaption>2.2: elementos identificados en la nube del Balta, con sus medidas y de dónde sale cada una.</figcaption></figure>
-
-<figure><img src="img/p2_cmpl.jpg"><figcaption>2.3: completitud del levantamiento del Balta: cobertura por cara, qué falta escanear y qué se completó por geometría, marcado «inferido».</figcaption></figure>
-<figure><img src="img/p2_nube.jpg"><figcaption>2.3: nube completada. La autovalidación decide qué reglas se aplican en este puente; cada punto generado lleva su origen.</figcaption></figure>
-
-<figure><img src="img/c_det.jpg"><figcaption>2.3: completado por elemento. Calzada del tramo T1 del Balta: celdas medidas (gris), rellenadas con la sección transversal repetida (morado) y manchas que siguen sin puntos (blanco).</figcaption></figure>
-
-<figure><img src="img/p2_dev.jpg"><figcaption>2.4: desviaciones de la forma ideal en la nube del Balta: mapa de la calzada y zonas para revisar.</figcaption></figure>
-<figure><img src="img/p2_fic.jpg"><figcaption>2.5: evidencia de la nube por elemento, lista para llevar al expediente de inspección.</figcaption></figure>
-
-<h2 class="pb first">Qué significa «inferido» (y qué no)</h2>
-<p>La app distingue siempre tres cosas, y conviene que usted también:</p>
-<ul>
-<li><b>Medido</b>: sale de puntos de la nube. Es lo que va a las dimensiones, a las desviaciones y a la evidencia.</li>
-<li><b>Inferido</b>: la nube no lo tiene, pero el propio puente lo dicta: la otra cara de un pilar con su espesor medido, la parábola del arco en el tramo no visto (solo si se vio al menos el 40 %), un montante en el hueco de una serie regular, el pilar donde arrancan dos arcos seguidos. Va marcado así en la tabla, en el informe y en el modelo IFC (propiedad Origen), y nunca sube a confianza alta.</li>
-<li><b>No completable</b>: ni la nube ni la geometría del puente permiten saberlo (un estribo ausente, un pilar con una sola cara y sin gemelo, un tramo con menos del 40 % del arco). La app lo declara y pide volver a escanear; no rellena.</li>
-</ul>
-<p>Con la nube completada pasa lo mismo: cada punto generado dice de dónde salió, y antes de generar nada la app se pone a prueba en su propia nube (oculta parches, los completa y mide si acertó). Si una regla no llega al 80 % de acierto, o no se pudo probar con al menos 50 puntos, queda desactivada en ese puente aunque funcione en otros. Lo generado sirve para ver la forma completa, para el modelo y para planificar; no para medir un deterioro: lo que se mide es lo medido.</p>
-
-<h2>Paso 4 del alta: el modelo y su verificación con Ansys</h2>
-<p>Con los datos del puente la app calcula los modos de vibración de un modelo de barras. Para comprobar que ese cálculo es correcto se puede repetir en Ansys Mechanical APDL:</p>
+<p>Procedimiento para llevar un puente a otra computadora:</p>
 <ol>
-<li>En el paso 4 pulse <b>Exportar a Ansys (.mac)</b>. El macro reproduce el mismo modelo (BEAM188, masas en los nodos, los mismos apoyos).</li>
-<li>En Mechanical APDL use <i>File → Read Input from</i> y elija el macro. Al terminar deja <code>frecuencias_…txt</code> y <code>modos_…txt</code> en la carpeta de trabajo.</li>
-<li>De vuelta en la app, pulse <b>Cargar resultados de Ansys</b> y elija los dos archivos. La app empareja cada modo por la forma (MAC) y marca los que concuerdan (diferencia de frecuencia hasta 1 % y MAC desde 0,95).</li>
+<li>En Mis puentes, ubique el puente y pulse «Exportar .puente». Se descarga un archivo con todo el proyecto.</li>
+<li>En la otra computadora, abra Inicio → Mis puentes y pulse «Abrir un archivo .puente».</li>
+<li>Elija el archivo. El puente aparece en la lista y queda como puente activo.</li>
 </ol>
-<p>Si los archivos son de otro macro (otro puente, otros apoyos o datos cambiados después de exportar), la app lo avisa en rojo y no da la comparación por buena. En ese caso exporte el macro otra vez desde el modelo actual.</p>
-<figure><img src="img/p4_ansys.jpg" style="width:85%"><figcaption>Comparación con Ansys para el modelo del Balta: los 8 modos concuerdan (diferencia máxima 0,001 %, MAC 1,000).</figcaption></figure>
+<p class="nota"><b>Nota:</b> los puentes quedan guardados solo en la computadora o el navegador donde se trabajó. Se recomienda exportar el archivo .puente cada cierto tiempo como respaldo.</p>
 
-<h2>Pasos 4 y 5 en pantalla</h2>
-<figure><img src="img/p4_par.jpg"><figcaption>Paso 4: material y datos del puente. Las etiquetas amarillas marcan lo que aún no revisó.</figcaption></figure>
-<figure><img src="img/p4_modos.jpg"><figcaption>Paso 4: modos de vibración calculados y revisión automática.</figcaption></figure>
-<figure><img src="img/p5_ia.jpg"><figcaption>Paso 5: la IA queda entrenada para este puente y la app dice, en palabras simples, cuánto acierta.</figcaption></figure>
-<div class="box warn"><b>Importante.</b> Los aciertos del paso 5 se miden con daños simulados. Con un puente real serán menores. Por eso la IA solo indica dónde mirar primero.</div>
+<h4>b) Estado del puente</h4>
+<table class="ficha">
+<tr><td>Ubicación</td><td>Inicio → Estado del puente</td></tr>
+<tr><td>Descripción</td><td>Resume el puente activo: lista de tareas con el siguiente paso («Hacer ahora»), indicadores (índice de salud, calificación MTC, último diagnóstico de la IA, carga vehicular, vida útil estimada y próxima inspección), alertas e historia del puente con cada inspección, medición y diagnóstico.</td></tr>
+</table>
+<figure><img src="img/old_012.jpg"><figcaption>Figura 3. Estado del puente con la lista de tareas y las alertas.</figcaption></figure>
 
-<h2 class="pb first">Paso 2. Inspeccionar en campo</h2>
-<p>Vaya a <b>Inspección y gestión → Inspección de campo (MTC)</b> y pulse <b>Nueva</b>.</p>
-<ol>
-<li>Escriba la fecha, el tipo de inspección y los inspectores.</li>
-<li>Para cada elemento, elija su calificación de 0 (muy bueno) a 5 (pésimo). La escala del MTC se ve a la derecha.</li>
-<li>Si puede, anote qué cantidad de cada elemento está en cada estado: Bueno, Regular, Malo o Severo. Por ejemplo, 12 m de viga en estado Regular. Con eso la app calcula la salud del puente y el plan de mantenimiento.</li>
-<li>Con «+ Defecto» registre cada defecto (fisuras, corrosión, socavación…) con su ubicación, extensión y medidas.</li>
-<li>Agregue las fotos en el panel fotográfico.</li>
-<li>«Informe imprimible» genera el informe para firmar o guardar en PDF.</li>
-</ol>
-<p>La primera vez, llene también el Inventario (ficha del Anexo 03-01). Si llevó la evidencia de la nube, la longitud, los tramos, las luces y algunas cantidades ya vienen llenos (solo donde estaban vacíos) y arriba de la ficha aparece el recuadro <b>Evidencia de la nube</b>: úselo para saber qué mirar primero y qué parte no se vio. La calificación la pone usted.</p>
-<figure><img src="img/old_010.jpg"><figcaption>Ficha de inspección con la evidencia de la nube desplegada. Todo se guarda solo.</figcaption></figure>
+<h3 id="s422" class="nb">4.2.2 Gemelo digital: registro de un puente</h3>
+<table class="ficha">
+<tr><td>Ubicación</td><td>Inicio → Mis puentes → «Agregar un puente», o Gemelo digital → Nube, modelo e IA</td></tr>
+<tr><td>Descripción</td><td>Registra el puente a partir de su nube de puntos en siete pasos, que aparecen en el panel izquierdo. Cada paso se habilita cuando el anterior está listo. El registro se hace una sola vez por puente.</td></tr>
+</table>
 
-<h2 class="pb first">Paso 3. Medir la vibración</h2>
-<h3>En campo</h3>
+<h4>Antes de cargar la nube</h4>
+<p>Lo que la aplicación puede medir depende de cómo se hizo el escaneo. A partir de las pruebas con la nube del Balta y de otros puentes se recomienda:</p>
 <ul>
-<li>Sirven acelerómetros o un celular con la app gratuita phyphox, usando la medición «Aceleración (sin g)».</li>
-<li>Apoye el sensor sobre el tablero, firme y horizontal. Use los puntos S1 a S9 de la app: cuartos y centro de cada vano. Con un solo sensor obtendrá frecuencias; con tres o más, también la forma de vibrar, que ayuda a ubicar el daño.</li>
-<li>Grabe al menos 10 a 20 minutos con el tránsito normal. No camine cerca del sensor.</li>
-<li>Anote la fecha, la hora y la temperatura del aire. Mida siempre en los mismos puntos.</li>
-<li>Exporte el archivo como CSV.</li>
+<li>Escanear desde las dos márgenes. Con una sola margen falta una cara de cada pilar y de cada arco, y el espesor del pilar no se puede medir.</li>
+<li>Colocar al menos una estación bajo cada vano. Es la zona que más se pierde: en el Balta, bajo el tramo 2 solo el 68 % del largo tiene puntos.</li>
+<li>Seguir el tablero 10 a 15 m más allá de cada estribo y escanear el estribo de frente. En la nube del Balta el estribo de la margen izquierda no aparece.</li>
+<li>Usar una separación entre puntos de unos 5 cm sobre la estructura. Con 15 cm o más se siguen detectando los apoyos, pero el canto y el espesor pierden precisión y las barandas y péndolas delgadas desaparecen.</li>
+<li>Revisar el registro entre estaciones. Un error de registro aparece luego como un escalón en el mapa de desviaciones y como caras dobles en los pilares.</li>
+<li>Recortar calles, edificios y el cauce antes de cargar la nube, o hacerlo en el paso 1.</li>
 </ul>
-<h3>En la app (Monitoreo con IA)</h3>
+
+<h4>Paso 1. Nube de puntos</h4>
+<ol>
+<li>Pulse «Elegir archivo» o arrastre el archivo al recuadro. Si la nube está en E57 o LAZ, conviértala antes a PLY con CloudCompare.</li>
+<li>Indique el eje vertical (Z o Y hacia arriba) y las unidades del archivo.</li>
+<li>Escriba el nombre del puente.</li>
+<li>Revise la elevación y la planta. Si la nube incluye accesos o calles, haga clic en la planta en un extremo del tramo y luego en el otro, ajuste el ancho y pulse «Recortar». «Volver a la nube completa» deshace el recorte.</li>
+<li>Pulse «Continuar».</li>
+</ol>
+<figure><img src="img/w_paso1b.jpg"><figcaption>Figura 4. Paso 1 con la nube del Puente Balta cargada (601 243 puntos).</figcaption></figure>
+
+<h4>Paso 2. Tablero y apoyos</h4>
+<ol>
+<li>Revise en la elevación las líneas rojas, que son los apoyos detectados (E = estribo, P = pilar), y compárelas con el puente real.</li>
+<li>En la tabla de apoyos, verifique que cada pilar tenga su fila. Los apoyos dudosos llevan el aviso «Confirme». Para agregar un apoyo, haga clic en la elevación; para quitar uno, pulse «Quitar».</li>
+<li>Si el tablero o el terreno no coinciden con la nube, corrija las cotas y pulse «Detectar apoyos otra vez».</li>
+<li>Pulse «Identificar elementos» y, si lo necesita, «Generar nube completada» (ver la Tabla 1).</li>
+<li>Pulse «Continuar».</li>
+</ol>
+<figure><img src="img/c_elev.jpg"><figcaption>Figura 5. Paso 2: apoyos detectados en el Balta y su confianza.</figcaption></figure>
+<p>La columna «Confianza» indica si el apoyo vuelve a aparecer cuando la nube se recorre desde el otro extremo (alta) o solo en un sentido (media). Un pilar «inferido» no tiene fuste en la nube; la aplicación lo coloca donde arrancan dos arcos seguidos.</p>
+<p>Debajo de los apoyos, el paso 2 muestra lo que se puede medir en la nube, ordenado en cinco secciones:</p>
+<table>
+<caption>Tabla 1. Secciones del paso 2.</caption>
+<tr><th style="width:44mm">Sección</th><th>Contenido</th></tr>
+<tr><td>2.1 Calidad de la nube</td><td>Cobertura de la calzada y de la parte inferior, separación entre puntos, extremos cortados y recomendaciones para la siguiente captura. Si la nube trae intensidad o color, separa la vegetación y busca zonas anómalas.</td></tr>
+<tr><td>2.2 Medidas y elementos</td><td>Ancho y canto del tablero, espesor y ancho de los pilares. «Identificar elementos» separa tableros, pilares, estribos, arcos, montantes, péndolas, tirantes y barandas con sus medidas. «Descargar modelo IFC» genera el modelo para Revit, Tekla, BlenderBIM u otro visor IFC.</td></tr>
+<tr><td>2.3 Completitud y nube completada por elemento</td><td>Porcentaje visto de cada cara de cada elemento, caras con menos del 60 % y desde dónde volver a escanear. «Generar nube completada» rellena los huecos con la geometría del mismo puente; «Completado por elemento» muestra el resultado de cada cara en un mapa de celdas.</td></tr>
+<tr><td>2.4 Forma y cambios en el tiempo</td><td>Desviaciones de la calzada, arcos, pilares y barandas respecto de su forma ideal (hundimientos, abultamientos, pérdida de sección) y comparación con una nube de otra fecha.</td></tr>
+<tr><td>2.5 Evidencia para la inspección</td><td>Lo que la nube muestra de cada elemento. «Llevar al expediente de inspección (MTC)» pasa esta evidencia a la ficha de inspección.</td></tr>
+</table>
+<figure><img src="img/p2_elm.jpg"><figcaption>Figura 6. Sección 2.2: elementos identificados en la nube del Balta.</figcaption></figure>
+<figure><img src="img/p2_cmpl.jpg"><figcaption>Figura 7. Sección 2.3: completitud del levantamiento por elemento y por cara.</figcaption></figure>
+<p>Antes de completar la nube, la aplicación oculta parches de la propia nube, los completa con cada regla y mide cuántos puntos acertó. Una regla solo se aplica en ese puente si se pudo probar con al menos 50 puntos y acertó al menos el 80 %. En la nube del Balta pasaron dos reglas: la sección transversal repetida del tablero (99 %) y la simetría de los pilares (88 %). Cada punto generado lleva su origen y no se usa para medir daños.</p>
+<figure><img src="img/p2_nube.jpg"><figcaption>Figura 8. Sección 2.3: autovalidación y puntos generados por regla.</figcaption></figure>
+<figure><img src="img/c_det.jpg"><figcaption>Figura 9. Completado por elemento: calzada del tramo T1 del Balta. Gris: medido; morado: generado con la sección transversal repetida; blanco: sin puntos.</figcaption></figure>
+<p class="nota"><b>Nota:</b> lo marcado como «inferido» no sale de puntos de la nube, sino de la geometría del propio puente (por ejemplo, la otra cara de un pilar con su espesor medido o la parábola del arco en el tramo no visto). Lo que no se puede deducir, como un estribo ausente, se declara «no completable» y no se rellena.</p>
+<figure><img src="img/p2_dev.jpg"><figcaption>Figura 10. Sección 2.4: desviaciones de la forma ideal y zonas para revisar.</figcaption></figure>
+<figure><img src="img/p2_fic.jpg"><figcaption>Figura 11. Sección 2.5: evidencia de la nube por elemento.</figcaption></figure>
+
+<h4>Paso 3. Geometría</h4>
+<ol>
+<li>Elija el tipo de puente. La aplicación propone uno según la nube (arcos, vigas o armadura).</li>
+<li>Pulse «Calcular geometría». Para arcos, la tabla muestra la luz, la flecha y qué parte del intradós se vio.</li>
+<li>Pulse «Continuar».</li>
+</ol>
+<figure><img src="img/w_paso3.jpg"><figcaption>Figura 12. Paso 3: arcos ajustados en la nube del Balta.</figcaption></figure>
+<p class="nota"><b>Nota:</b> si el ajuste de arcos falla, casi siempre el puente es de vigas.</p>
+
+<h4>Paso 4. Datos del puente y modos</h4>
+<ol>
+<li>Elija el material y escriba los datos que la nube no muestra: secciones, peso del tablero y propiedades de los pilares. Las etiquetas amarillas marcan los valores que todavía no se revisaron.</li>
+<li>Pulse «Calcular modos». La tabla muestra la frecuencia, el periodo y la dirección de cada modo.</li>
+<li>Pulse «Ver nube y modelo en 3D» para revisar el modelo sobre la nube.</li>
+</ol>
+<figure><img src="img/p4_par.jpg"><figcaption>Figura 13. Paso 4: material y datos del puente.</figcaption></figure>
+<figure><img src="img/p4_modos.jpg"><figcaption>Figura 14. Paso 4: modos de vibración del modelo del Balta.</figcaption></figure>
+
+<h4>Verificación del modelo con Ansys</h4>
+<table class="ficha">
+<tr><td>Ubicación</td><td>Gemelo digital → paso 4, debajo de la tabla de modos</td></tr>
+<tr><td>Descripción</td><td>Exporta el mismo modelo a un macro de Ansys Mechanical APDL (BEAM188, masas en los nodos, mismos apoyos) y compara los resultados de Ansys con los de la aplicación, modo por modo.</td></tr>
+</table>
+<ol>
+<li>Pulse «Exportar a Ansys (.mac)». Marque «con deformación por cortante» solo si quiere incluir ese efecto; sin marcarlo, Ansys debe dar las mismas frecuencias.</li>
+<li>En Mechanical APDL, use File → Read Input from y elija el macro. Al terminar quedan los archivos <i>frecuencias_…txt</i> y <i>modos_…txt</i> en la carpeta de trabajo.</li>
+<li>En la aplicación, pulse «Cargar resultados de Ansys» y elija los dos archivos.</li>
+<li>Revise la tabla. Un modo concuerda si la diferencia de frecuencia es de 1 % o menos y el MAC (parecido de la forma modal) es de 0,95 o más.</li>
+</ol>
+<figure><img src="img/p4_ansys.jpg"><figcaption>Figura 15. Comparación con Ansys del modelo del Balta: 8 de 8 modos concuerdan.</figcaption></figure>
+<p class="nota"><b>Nota:</b> si los archivos cargados son de otro macro (otro puente, otros apoyos o datos cambiados después de exportar), la aplicación lo indica en rojo y no toma la comparación como verificación. En ese caso, exporte el macro otra vez y vuelva a correrlo.</p>
+
+<h4>Paso 5. Entrenar la IA</h4>
+<ol>
+<li>Pulse «Entrenar la IA». La aplicación simula unas 1300 combinaciones de daño en las zonas del puente; con el Balta tardó 32 segundos.</li>
+<li>Lea el resumen: porcentaje de daños detectados, zona correcta, vano correcto y falsas alarmas.</li>
+</ol>
+<figure><img src="img/p5_ia.jpg"><figcaption>Figura 16. Paso 5: resultado del entrenamiento de la IA para el Balta.</figcaption></figure>
+<p class="nota"><b>Importante:</b> estos porcentajes se calculan con daños simulados. Con un puente real el acierto será menor, por eso la IA se usa para decidir dónde mirar primero y no para reemplazar la inspección.</p>
+
+<h4>Pasos 6 y 7. Probar la IA, prioridades e informe</h4>
+<p>En el paso 6 se elige una zona y un porcentaje de daño; la aplicación simula una medición con error y la IA, sin conocer la respuesta, indica la zona que cree dañada. «Repetir 100 mediciones» muestra con qué frecuencia acierta.</p>
+<p>El paso 7 ordena las zonas para la inspección de campo según tres criterios: cuánto afecta su daño a la vibración, cuánto de la zona no se vio en la nube y qué tan difícil le resulta a la IA. Debajo está el informe completo del registro, que se puede copiar o descargar.</p>
+<figure><img src="img/w_paso6.jpg"><figcaption>Figura 17. Paso 6: prueba de la IA con un daño simulado.</figcaption></figure>
+<figure><img src="img/w_paso7.jpg"><figcaption>Figura 18. Paso 7: orden de verificación en campo para el Balta.</figcaption></figure>
+
+<h4>Sismo registrado</h4>
+<table class="ficha">
+<tr><td>Ubicación</td><td>Gemelo digital → Sismo registrado</td></tr>
+<tr><td>Descripción</td><td>Aplica un registro sísmico del CISMID o del IGP al modelo del puente y muestra su respuesta.</td></tr>
+</table>
+
+<h3 id="s423" class="nb">4.2.3 Monitoreo con IA</h3>
+<table class="ficha">
+<tr><td>Ubicación</td><td>Monitoreo con IA → Vibración medida e IA</td></tr>
+<tr><td>Descripción</td><td>Obtiene las frecuencias del puente a partir de una medición de vibración, las compara con el modelo o con una medición del puente sano y aplica la IA.</td></tr>
+</table>
+<p>Procedimiento en campo:</p>
+<ol>
+<li>Coloque el acelerómetro o el celular (phyphox, medición «Aceleración (sin g)») sobre el tablero, firme y horizontal, en los puntos S1 a S9 que indica la aplicación (cuartos y centro de cada vano). Con un sensor se obtienen frecuencias; con tres o más, también la forma de vibrar.</li>
+<li>Grabe entre 10 y 20 minutos con el tránsito normal, sin caminar cerca del sensor.</li>
+<li>Anote la fecha, la hora y la temperatura del aire, y exporte el archivo como CSV.</li>
+</ol>
+<p>Procedimiento en la aplicación:</p>
 <ol>
 <li>Cargue la medición e indique en qué punto estuvo cada sensor.</li>
-<li>Pulse <b>Analizar la medición</b>. La app encuentra las frecuencias del puente y las compara con las del modelo.</li>
-<li>La primera vez, si el puente está sano, pulse <b>Guardar como medición del puente sano</b>. Las mediciones siguientes se compararán con esa, que es más confiable que compararlas con el modelo.</li>
-<li>Pulse <b>Diagnosticar con IA</b>.</li>
+<li>Pulse «Analizar la medición».</li>
+<li>La primera vez, si el puente está sano, pulse «Guardar como medición del puente sano». Las mediciones siguientes se comparan con esa.</li>
+<li>Pulse «Diagnosticar con IA» e interprete el resultado con la Tabla 2.</li>
 </ol>
-<p>¿Aún no tiene una medición? «Probar con una señal simulada» genera una para practicar.</p>
-
-<h2>Cómo leer el resultado de la IA</h2>
-<figure><img src="img/old_011.jpg"><figcaption>Diagnóstico con IA. En este ejemplo el resultado es «No concluyente»: la IA reparte sus votos entre varias zonas.</figcaption></figure>
-<table><tr><th>La app dice</th><th>Qué significa y qué hacer</th></tr>
-<tr><td>Sin daño detectado</td><td class="w">La vibración se parece a la del puente sano. Siga con la inspección rutinaria.</td></tr>
-<tr><td>Daño localizado</td><td class="w">La IA señala una zona con suficientes votos. Inspeccione esa zona primero, y con más detalle.</td></tr>
-<tr><td>No concluyente</td><td class="w">Ninguna zona reúne votos suficientes. Mire las zonas más votadas como orientación y repita la medición.</td></tr>
-<tr><td class="w" style="font-weight:600">Medición distinta a lo esperado / Cambio no explicado</td><td class="w">La medición no se parece a nada de lo que la IA conoce. Revise la medición (sensores, puntos, duración). Si está bien, algo cambió en el puente que el modelo no explica: conviene una inspección especial.</td></tr>
+<figure><img src="img/old_011.jpg"><figcaption>Figura 19. Diagnóstico con IA con resultado «No concluyente».</figcaption></figure>
+<table>
+<caption>Tabla 2. Resultados del diagnóstico.</caption>
+<tr><th style="width:44mm">Resultado</th><th>Qué hacer</th></tr>
+<tr><td>Sin daño detectado</td><td>La vibración se parece a la del puente sano. Continuar con la inspección rutinaria.</td></tr>
+<tr><td>Daño localizado</td><td>Inspeccionar primero la zona señalada, con más detalle.</td></tr>
+<tr><td>No concluyente</td><td>Tomar las zonas más votadas como orientación y repetir la medición.</td></tr>
+<tr><td>Medición distinta a lo esperado / Cambio no explicado</td><td>Revisar sensores, puntos y duración. Si la medición está bien, programar una inspección especial.</td></tr>
 </table>
-<div class="box warn"><b>La temperatura también cambia la vibración.</b> Entre el día y la noche, o entre estaciones, las frecuencias cambian casi tanto como con un daño. Mida a horas y temperaturas parecidas, y anote siempre la temperatura.</div>
+<p class="nota"><b>Nota:</b> la temperatura cambia las frecuencias casi tanto como un daño. Mida a horas y temperaturas parecidas y registre siempre la temperatura. Si no tiene una medición, «Probar con una señal simulada» genera una para practicar.</p>
 
-<h2 class="pb first">Paso 4. Revisar el estado del puente</h2>
-<p>En <b>Inicio → Estado del puente</b> verá:</p>
-<ul>
-<li><b>Qué hacer con este puente</b>: una lista con lo que ya hizo y el siguiente paso, con su botón «Hacer ahora».</li>
-<li><b>Indicadores</b>: índice de salud, calificación MTC, último diagnóstico de la IA, carga vehicular, vida útil estimada y próxima inspección.</li>
-<li><b>Alertas</b>: inspección vencida, elementos en estado severo, daño señalado por la IA, entre otras.</li>
-<li><b>Historia del puente</b>: cada inspección, medición y diagnóstico con su fecha. Se puede exportar.</li>
-</ul>
-<figure><img src="img/old_012.jpg"><figcaption>Estado del puente con la ruta de trabajo y las alertas.</figcaption></figure>
-<h3>Otras herramientas</h3>
-<ul>
-<li><b>Carga vehicular HL-93</b>: esfuerzos y flecha con el camión de diseño del Manual de Puentes. Para saber si el puente resiste, hay que ingresar las resistencias del material.</li>
-<li><b>Deterioro y mantenimiento</b>: con las cantidades por estado de la inspección, proyecta la salud del puente y propone un plan según el presupuesto.</li>
-<li><b>Sismo registrado</b>: aplica un registro sísmico de CISMID o del IGP al modelo del puente.</li>
-</ul>
+<h3 id="s424" class="nb">4.2.4 Inspección y gestión</h3>
+<h4>a) Inspección de campo (MTC)</h4>
+<table class="ficha">
+<tr><td>Ubicación</td><td>Inspección y gestión → Inspección de campo (MTC)</td></tr>
+<tr><td>Descripción</td><td>Ficha de inspección según la Directiva N.° 01-2006-MTC/14, con inventario, calificación por elemento, defectos, panel fotográfico e informe imprimible.</td></tr>
+</table>
+<ol>
+<li>Pulse «Nueva» y registre la fecha, el tipo de inspección y los inspectores.</li>
+<li>Califique cada elemento de 0 (muy bueno) a 5 (pésimo). La escala del MTC se muestra en el panel derecho.</li>
+<li>Si es posible, registre qué cantidad de cada elemento está en estado Bueno, Regular, Malo o Severo (por ejemplo, 12 m de viga en estado Regular). Con estos datos se calcula la salud del puente y el plan de mantenimiento.</li>
+<li>Registre cada defecto con «+ Defecto» (fisuras, corrosión, socavación u otros), con su ubicación, extensión y medidas.</li>
+<li>Agregue las fotos en el panel fotográfico.</li>
+<li>Pulse «Informe imprimible» para obtener el informe y guardarlo en PDF.</li>
+</ol>
+<p>La primera vez se llena también el Inventario (Anexo 03-01). Si antes se llevó la evidencia de la nube (paso 2, sección 2.5), la longitud, los tramos, las luces y algunas cantidades ya aparecen llenas, y arriba de la ficha se muestra el recuadro «Evidencia de la nube».</p>
+<figure><img src="img/old_010.jpg"><figcaption>Figura 20. Ficha de inspección con la evidencia de la nube. Los cambios se guardan solos.</figcaption></figure>
 
-<h2>Cómo explicarle la app a otra persona</h2>
-<div class="box">«Es una ficha de inspección digital que, además, tiene una copia virtual del puente. La copia sale del escaneo láser. Cada vez que medimos la vibración, la app la compara con la de esa copia, y la IA nos dice dónde conviene mirar primero. La decisión final es siempre del inspector.»</div>
+<h4>b) Carga vehicular HL-93</h4>
+<table class="ficha">
+<tr><td>Ubicación</td><td>Inspección y gestión → Carga vehicular HL-93</td></tr>
+<tr><td>Descripción</td><td>Calcula los esfuerzos y la flecha con el camión de diseño del Manual de Puentes. Para saber si el puente resiste se deben ingresar las resistencias del material.</td></tr>
+</table>
+<h4>c) Deterioro y mantenimiento</h4>
+<table class="ficha">
+<tr><td>Ubicación</td><td>Inspección y gestión → Deterioro y mantenimiento</td></tr>
+<tr><td>Descripción</td><td>Con las cantidades por estado de la inspección, proyecta la salud del puente en el tiempo y propone un plan de mantenimiento según el presupuesto.</td></tr>
+</table>
 
-<h2>Preguntas frecuentes</h2>
-<p class="q">¿Necesito internet?</p>
-<p>El programa de escritorio funciona sin internet. La web necesita internet para abrirse y para la vista 3D. En los dos casos, los cálculos se hacen en su computadora y la nube no se sube a ningún servidor.</p>
-<p class="q">¿Puedo usarla con cualquier puente?</p>
-<p>La app reconoce y mide puentes de vigas, losas y cajones, arcos con el tablero encima o debajo, armaduras, atirantados y puentes que combinan estos sistemas: geometría, elementos, modelo IFC y evidencia para la inspección. El modelo de vibración y la IA se arman para arcos con el tablero encima, vigas y armaduras; en atirantados y arcos con el tablero colgado representan solo el tablero sobre sus apoyos (el paso 3 lo avisa). Los colgantes, extradosados, móviles y las bóvedas de piedra rellenas no están soportados.</p>
-<p class="q">Mi nube trae calles, accesos o un puente con curvas. ¿Qué hago?</p>
-<p>Recorte el puente: en el paso 1, en la vista de planta, haga clic en un extremo del tramo y luego en el otro, ajuste el ancho y pulse «Recortar». «Volver a la nube completa» deshace el recorte. Si el puente es curvo en planta, en el paso 2 puede activar «Seguir su eje» (opción experimental).</p>
-<p class="q">¿Cómo sé qué tipo de puente elegir?</p>
-<p>En el paso 3 la app propone el tipo según la nube (arcos, vigas o armadura) y avisa si ve pilonos con tirantes o un arco sobre el tablero. Si el ajuste de arcos falla, casi siempre es porque el puente es de vigas.</p>
-<p class="q">¿Qué tan confiable es la IA?</p>
-<p>Detecta mejor los daños grandes que los pequeños, y en puentes reales acierta menos que en las pruebas simuladas. Úsela para ordenar la inspección, no para reemplazarla.</p>
-<p class="q">¿Qué pasa si los datos del paso 4 no son exactos?</p>
-<p>El modelo vibrará distinto del puente real y esa diferencia puede parecer daño. Por eso conviene guardar una medición del puente sano y comparar contra ella, o ajustar el modelo con «Ajustar el modelo a esta medición».</p>
-<p class="q">¿Necesito Ansys para usar la app?</p>
-<p>No. La app calcula los modos por su cuenta. Ansys solo sirve para comprobar ese cálculo con un programa comercial: si los dos dan lo mismo, el modelo de la app está bien resuelto. Que el modelo represente bien al puente real depende de los datos del paso 4 y de una medición de vibración, no de Ansys.</p>
-<p class="q">¿Puedo fiarme de la nube completada?</p>
-<p>Para la forma general, sí, en la medida que indica la autovalidación: la tabla dice, regla por regla, qué porcentaje acertó en su nube y cuáles quedaron desactivadas. En la nube del Balta, por ejemplo, la sección transversal repetida del tablero acertó el 99 % y la simetría de los pilares el 88 %; las otras reglas no tuvieron suficientes puntos para probarse y no se aplicaron. Para medir un daño, no: mida siempre sobre puntos medidos. Cuando el hueco es muy grande o no hay nada vecino que copiar, la app prefiere declarar el hueco a rellenarlo.</p>
-<p class="q">¿Por qué un pilar sale como «inferido»?</p>
-<p>Porque su fuste no está en la nube (quedó tapado o la nube se cortó) pero dos arcos consecutivos arrancan ahí, y dos arcos seguidos se apoyan en algo. Confírmelo en campo. En un puente de vigas la app no puede hacer esta deducción: un pilar sin fuste en la nube no se detecta.</p>
-<p class="q">¿Qué hago con el archivo PLY de la nube completada?</p>
-<p>Ábralo en CloudCompare o en cualquier visor de nubes y coloree por el campo <i>origen</i>: 0 es lo medido (gris) y cada número siguiente una regla distinta (el encabezado del archivo las lista). Así ve de un vistazo qué parte del puente es real y qué parte está completada.</p>
-<p class="q">¿Dónde quedan mis datos?</p>
-<p>En la computadora o el navegador donde trabajó. Exporte el archivo .puente como respaldo cada cierto tiempo.</p>
-<p class="foot">Herramienta de apoyo a la inspección. No reemplaza la evaluación de un ingeniero ni constituye una verificación de seguridad o de capacidad resistente.</p>
+<h3 id="s425">4.2.5 Verificación</h3>
+<table class="ficha">
+<tr><td>Ubicación</td><td>Verificación → Validación; Verificación → Datos y procedencia</td></tr>
+<tr><td>Descripción</td><td>Muestra la concordancia del modelo de la aplicación con OpenSees, las pruebas de la IA con distintos tipos de puente y el origen de cada dato usado.</td></tr>
+</table>
+
+<h2 id="s43" class="nb">4.3 Glosario de términos</h2>
+<table>
+<tr><th style="width:44mm">Término</th><th>Definición</th></tr>
+<tr><td>Nube de puntos</td><td>Conjunto de puntos con coordenadas x, y, z obtenido con escáner láser o dron.</td></tr>
+<tr><td>Gemelo digital</td><td>Modelo del puente construido con su nube de puntos, que se actualiza con las inspecciones y mediciones.</td></tr>
+<tr><td>Completitud</td><td>Porcentaje de una cara de un elemento que tiene puntos en la nube.</td></tr>
+<tr><td>Nube completada</td><td>Nube original más los puntos generados con la geometría del mismo puente; cada punto generado lleva su regla de origen.</td></tr>
+<tr><td>Autovalidación</td><td>Prueba que hace la aplicación en la misma nube: oculta parches, los completa y mide el acierto de cada regla.</td></tr>
+<tr><td>Inferido</td><td>Elemento o parte que no está en la nube pero que se deduce de la geometría del puente.</td></tr>
+<tr><td>IFC</td><td>Industry Foundation Classes, formato abierto de modelos BIM.</td></tr>
+<tr><td>Modo de vibración</td><td>Forma en que vibra el puente a una frecuencia propia.</td></tr>
+<tr><td>MAC</td><td>Modal Assurance Criterion. Indica cuánto se parecen dos formas modales (1 = iguales).</td></tr>
+<tr><td>Macro (.mac)</td><td>Archivo de comandos que Ansys Mechanical APDL ejecuta para crear y resolver el modelo.</td></tr>
+<tr><td>Falsa alarma</td><td>Caso en que la IA indica daño en un puente sin daño.</td></tr>
+<tr><td>Archivo .puente</td><td>Archivo con todo el proyecto de un puente, para respaldo o para llevarlo a otra computadora.</td></tr>
+</table>
+
+<h2 id="s44">4.4 Preguntas frecuentes</h2>
+<p><b>¿Se necesita internet?</b><br>El programa de escritorio funciona sin internet. La versión web necesita internet para abrirse y para la vista 3D. En los dos casos los cálculos se hacen en la computadora del usuario.</p>
+<p><b>¿Funciona con cualquier puente?</b><br>La aplicación reconoce y mide puentes de vigas, losas y cajones, arcos con el tablero encima o debajo, armaduras, atirantados y combinaciones de estos. El modelo de vibración y la IA se arman para arcos con el tablero encima, vigas y armaduras; en atirantados y arcos con el tablero colgado representan solo el tablero sobre sus apoyos. No están soportados los puentes colgantes, extradosados, móviles ni las bóvedas de piedra rellenas.</p>
+<p><b>¿Qué pasa si los datos del paso 4 no son exactos?</b><br>El modelo vibrará distinto del puente real y esa diferencia puede parecer daño. Por eso conviene guardar una medición del puente sano y comparar contra ella, o ajustar el modelo con «Ajustar el modelo a esta medición».</p>
+<p><b>¿Es necesario Ansys?</b><br>No. La aplicación calcula los modos por su cuenta. Ansys solo sirve para comprobar ese cálculo con un programa comercial. Que el modelo represente al puente real depende de los datos del paso 4 y de una medición de vibración.</p>
+<p><b>¿Se puede usar la nube completada para medir daños?</b><br>No. Sirve para ver la forma completa, para el modelo y para planificar la siguiente captura. Los daños se miden solo sobre los puntos medidos.</p>
+<p><b>¿Por qué un pilar aparece como «inferido»?</b><br>Porque su fuste no está en la nube, pero dos arcos seguidos arrancan en ese lugar. Debe confirmarse en campo. En un puente de vigas esta deducción no es posible.</p>
+<p><b>¿Cómo se revisa el archivo PLY de la nube completada?</b><br>Ábralo en CloudCompare y coloree por el campo <i>origen</i>: 0 es lo medido y cada número siguiente es una regla distinta, que se lista en el encabezado del archivo.</p>
+
+<h2 id="s45">4.5 Problemas frecuentes</h2>
+<table>
+<tr><th style="width:55mm">Problema</th><th>Solución</th></tr>
+<tr><td>El archivo E57 o LAZ no se puede cargar.</td><td>Convertir la nube a PLY con CloudCompare y cargarla de nuevo.</td></tr>
+<tr><td>El puente aparece del tamaño equivocado o de costado.</td><td>En el paso 1, revisar las unidades del archivo y el eje vertical.</td></tr>
+<tr><td>Falta un pilar o aparece un árbol como pilar.</td><td>En el paso 2, hacer clic en la elevación para agregar el apoyo o pulsar «Quitar». Si la nube tiene color o intensidad, usar «Quitar vegetación y volver a detectar».</td></tr>
+<tr><td>La nube trae calles o tramos curvos.</td><td>Recortar en el paso 1. Para puentes curvos en planta, activar «Seguir su eje» en el paso 2 (opción experimental).</td></tr>
+<tr><td>Ansys se cierra al abrir con un error de memoria.</td><td>En el Mechanical APDL Product Launcher, bajar la memoria reservada (por ejemplo, 1024 MB de espacio de trabajo y 256 MB de base de datos) y volver a abrir.</td></tr>
+<tr><td>La comparación con Ansys sale en rojo: «Estos resultados no son de este modelo».</td><td>Los archivos son de otro macro. Exportar el macro desde el modelo actual, correrlo y cargar los archivos nuevos.</td></tr>
+<tr><td>Al descargar aparece «La descarga no está disponible en esta vista».</td><td>Abrir la aplicación desde la versión publicada en GitHub Pages o desde el programa de escritorio.</td></tr>
+<tr><td>La vista 3D no carga en la versión web.</td><td>Comprobar la conexión a internet o usar el programa de escritorio.</td></tr>
+</table>
+
+<h1 id="s5" class="nb">5. Control de cambios</h1>
+<table>
+<tr><th style="width:10mm">Ítem</th><th style="width:18mm">Versión</th><th style="width:22mm">Fecha</th><th>Descripción del cambio</th><th style="width:30mm">Responsable</th></tr>
+<tr><td>1</td><td>2.15.0</td><td>08/11/2026</td><td>Ficha de inspección por elemento según la Directiva N.° 01-2006-MTC/14.</td><td>Ñuñuvero, Tarazona</td></tr>
+<tr><td>2</td><td>2.16.0</td><td>09/11/2026</td><td>Desviaciones de la forma ideal.</td><td>Ñuñuvero, Tarazona</td></tr>
+<tr><td>3</td><td>2.17.1</td><td>12/11/2026</td><td>Completitud, nube completada y autovalidación. Primera versión de la guía.</td><td>Ñuñuvero, Tarazona</td></tr>
+<tr><td>4</td><td>2.18.0</td><td>19/11/2026</td><td>Exportación del modelo a Ansys Mechanical APDL.</td><td>Ñuñuvero, Tarazona</td></tr>
+<tr><td>5</td><td>2.19.0</td><td>20/11/2026</td><td>Completado de la nube por elemento y paso 2 ordenado en secciones.</td><td>Ñuñuvero, Tarazona</td></tr>
+<tr><td>6</td><td>2.20.0</td><td>20/11/2026</td><td>Carga de resultados de Ansys y comparación por MAC.</td><td>Ñuñuvero, Tarazona</td></tr>
+<tr><td>7</td><td>2.20.2</td><td>26/11/2026</td><td>Revisión final de la aplicación. Manual de usuario reestructurado con el formato de manual de usuario.</td><td>Ñuñuvero, Tarazona</td></tr>
+</table>
 </body></html>
