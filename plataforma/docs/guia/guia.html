@@ -111,6 +111,20 @@ td:first-child{font-weight:600}
 .mapa div b{display:block;border-top:2pt solid var(--az);padding:1.5mm 0 1.5mm;font-weight:600}
 .mapa div span{display:block;padding:1.1mm 0;border-top:.4pt solid var(--linea);color:#333}
 .faq h3{margin-top:5mm}
+.acerca{page:indice;break-before:page}
+.acerca h1{font:600 24pt/1.1 var(--sans);margin:4mm 0 6mm;string-set:none}
+.acerca h2{font-size:12.5pt;margin:6mm 0 2mm;string-set:none}
+.conv td:first-child{font-weight:400;width:62mm}
+.ejemplo{border-top:2pt solid var(--az);background:#f4f8fc;padding:3mm 4mm 2mm;margin:2mm 0 6mm;break-inside:avoid}
+.ejemplo .tt{font:600 8pt var(--sans);letter-spacing:1.2pt;text-transform:uppercase;color:var(--az);margin-bottom:1.5mm}
+.ejemplo table{margin:0 0 1mm;font-size:9pt}
+.ejemplo td{border-bottom:.4pt solid #d6e1ee;padding:1mm 2mm 1mm 0}
+.ejemplo td:first-child{width:45mm;color:var(--gris);font-weight:400}
+.glos{display:grid;grid-template-columns:62mm 1fr;margin:0}
+.glos h3{grid-column:1/-1}
+.glos dt{font:600 9.2pt/1.35 var(--sans);padding:1.4mm 3mm 1.4mm 0;border-bottom:.4pt solid var(--linea)}
+.glos dd{margin:0;font-size:9.2pt;line-height:1.35;color:#333;padding:1.4mm 0;border-bottom:.4pt solid var(--linea)}
+.glos h3{border-bottom:.6pt solid var(--tinta);padding-bottom:1mm;margin-top:5mm}
 </style></head><body>
 
 <section class="portada">
@@ -130,6 +144,28 @@ td:first-child{font-weight:600}
  </div>
 </section>
 
+<section class="acerca">
+ <h1>Acerca de este manual</h1>
+ <h2>Cómo está organizado</h2>
+ <p>El capítulo 1 fija el objetivo y el alcance del manual. El capítulo 2 presenta la aplicación, sus requisitos y su instalación. Los capítulos 3 a 6 siguen el orden del menú principal: Inicio, Gemelo digital, Monitoreo con IA e Inspección y gestión. El capítulo 7 reúne el glosario, las preguntas y problemas frecuentes y el control de cambios, y el apéndice A describe en una línea cada botón de la aplicación.</p>
+ <p>Para empezar a usar la aplicación basta leer los capítulos 2 y 4, que recorren el registro completo del Puente Balta. Para el trabajo de campo, los capítulos 5 y 6.</p>
+ <h2>Convenciones</h2>
+ <table class="conv">
+ <tr><th>Notación</th><th>Significado</th></tr>
+ <tr><td><b style="color:var(--az);font-family:var(--sans)">Gemelo digital › Nube, modelo e IA</b></td><td>Ruta de menús: pestaña del menú principal › opción del submenú.</td></tr>
+ <tr><td><em class="ui">Calcular modos</em></td><td>Botón o control de la aplicación, con el texto exacto que muestra.</td></tr>
+ <tr><td><span style="font:600 13pt var(--sans);color:var(--az)">1</span> en el margen</td><td>Paso de un procedimiento; se sigue en orden.</td></tr>
+ <tr><td><span style="display:inline-block;width:5mm;height:5mm;border-radius:50%;background:var(--az);color:#fff;font:600 8pt/5mm var(--sans);text-align:center">1</span> sobre una figura</td><td>Llamada; se explica en la leyenda debajo de la figura.</td></tr>
+ <tr><td><span style="display:inline-block;width:5mm;height:5mm;border-radius:50%;border:1.2pt solid var(--az);color:var(--az);font:700 8pt/4.4mm var(--sans);text-align:center">i</span> Nota</td><td>Información que ayuda a entender o a evitar un error menor.</td></tr>
+ <tr><td><span style="display:inline-block;width:5mm;height:5mm;border-radius:50%;border:1.2pt solid var(--amb);color:var(--amb);font:700 8pt/4.4mm var(--sans);text-align:center">!</span> Importante</td><td>Límite de la aplicación o situación que cambia la interpretación de un resultado.</td></tr>
+ </table>
+ <h2>Unidades</h2>
+ <p>La aplicación trabaja en el sistema internacional: longitudes y cotas en metros (m), frecuencias en hercios (Hz), masas en toneladas (t), módulo de elasticidad en gigapascales (GPa) y densidad en t/m³. Las posiciones a lo largo del puente se miden en metros sobre su eje. Los decimales se escriben con coma.</p>
+ <h2>Verificación del programa</h2>
+ <p>Cada versión pasa un conjunto de pruebas automáticas antes de publicarse; la versión 2.20.2 pasó las 53. El modelo de vibración de la aplicación se comparó con OpenSees (módulo Verificación) y con Ansys Mechanical APDL: en el Puente Balta los 8 primeros modos coinciden con una diferencia de frecuencia máxima de 0,001 % y un MAC de 1,000 (sección 4.6).</p>
+ <p style="font:9pt/1.45 var(--sans);color:var(--gris);border-top:.4pt solid var(--linea);padding-top:2.5mm;margin-top:6mm">PuenteGemelo es una herramienta de apoyo a la inspección. No reemplaza la evaluación de un ingeniero ni constituye una verificación de seguridad o de capacidad resistente. Los resultados dependen de la calidad de la nube de puntos y de los datos del puente que ingrese el usuario.</p>
+</section>
+
 <section class="indice">
  <h1 style="string-set:none">Contenido</h1>
  <div class="c"><span class="nn">01</span><a href="#c1">Objetivo y alcance</a></div>
@@ -141,6 +177,7 @@ td:first-child{font-weight:600}
  <div class="s"><span class="nn">2.2</span><a href="#s22">Requisitos mínimos</a></div>
  <div class="s"><span class="nn">2.3</span><a href="#s23">Principales funcionalidades y mapa de navegación</a></div>
  <div class="s"><span class="nn">2.4</span><a href="#s24">Partes de la pantalla</a></div>
+ <div class="s"><span class="nn">2.5</span><a href="#s25">Instalación y acceso</a></div>
  <div class="c"><span class="nn">03</span><a href="#c3">Inicio</a></div>
  <div class="s"><span class="nn">3.1</span><a href="#s31">Mis puentes</a></div>
  <div class="s"><span class="nn">3.2</span><a href="#s32">Estado del puente</a></div>
@@ -159,6 +196,7 @@ td:first-child{font-weight:600}
  <div class="s"><span class="nn">7.2</span><a href="#s72">Preguntas frecuentes</a></div>
  <div class="s"><span class="nn">7.3</span><a href="#s73">Problemas frecuentes</a></div>
  <div class="s"><span class="nn">7.4</span><a href="#s74">Control de cambios</a></div>
+ <div class="c"><span class="nn">A</span><a href="#cA">Referencia rápida de botones</a></div>
 </section>
 
 <!-- ================= 01 ================= -->
@@ -246,6 +284,18 @@ td:first-child{font-weight:600}
   <i>7</i><span><b>Panel derecho.</b> Indicaciones cortas sobre lo que se ve en el área de trabajo.</span>
   <i>8</i><span><b>Barra de estado.</b> Puente activo y versión de la aplicación.</span>
  </div>
+ <h2 id="s25">2.5 Instalación y acceso</h2>
+ <h3>Versión web</h3>
+ <p>No requiere instalación. Se abre en <b style="font-family:var(--sans);color:var(--az)">casvilluis-afk.github.io/Balta-viewer/plataforma</b>. Los puentes quedan guardados en ese navegador.</p>
+ <h3>Programa de escritorio</h3>
+ <p>Los instaladores se descargan de la sección <i>Releases</i> del repositorio del proyecto en GitHub (Balta-viewer), en la versión más reciente.</p>
+ <table>
+ <tr><th style="width:26mm">Sistema</th><th style="width:66mm">Archivo</th><th>Al instalar</th></tr>
+ <tr><td>Windows</td><td>PuenteGemelo-2.20.2-Windows-instalador.exe</td><td>Windows avisa que el instalador no está firmado: pulse «Más información» y luego «Ejecutar de todas formas».</td></tr>
+ <tr><td>macOS</td><td>PuenteGemelo-2.20.2-Mac.dmg</td><td>Arrastre la aplicación a Aplicaciones. La primera vez, ábrala con clic derecho › Abrir, porque no está firmada.</td></tr>
+ <tr><td>Linux</td><td>PuenteGemelo-2.20.2-Linux.AppImage</td><td>Dé permiso de ejecución al archivo y ábralo.</td></tr>
+ </table>
+ <div class="aviso"><span class="ic">i</span><div class="t"><b>Actualizar.</b> Para pasar a una versión nueva, exporte antes sus puentes como archivo .puente (sección 3.1) e instale la nueva versión encima de la anterior.</div></div>
 </section>
 
 <!-- ================= 03 ================= -->
@@ -288,6 +338,13 @@ td:first-child{font-weight:600}
 </section>
 <section>
  <h2 id="s41" class="np">4.1 Antes de cargar la nube</h2>
+ <div class="ejemplo"><div class="tt">Ejemplo usado en este capítulo</div>
+ <table>
+ <tr><td>Puente</td><td>Puente Balta, Lima (1871). Tres arcos de fierro fundido sobre el río Rímac.</td></tr>
+ <tr><td>Nube de puntos</td><td>Escáner láser terrestre, 601 243 puntos, 145,6 m de largo, con intensidad y color.</td></tr>
+ <tr><td>Resultado esperado</td><td>Dos estribos y dos pilares, tres arcos de unos 25 m de luz, modelo con sus modos de vibración, verificación en Ansys e IA entrenada.</td></tr>
+ </table>
+ <p style="font:9pt var(--sans);margin:2mm 0 1mm">Al terminar el capítulo podrá registrar cualquier puente con su nube de puntos, revisar qué parte del puente quedó registrada y verificar el modelo con Ansys.</p></div>
  <p>Lo que la aplicación puede medir depende de cómo se hizo el escaneo. Las recomendaciones siguientes salen de las pruebas con la nube del Balta y de otros puentes.</p>
  <ul>
  <li><b>Las dos márgenes.</b> Con una sola margen falta una cara de cada pilar y de cada arco, y el espesor del pilar no se puede medir.</li>
@@ -514,7 +571,49 @@ td:first-child{font-weight:600}
  <tr><td>2.20.0</td><td>20/11/2026</td><td>Carga de resultados de Ansys y comparación por MAC.</td></tr>
  <tr><td>2.20.2</td><td>26/11/2026</td><td>Revisión final de la aplicación y nuevo manual de usuario.</td></tr>
  </table>
- <p style="font:8.5pt var(--sans);color:var(--gris);margin-top:8mm">Herramienta de apoyo a la inspección. No reemplaza la evaluación de un ingeniero ni constituye una verificación de seguridad o de capacidad resistente.</p>
+</section>
+<section class="apertura" id="cA">
+ <div class="cap-num"><span>A</span></div>
+ <h1 data-cab="Apéndice A · Referencia rápida de botones">Referencia rápida de botones</h1>
+ <p class="entrada">Cada botón de la aplicación con lo que hace, en el orden en que aparece. Las secciones indicadas explican su uso con detalle.</p>
+ <dl class="glos">
+ <h3>Inicio</h3>
+ <dt>Agregar un puente</dt><dd>Abre el registro de un puente nuevo en el paso 1 (3.1).</dd>
+ <dt>Abrir un archivo .puente</dt><dd>Carga un puente exportado desde otra computadora (3.1).</dd>
+ <dt>Exportar .puente</dt><dd>Descarga el proyecto completo del puente para respaldo o traslado (3.1).</dd>
+ <h3>Registro · pasos 1 y 2</h3>
+ <dt>Elegir archivo</dt><dd>Carga la nube de puntos (4.2).</dd>
+ <dt>Usar la nube de muestra del Balta</dt><dd>Carga una muestra de 186 442 puntos para practicar.</dd>
+ <dt>Recortar / Volver a la nube completa</dt><dd>Deja solo el tramo marcado en la planta o deshace el recorte (4.2).</dd>
+ <dt>Detectar apoyos otra vez</dt><dd>Repite la detección con las cotas corregidas (4.3).</dd>
+ <dt>Quitar</dt><dd>Elimina un apoyo de la tabla (4.3).</dd>
+ <dt>Seguir su eje</dt><dd>Mide a lo largo del eje de un puente curvo o quebrado; experimental (7.3).</dd>
+ <dt>Quitar vegetación y volver a detectar</dt><dd>Elimina los puntos de vegetación y repite la detección (7.3).</dd>
+ <dt>Identificar elementos</dt><dd>Separa los elementos del puente con sus medidas (4.4).</dd>
+ <dt>Descargar modelo IFC</dt><dd>Descarga el modelo BIM de los elementos identificados (4.4).</dd>
+ <dt>Generar nube completada</dt><dd>Autovalida las reglas y rellena los huecos de la nube (4.4).</dd>
+ <dt>Descargar nube completada (.ply)</dt><dd>Nube medida más lo generado, con el campo origen (7.2).</dd>
+ <dt>Descargar huecos por elemento (CSV)</dt><dd>Lista de huecos y manchas de cada cara, con su regla o motivo (4.4).</dd>
+ <dt>Llevar al expediente de inspección (MTC)</dt><dd>Pasa la evidencia de la nube a la ficha de inspección (6.1).</dd>
+ <h3>Registro · pasos 3 a 7</h3>
+ <dt>Calcular geometría</dt><dd>Ajusta arcos, vigas o armadura a la nube (4.5).</dd>
+ <dt>Calcular modos</dt><dd>Arma el modelo de barras y calcula sus modos de vibración (4.5).</dd>
+ <dt>Ver nube y modelo en 3D</dt><dd>Muestra el modelo superpuesto a la nube (4.5).</dd>
+ <dt>Planos DXF</dt><dd>Descarga los planos del modelo para AutoCAD.</dd>
+ <dt>Exportar a Ansys (.mac)</dt><dd>Descarga el macro del modelo para Ansys Mechanical APDL (4.6).</dd>
+ <dt>Cargar resultados de Ansys</dt><dd>Compara frecuencias y formas de Ansys con las de la aplicación (4.6).</dd>
+ <dt>Entrenar la IA</dt><dd>Entrena la IA del puente con daños simulados (4.7).</dd>
+ <dt>Nueva medición / Repetir 100 mediciones</dt><dd>Prueba la IA con un daño simulado, una vez o cien (4.7).</dd>
+ <dt>Copiar informe</dt><dd>Copia el informe del registro (4.7).</dd>
+ <dt>Descargar orden de verificación (CSV)</dt><dd>Descarga la lista de zonas ordenadas para la inspección (4.7).</dd>
+ <h3>Monitoreo e inspección</h3>
+ <dt>Analizar la medición</dt><dd>Obtiene las frecuencias de la medición y las compara (5).</dd>
+ <dt>Guardar como medición del puente sano</dt><dd>Fija la medición de referencia (5).</dd>
+ <dt>Diagnosticar con IA</dt><dd>Aplica la IA a la medición (5).</dd>
+ <dt>Ajustar el modelo a esta medición</dt><dd>Calibra el modelo con las frecuencias medidas (7.2).</dd>
+ <dt>Probar con una señal simulada</dt><dd>Genera una medición de práctica (5).</dd>
+ <dt>Nueva · + Defecto · Informe imprimible</dt><dd>Crea una inspección, registra un defecto y genera el informe para imprimir (6.1).</dd>
+ </dl>
 </section>
 <script>window.PagedConfig={auto:true,after:()=>{window.__listo=true}};</script>
 <script src="lib/paged.polyfill.min.js"></script>
