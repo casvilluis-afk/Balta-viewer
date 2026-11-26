@@ -50,11 +50,21 @@ def khex(xyz, E, nu):
             B[3, 3*a_] = y; B[3, 3*a_+1] = x; B[4, 3*a_+1] = z; B[4, 3*a_+2] = y; B[5, 3*a_] = z; B[5, 3*a_+2] = x
         k += B.T @ D @ B * np.linalg.det(Jm)
     return k
-rr, cc, vv = [], [], []; mr, mc, mv = [], [], []
-def add(d, k, M=False):
-    R_, C_, V_ = (mr, mc, mv) if M else (rr, cc, vv)
-    for p in range(len(d)):
-        for q in range(len(d)): R_.append(d[p]); C_.append(d[q]); V_.append(k[p, q])
+# ensamblaje por bloques: los términos se guardan en arreglos numpy y cada ~4 millones se suman a la matriz dispersa
+# (con listas de Python la malla extrafina, 115 000 nodos, no cabía en memoria)
+class Acum:
+    def __init__(s): s.r, s.c, s.v, s.n, s.S = [], [], [], 0, None
+    def add(s, d, k):
+        d = np.asarray(d, dtype=np.int32); nz = k != 0; I, J = np.nonzero(nz)
+        s.r.append(d[I]); s.c.append(d[J]); s.v.append(k[nz]); s.n += len(I)
+        if s.n > 4_000_000: s.flush()
+    def flush(s):
+        if not s.r: return
+        B = sp.csr_matrix((np.concatenate(s.v), (np.concatenate(s.r), np.concatenate(s.c))), shape=(nd, nd))
+        s.S = B if s.S is None else s.S + B; s.r, s.c, s.v, s.n = [], [], [], 0
+    def mat(s): s.flush(); return s.S if s.S is not None else sp.csr_matrix((nd, nd))
+AK, AM = Acum(), Acum()
+def add(d, k, M=False): (AM if M else AK).add(d, k)
 def mbeam(rho, A, Iy, Iz, L):
     m = np.zeros((12, 12)); c = rho * A * L
     for (p, q, v) in [(0, 0, c/3), (6, 6, c/3), (0, 6, c/6), (3, 3, rho*(Iy+Iz)*L/3), (9, 9, rho*(Iy+Iz)*L/3), (3, 9, rho*(Iy+Iz)*L/6)]: m[p, q] = m[q, p] = v
@@ -78,10 +88,10 @@ for i, j, K, m, s in beams:
 for q, m in hexa:
     dd = [6 * ix[n] + c for n in q for c in range(3)]; xyz = np.array([N[n] for n in q]); add(dd, khex(xyz, EX[m], NU.get(m, .3)))
     if RHO.get(m, 0) > 0: add(dd, mhex(xyz, RHO[m]), True)
-K = sp.csr_matrix((vv, (rr, cc)), shape=(nd, nd)); K = (K + K.T) / 2
+K = AK.mat(); K = (K + K.T) / 2
 Md = np.zeros(nd)
 for n, m in mass.items(): Md[6*ix[n]:6*ix[n]+3] = m; Md[6*ix[n]+3:6*ix[n]+6] = m * 1e-4 * ROT
-Mc = sp.csr_matrix((mv, (mr, mc)), shape=(nd, nd)) + sp.diags(Md)
+Mc = AM.mat() + sp.diags(Md)
 # grados de libertad: fijos, rotaciones de nodos solo-sólido, y esclavos de regiones rígidas
 beamn = set(n for b in beams for n in b[:2]) | set(mass); fx = set()
 for n, t in fix: fx.update(range(6*ix[n], 6*ix[n] + (6 if t == 'ALL' else 3)))
@@ -100,7 +110,14 @@ for s, m in slave.items():
             if bm + dm in col: tr.append(bs + c_); tc.append(col[bm + dm]); tv.append(v)
 T = sp.csr_matrix((tv, (tr, tc)), shape=(nd, len(keepd)))
 Kr = (T.T @ K @ T).tocsc(); Mr = (T.T @ Mc @ T).tocsc()
-w = np.sort(eigsh(Kr, k=12, M=Mr, sigma=0, which='LM', return_eigenvectors=False)); f = np.sqrt(w) / (2 * np.pi)
+try:  # PARDISO (pypardiso) factoriza mallas grandes con mucha menos memoria que SuperLU
+    import pypardiso; from scipy.sparse.linalg import LinearOperator
+    _ps = pypardiso.PyPardisoSolver(); _ps.set_matrix_type(2); Kp = sp.triu(Kr).tocsr(); _ps.factorize(Kp)
+    OPi = LinearOperator(Kr.shape, matvec=lambda x: _ps.solve(Kp, np.asarray(x).reshape(-1)), dtype=float)
+    w = eigsh(Kr, k=12, M=Mr, sigma=0, which='LM', OPinv=OPi, return_eigenvectors=False)
+except ImportError:
+    w = eigsh(Kr, k=12, M=Mr, sigma=0, which='LM', return_eigenvectors=False)
+w = np.sort(w); f = np.sqrt(w) / (2 * np.pi)
 ref = [float(l.split(',')[1]) for l in open(sys.argv[2], encoding='utf-8').read().split('\n')[1:] if l] if len(sys.argv) > 2 else [float('nan')] * 12
 print(f'vigas {len(beams)}, hexaedros {len(hexa)}, regiones rígidas {len(cer)}, nodos {len(ids)}')
 for k in range(12): print(f'modo {k+1:2d}: sólido {f[k]:8.4f} Hz   barras {ref[k]:8.4f} Hz   dif {100*(f[k]-ref[k])/ref[k]:+.2f} %')

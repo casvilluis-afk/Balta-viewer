@@ -104,3 +104,14 @@ Prueba con Rayitos: sin cortante, 8/8 modos con Δf ≤ 0,001 % y MAC 1,000. Con
 Macro `balta_full.mac`: nube completa del Balta, 156 nodos de la app y 900 BEAM188. Resultado: 7,3476 · 7,3550 · 7,5822 · 8,4752 · 8,9727 · 9,2045 · 14,9632 · 15,0903 Hz. Al cargarlo en la app: 8/8 modos con Δf ≤ 0,001 % y MAC 1,000. Los archivos están en `salida/corrida_real_balta_full/`.
 Correcciones en 2.20.1: el macro escribía la lista de frecuencias repetida; la app lee bien esos archivos y el macro nuevo escribe una fila por modo. Además, el macro lleva una firma del modelo y la app avisa si los resultados son de un modelo distinto del actual.
 Si Ansys se cierra con «memory (-m) size requested … not available», en el Launcher → Customization/Preferences ponga Total Workspace 1024 MB y Database 256 MB, y use SMP con 2 núcleos.
+
+## Malla extrafina con materiales (26-11-2026)
+`salida/balta_3D_material_extrafino.mac` usa los mismos materiales que las otras mallas: fierro fundido gris (E 100 GPa, ν 0,26, ρ 7,15 t/m³) y mampostería de piedra en los pilares (E 5 GPa, ν 0,20, ρ 2,2 t/m³, supuesta). La malla es la más fina que cabe en Ansys Student:
+- vigas: 24 divisiones en las barras primarias y 12 en las secundarias;
+- pilares: hexaedros de 0,15 m;
+- total: 115 305 nodos y 109 182 elementos (límite de la versión Student: 128 000).
+
+Control propio (`verificar_material.py`, ahora con ensamblaje por bloques y PARDISO para mallas grandes): f1 = 4,8487 / 4,8963 / 4,9087 / 4,9174 Hz en las mallas grueso / medio / fino / extrafino. De fino a extrafino, f1 cambia +0,18 % y los demás modos menos de 0,1 %, salvo el 12 (+0,1 %).
+La frecuencia sube al refinar porque con más nodos hay más uniones rígidas entre el arranque de los arcos y la cabeza del pilar. Es un efecto del modelo de la unión, no del material.
+
+En los cuatro macros se corrigió además la escritura de `frecuencias_material_*.txt`: ahora hay una fila por modo (antes la lista se repetía).

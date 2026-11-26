@@ -8721,7 +8721,8 @@ SET,LIST
 *VWRITE
 ('    Modo        f_Hz')
 *DO,I,1,12
-*VWRITE,I,FREQ(I)
+  FI=FREQ(I)
+*VWRITE,I,FI
 (F8.0,F12.4)
 *ENDDO
 *CFCLOS

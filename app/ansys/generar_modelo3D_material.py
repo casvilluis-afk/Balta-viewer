@@ -14,7 +14,8 @@ MATERIALES
 - Uniones rígidas (arranques → cabeza del pilar): 50 E, sin densidad.
 GEOMETRÍA Y SECCIONES: las del modelo 3D anterior (6 nervios en I cada 2 m, largueros, montantes, vigas transversales,
 diagonales, arriostres; secundarias SUPUESTAS). Pilar: muro macizo 12,15 × 3 m (SOLID185) unido por regiones rígidas.
-MALLA: grueso / medio / fino → divisiones por barra primaria 2 / 4 / 8, secundarias 1 / 2 / 4; hexaedros de ~1,0 / 0,5 / 0,3 m.
+MALLA: grueso / medio / fino / extrafino → divisiones por barra primaria 2 / 4 / 8 / 24, secundarias 1 / 2 / 4 / 12; hexaedros de ~1,0 / 0,5 / 0,3 / 0,15 m.
+El extrafino es la malla más fina que cabe en Ansys Student (límite de 128 000 nodos y elementos): 115 305 nodos y 109 182 elementos.
 """
 import sys, json, math, numpy as np
 G = json.load(open(sys.argv[1])); out = sys.argv[2]; p = G['p']
@@ -76,7 +77,9 @@ def grid(br, hmax):
     for a, b in zip(br[:-1], br[1:]):
         k = max(1, math.ceil((b - a) / hmax - 1e-9)); out += [a + (b - a) * q / k for q in range(1, k + 1)]
     return out
-NIV = {'grueso': ({'p': 2, 's': 1}, 1.0), 'medio': ({'p': 4, 's': 2}, 0.5), 'fino': ({'p': 8, 's': 4}, 0.3)}
+NIV = {'grueso': ({'p': 2, 's': 1}, 1.0), 'medio': ({'p': 4, 's': 2}, 0.5), 'fino': ({'p': 8, 's': 4}, 0.3),
+       # extrafino: la malla más fina que cabe en Ansys Student (límite de 128 000 nodos y 128 000 elementos en estructural)
+       'extrafino': ({'p': int(sys.argv[3]) if len(sys.argv) > 3 else 24, 's': int(sys.argv[4]) if len(sys.argv) > 4 else 12}, float(sys.argv[5]) if len(sys.argv) > 5 else 0.15)}
 PRIM = {'nervio', 'larguero', 'montante', 'pilar_tablero'}
 for niv, (ns_, hs) in NIV.items():
     S = []; A = S.append
@@ -130,8 +133,8 @@ for niv, (ns_, hs) in NIV.items():
     NM = 12
     A('FINISH'); A('/SOLU'); A('ANTYPE,MODAL'); A(f'MODOPT,LANB,{NM}'); A(f'MXPAND,{NM},,,YES'); A('SOLVE'); A('FINISH')
     A('/POST1'); A('SET,LIST'); A(f'*DIM,FREQ,ARRAY,{NM}'); A(f'*DO,I,1,{NM}'); A('  *GET,FREQ(I),MODE,I,FREQ'); A('*ENDDO')
-    A(f'*CFOPEN,frecuencias_material_{niv},txt'); A('*VWRITE'); A("('    Modo        f_Hz')"); A(f'*DO,I,1,{NM}'); A('*VWRITE,I,FREQ(I)'); A('(F8.0,F12.4)'); A('*ENDDO'); A('*CFCLOS')
+    A(f'*CFOPEN,frecuencias_material_{niv},txt'); A('*VWRITE'); A("('    Modo        f_Hz')"); A(f'*DO,I,1,{NM}'); A('  FI=FREQ(I)'); A('*VWRITE,I,FI'); A('(F8.0,F12.4)'); A('*ENDDO'); A('*CFCLOS')
     A('/RGB,INDEX,100,100,100,0'); A('/RGB,INDEX,0,0,0,15'); A('/PBC,ALL,,0'); A('ESEL,S,TYPE,,1'); A('ESEL,A,TYPE,,3'); A('/VUP,1,Z'); A('/VIEW,1,1,-1,0.6'); A('/ESHAPE,0'); A('/AUTO,1'); A('SET,1,1'); A('PLDISP,1')
     open(f'{out}/balta_3D_material_{niv}.mac', 'w', encoding='utf-8', newline='\r\n').write('\n'.join(S) + '\n')
-    print(f'{niv}: nodos {nid}, vigas {nbeam}, hexaedros {nsol}')
+    print(f'{niv}: nodos {nid}, elementos {nbeam + nsol + len(MNS)} (vigas {nbeam}, hexaedros {nsol}, masas {len(MNS)})')
 print(f'masa no estructural del tablero {w_ns:.1f} kN/m (de {p["w_deck"]} kN/m)')
