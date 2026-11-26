@@ -331,7 +331,7 @@ ok('Modelo C: 20 zonas de daño (15 de arcos, 3 de tablero y 2 de pilares por so
     const a = OPC.compararAnsys(md8, OPC.leerAnsys(Ff(md8.f), Fm()), N);
     const o2 = [0, 2, 1, 3, 4, 5, 6, 7], b = OPC.compararAnsys(md8, OPC.leerAnsys(Ff(md8.f, o2), Fm(o2, [1, -1, -1, 1, 1, 1, 1, 1])), N);
     const c = OPC.compararAnsys(md8, OPC.leerAnsys(Ff(md8.f, undefined, .95), Fm()), N), d = OPC.compararAnsys(md8, OPC.leerAnsys(Ff(md8.f), Fm(undefined, undefined, N - 5)), N);
-    const okA = a.ok === 8 && a.dmax < 1e-4 && a.filas.every(r => r.mac > .999), okB = b.filas[1].modoApp === 3 && b.filas[2].modoApp === 2 && b.ok === 8, okC = c.ok === 0 && c.filas.every(r => Math.abs(r.df + .05) < 1e-3), okD = !d.conFormas && d.avisos.length > 0;
+    const okA = a.ok === 8 && a.dmax < 1e-4 && a.filas.every(r => r.mac > .999), okB = b.filas[1].modoApp === 3 && b.filas[2].modoApp === 2 && b.ok === 8, okC = c.ok === 0 && c.filas.every(r => Math.abs(r.df + .05) < 1e-3), okD = !d.conFormas && d.avisos.length > 0 && d.otroModelo && !a.otroModelo;
     ok('Importar resultados de Ansys: lee el formato del macro, empareja por MAC aunque cambie el orden o el signo, marca una diferencia de 5 % y avisa si el modelo no es el mismo', okA && okB && okC && okD, `iguales ${a.ok}/8 (Δf máx ${(100 * a.dmax).toFixed(4)} %) · orden cambiado ${b.filas[1].modoApp},${b.filas[2].modoApp} · −5 %: ${c.ok}/8 concuerdan · nodos distintos: ${d.avisos.length ? 'aviso' : 'sin aviso'}`); }
 
   // Archivos de una corrida real de Ansys 2026 R1 (Student) del macro del Balta exportado con 2.20.0, cuyo *VWRITE repetía la lista de frecuencias:

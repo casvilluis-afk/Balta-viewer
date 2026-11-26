@@ -2512,7 +2512,7 @@ function fichaInspeccion(O, R, ex = {}) {
   for (const it of items) { const e = it.medidas;
     if (it.tipo === 'pilar' && e.completo === false && e.espesor != null) it.evid.push({ fuente: 'medición', nivel: 'medio', texto: 'fuste visto en parte (ancho medido < 1/4 del tablero): sus medidas no son completas' });
     if (it.tipo === 'pilar' && e.inclinacion != null) it.evid.push({ fuente: 'medición', nivel: 'info', texto: `inclinación medida del fuste ${String(e.inclinacion).replace(".", ",")} mm/m (con ruido de la nube; compárela con la de otra campaña)` });
-    if (it.tipo === 'tablero' && e.canto == null) it.evid.push({ fuente: 'medición', nivel: 'medio', texto: 'canto no medido: no se separa una cara inferior del tablero en la nube' }); }
+    if (it.tipo === 'tablero' && e.canto == null) it.evid.push({ fuente: 'medición', nivel: 'medio', texto: 'canto no medido: bajo la calzada la nube ve vigas o arcos sueltos, no un fondo continuo del tablero desde donde medirlo' }); }
   // huecos de la nube sobre el tablero
   for (const h of (ex.calidad && ex.calidad.huecos) || []) { const b = caja(h.a, h.b, m.t0, m.t1, -1e9, 1e9, ['tablero']); if (b) b.it.evid.push({ fuente: 'cobertura', nivel: 'alto', a: h.a, b: h.b, texto: `hueco sin puntos en la calzada de ${c1(h.a)} a ${c1(h.b)} m` }); }
   // zonas anómalas por intensidad o color
@@ -2685,8 +2685,9 @@ function leerAnsys(txtF, txtM) {
    (si no hay formas, por orden). Veredicto con los mismos criterios usados al verificar el modelo C: |Δf| ≤ 1 % y MAC ≥ 0,95 = concuerda */
 function compararAnsys(md, A, N, firma) {
   const NA = A.f.length, tieneM = Object.keys(A.modos).length > 0, avisos = A.avisos.slice();
-  const otroModelo = !!(firma && A.firma && firma !== A.firma); if (otroModelo) avisos.unshift('Estos resultados son de un macro exportado con otro modelo (otros apoyos, geometría o datos del puente): para comparar, exporte el macro desde el modelo actual y vuelva a correrlo en Ansys.');
-  if (tieneM && A.nodos !== N) { avisos.push(`El archivo de formas tiene ${A.nodos} nodos y el modelo de la app ${N}: no es el macro de este modelo (vuelva a exportarlo y a correrlo). Se comparan solo las frecuencias, por orden.`); }
+  const otraFirma = !!(firma && A.firma && firma !== A.firma), otrosNodos = tieneM && A.nodos !== N, otroModelo = otraFirma || otrosNodos;
+  if (otraFirma) avisos.unshift('Estos resultados son de un macro exportado con otro modelo (otros apoyos, geometría o datos del puente): para comparar, exporte el macro desde el modelo actual y vuelva a correrlo en Ansys.');
+  if (otrosNodos) { avisos[otraFirma ? 'push' : 'unshift'](`El archivo de formas tiene ${A.nodos} nodos y el modelo de la app ${N}: no es el macro de este modelo (vuelva a exportarlo y a correrlo). Se comparan solo las frecuencias, por orden.`); }
   const usaM = tieneM && A.nodos === N;
   const tr = u => { const v = new Float64Array(2 * N); for (let i = 0; i < N; i++) { v[2 * i] = u[3 * i]; v[2 * i + 1] = u[3 * i + 1]; } return v; };
   const mac = (a, b) => { let ab = 0, aa = 0, bb = 0; for (let i = 0; i < a.length; i++) { ab += a[i] * b[i]; aa += a[i] * a[i]; bb += b[i] * b[i]; } return aa && bb ? ab * ab / (aa * bb) : 0; };
