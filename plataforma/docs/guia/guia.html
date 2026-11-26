@@ -2,59 +2,78 @@
 <html lang="es"><head><meta charset="utf-8"><title>Manual de usuario de PuenteGemelo</title>
 <style>
 @page{size:A4}
-*{box-sizing:border-box}
-body{font:10.5pt/1.4 Arial,Helvetica,sans-serif;color:#000;margin:0}
-h1{font-size:13pt;margin:0 0 3mm;text-transform:uppercase;break-after:avoid}
-h2{font-size:11.5pt;margin:6mm 0 2mm;break-after:avoid}
-h3{font-size:10.5pt;margin:5mm 0 1.5mm;break-after:avoid}
-h4{font-size:10.5pt;font-weight:normal;font-style:italic;margin:3mm 0 1mm;break-after:avoid}
+:root{--az:#0b5cad;--az2:#e3eefa;--az3:#f3f7fc;--gris:#5a6470;--amb:#b7791f;--amb2:#fdf4e3;--ok:#1d7443}
+*{box-sizing:border-box;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+body{font:10.5pt/1.45 Arial,Helvetica,sans-serif;color:#1b1f23;margin:0}
+h1{font-size:14pt;margin:0 0 4mm;text-transform:uppercase;color:#fff;background:var(--az);padding:2.2mm 4mm;letter-spacing:.3pt;break-after:avoid}
+h2{font-size:12pt;margin:7mm 0 2.5mm;color:var(--az);border-bottom:1.5px solid var(--az);padding-bottom:1mm;break-after:avoid}
+h3{font-size:11pt;margin:5mm 0 2mm;color:var(--az);break-after:avoid}
+h4{font-size:10.5pt;margin:4mm 0 1.5mm;color:#1b1f23;padding-left:2.5mm;border-left:3px solid var(--az);break-after:avoid}
 p{margin:0 0 2mm;text-align:justify}
 .nb{break-before:page}
 ol,ul{margin:0 0 2.5mm;padding-left:7mm}
 li{margin-bottom:.8mm;text-align:justify}
-table{border-collapse:collapse;width:100%;font-size:9.5pt;margin:1mm 0 3mm}
-caption{caption-side:top;text-align:left;font-size:9pt;margin-bottom:1mm}
-th,td{border:1px solid #000;padding:1.2mm 2mm;text-align:left;vertical-align:top}
-th{background:#d9d9d9}
-table.ficha{break-inside:avoid}tr{break-inside:avoid}table.ficha td:first-child{width:28mm;background:#f2f2f2;font-weight:bold}
-figure{margin:3mm 0 4mm;text-align:center;break-inside:avoid}
-figure img{max-width:100%;max-height:120mm;border:1px solid #808080}
-figcaption{font-size:9pt;margin-top:1.5mm}
-.nota{border-left:2px solid #000;padding:0 0 0 3mm;margin:2mm 0 3mm}
-.portada{height:250mm;display:flex;flex-direction:column;justify-content:space-between;text-align:center;padding-top:30mm}
-.portada .t1{font-size:22pt;font-weight:bold;letter-spacing:.5pt}
-.portada .t2{font-size:15pt;margin-top:6mm}
-.portada .t3{font-size:11pt;margin-top:4mm}
-.portada table{width:120mm;margin:0 auto;font-size:10pt}
-.indice div{display:flex;align-items:baseline;font-size:10pt;margin:1mm 0}
-.indice div span.d{flex:1;border-bottom:1px dotted #000;margin:0 1.5mm;transform:translateY(-1mm)}
-.indice .l2{padding-left:6mm}.indice .l3{padding-left:12mm}
+ol li::marker{color:var(--az);font-weight:bold}
+ul li::marker{color:var(--az)}
+table{border-collapse:collapse;width:100%;font-size:9.5pt;margin:1mm 0 3.5mm}
+tr{break-inside:avoid}tr:first-child,tr:nth-child(2){break-after:avoid}
+caption{caption-side:top;text-align:left;font-size:9pt;margin-bottom:1mm;color:var(--gris)}
+th,td{border:1px solid #b9c3cd;padding:1.3mm 2mm;text-align:left;vertical-align:top}
+th{background:var(--az);color:#fff;border-color:var(--az)}
+tbody tr:nth-child(even) td{background:var(--az3)}
+table.ficha{break-inside:avoid}
+table.ficha td{background:#fff}
+table.ficha td:first-child{width:28mm;background:var(--az2);font-weight:bold;color:var(--az)}
+figure{margin:3mm 0 4.5mm;text-align:center;break-inside:avoid}
+figure img{max-width:100%;max-height:120mm;border:1px solid #b9c3cd;box-shadow:0 1px 3px rgba(0,0,0,.15)}
+figcaption{font-size:9pt;margin-top:1.8mm;color:var(--gris)}
+.nota{background:var(--az2);border-left:4px solid var(--az);padding:2mm 3mm;margin:2.5mm 0 3.5mm}
+.nota b{color:var(--az)}
+.nota.imp{background:var(--amb2);border-left-color:var(--amb)}
+.nota.imp b{color:var(--amb)}
+.portada{height:250mm;display:flex;flex-direction:column;text-align:center}
+.portada .banda{background:var(--az);color:#fff;padding:14mm 8mm 10mm;margin:0 -2mm}
+.portada .t1{font-size:12pt;letter-spacing:3pt;opacity:.9}
+.portada .t2{font-size:30pt;font-weight:bold;margin-top:3mm}
+.portada .t3{font-size:11.5pt;margin-top:3mm}
+.portada .ver{display:inline-block;margin-top:5mm;border:1px solid #fff;padding:1mm 4mm;font-size:10pt}
+.portada .img{margin:10mm 0 6mm}
+.portada .img img{width:100%}
+.portada table{width:125mm;margin:0 auto;font-size:10pt}
+.portada table td:first-child{background:var(--az2);color:var(--az);font-weight:bold;width:40mm}
+.portada .pie{margin-top:auto;font-size:9pt;color:var(--gris);border-top:3px solid var(--az);padding-top:2mm}
+.indice div{display:flex;align-items:baseline;font-size:10pt;margin:1.2mm 0}
+.indice div span.d{flex:1;border-bottom:1px dotted #8a96a3;margin:0 1.5mm;transform:translateY(-1mm)}
+.indice .l1{font-weight:bold;color:var(--az);margin-top:2.5mm}
+.indice .l2{padding-left:6mm;font-weight:bold}.indice .l3{padding-left:12mm}
 .anot{position:relative;display:inline-block;max-width:100%}
 .anot img{display:block;width:100%;max-height:none}
-.anot b{position:absolute;width:6mm;height:6mm;border-radius:50%;background:#000;color:#fff;font-size:8.5pt;line-height:6mm;text-align:center;transform:translate(-50%,-50%)}
+.anot b{position:absolute;width:6mm;height:6mm;border-radius:50%;background:#c4161c;color:#fff;font-size:8.5pt;line-height:6mm;text-align:center;transform:translate(-50%,-50%);box-shadow:0 0 0 1.2px #fff}
 .mapa{display:grid;grid-template-columns:repeat(5,1fr);gap:2mm;font-size:8.5pt;margin:3mm 0}
-.mapa div{border:1px solid #000}
-.mapa div b{display:block;background:#d9d9d9;border-bottom:1px solid #000;padding:1mm;text-align:center}
-.mapa div span{display:block;padding:.8mm 1.5mm;border-bottom:1px dotted #999}
+.mapa div{border:1px solid var(--az)}
+.mapa div b{display:block;background:var(--az);color:#fff;padding:1.2mm;text-align:center}
+.mapa div span{display:block;padding:1mm 1.5mm;border-bottom:1px dotted #b9c3cd;background:var(--az3)}
 .mapa div span:last-child{border-bottom:0}
-.raiz{text-align:center;border:1px solid #000;width:55mm;margin:3mm auto 1mm;padding:1.5mm;font-weight:bold;font-size:9.5pt}
+.raiz{text-align:center;background:#1b1f23;color:#fff;width:55mm;margin:3mm auto 1mm;padding:1.8mm;font-weight:bold;font-size:9.5pt}
+td.num{font-weight:bold;color:#fff;background:#c4161c!important;text-align:center;width:8mm}
 </style></head><body>
 
 <section class="portada">
- <div>
+ <div class="banda">
   <div class="t1">MANUAL DE USUARIO</div>
   <div class="t2">PuenteGemelo</div>
   <div class="t3">Plataforma digital para la inspección de puentes históricos con inteligencia artificial</div>
-  <div class="t3">Versión de la aplicación: 2.20.2</div>
+  <div class="ver">Versión 2.20.2</div>
  </div>
+ <div class="img"><img src="img/portada.jpg" alt="Modelo del Puente Balta"></div>
  <table>
-  <tr><td style="width:40mm"><b>Elaborado por</b></td><td>Luis Anthony Ñuñuvero Castillo<br>Anthony Boris Tarazona Cerna</td></tr>
-  <tr><td><b>Asesor</b></td><td>Rick Milton Delgadillo Ayala</td></tr>
-  <tr><td><b>Institución</b></td><td>Universidad Peruana de Ciencias Aplicadas (UPC)</td></tr>
-  <tr><td><b>Caso de estudio</b></td><td>Puente Balta (Lima)</td></tr>
-  <tr><td><b>Fecha</b></td><td>26/11/2026</td></tr>
+  <tr><td>Elaborado por</td><td>Luis Anthony Ñuñuvero Castillo<br>Anthony Boris Tarazona Cerna</td></tr>
+  <tr><td>Asesor</td><td>Rick Milton Delgadillo Ayala</td></tr>
+  <tr><td>Institución</td><td>Universidad Peruana de Ciencias Aplicadas (UPC)</td></tr>
+  <tr><td>Caso de estudio</td><td>Puente Balta (Lima)</td></tr>
+  <tr><td>Fecha</td><td>26/11/2026</td></tr>
  </table>
- <div style="font-size:9pt">Lima, Perú · 2026</div>
+ <div class="pie">Lima, Perú · 2026</div>
 </section>
 
 <section class="nb">
@@ -135,14 +154,14 @@ figcaption{font-size:9pt;margin-top:1.5mm}
  <figcaption>Figura 2. Pantalla principal (Inicio → Mis puentes).</figcaption></figure>
 <table>
 <tr><th style="width:10mm">N.°</th><th style="width:40mm">Parte</th><th>Uso</th></tr>
-<tr><td>1</td><td>Menú principal</td><td>Cambia de módulo.</td></tr>
-<tr><td>2</td><td>Submenú</td><td>Herramientas del módulo elegido. A la derecha se muestra una descripción corta del módulo.</td></tr>
-<tr><td>3</td><td>Puente activo</td><td>Indica con qué puente se está trabajando. Todo lo que se haga se guarda en ese puente. Desde la lista también se agrega un puente nuevo.</td></tr>
-<tr><td>4</td><td>Mostrar ayuda, Guía, Acerca de</td><td>«Mostrar ayuda» muestra un texto explicativo en cada pantalla; «Guía» abre este manual.</td></tr>
-<tr><td>5</td><td>Panel izquierdo</td><td>Acciones o pasos de la herramienta abierta. En el registro de un puente muestra los siete pasos y cuáles están listos.</td></tr>
-<tr><td>6</td><td>Área de trabajo</td><td>Contenido de la herramienta: tablas, gráficos, formularios.</td></tr>
-<tr><td>7</td><td>Panel derecho</td><td>Indicaciones cortas sobre lo que se ve en el área de trabajo.</td></tr>
-<tr><td>8</td><td>Barra de estado</td><td>Puente activo y versión de la aplicación.</td></tr>
+<tr><td class="num">1</td><td>Menú principal</td><td>Cambia de módulo.</td></tr>
+<tr><td class="num">2</td><td>Submenú</td><td>Herramientas del módulo elegido. A la derecha se muestra una descripción corta del módulo.</td></tr>
+<tr><td class="num">3</td><td>Puente activo</td><td>Indica con qué puente se está trabajando. Todo lo que se haga se guarda en ese puente. Desde la lista también se agrega un puente nuevo.</td></tr>
+<tr><td class="num">4</td><td>Mostrar ayuda, Guía, Acerca de</td><td>«Mostrar ayuda» muestra un texto explicativo en cada pantalla; «Guía» abre este manual.</td></tr>
+<tr><td class="num">5</td><td>Panel izquierdo</td><td>Acciones o pasos de la herramienta abierta. En el registro de un puente muestra los siete pasos y cuáles están listos.</td></tr>
+<tr><td class="num">6</td><td>Área de trabajo</td><td>Contenido de la herramienta: tablas, gráficos, formularios.</td></tr>
+<tr><td class="num">7</td><td>Panel derecho</td><td>Indicaciones cortas sobre lo que se ve en el área de trabajo.</td></tr>
+<tr><td class="num">8</td><td>Barra de estado</td><td>Puente activo y versión de la aplicación.</td></tr>
 </table>
 
 <h2 id="s42" class="nb">4.2 Funcionalidades</h2>
@@ -263,7 +282,7 @@ figcaption{font-size:9pt;margin-top:1.5mm}
 <li>Lea el resumen: porcentaje de daños detectados, zona correcta, vano correcto y falsas alarmas.</li>
 </ol>
 <figure><img src="img/p5_ia.jpg"><figcaption>Figura 16. Paso 5: resultado del entrenamiento de la IA para el Balta.</figcaption></figure>
-<p class="nota"><b>Importante:</b> estos porcentajes se calculan con daños simulados. Con un puente real el acierto será menor, por eso la IA se usa para decidir dónde mirar primero y no para reemplazar la inspección.</p>
+<p class="nota imp"><b>Importante:</b> estos porcentajes se calculan con daños simulados. Con un puente real el acierto será menor, por eso la IA se usa para decidir dónde mirar primero y no para reemplazar la inspección.</p>
 
 <h4>Pasos 6 y 7. Probar la IA, prioridades e informe</h4>
 <p>En el paso 6 se elige una zona y un porcentaje de daño; la aplicación simula una medición con error y la IA, sin conocer la respuesta, indica la zona que cree dañada. «Repetir 100 mediciones» muestra con qué frecuencia acierta.</p>

@@ -1,11 +1,11 @@
 // Genera Manual_PuenteGemelo.pdf a partir de guia.html (dos pasadas: la segunda escribe los números de página del índice). Uso: node generar_pdf.js (requiere playwright y pdftotext).
 const { chromium } = require('playwright'); const { execSync } = require('child_process');
 const OUT = require('path').join(__dirname, '..', 'Manual_PuenteGemelo.pdf');
-const hdr = `<div style="width:100%;margin:0 17mm;font-family:Arial;font-size:7.5pt"><table style="width:100%;border-collapse:collapse"><tr>
-<td style="border:1px solid #000;padding:3px 5px;font-weight:bold;width:46%">MANUAL DE USUARIO – PuenteGemelo</td>
-<td style="border:1px solid #000;padding:3px 5px">Versión: 2.20.2</td><td style="border:1px solid #000;padding:3px 5px">Fecha: 26/11/2026</td>
-<td style="border:1px solid #000;padding:3px 5px">Página <span class="pageNumber"></span> de <span class="totalPages"></span></td></tr></table></div>`;
-const foot = `<div style="width:100%;margin:0 17mm;font-family:Arial;font-size:7pt;color:#444;border-top:1px solid #000;padding-top:2px">Tesis UPC 2026 · Ñuñuvero Castillo y Tarazona Cerna · Plataforma digital para la inspección de puentes históricos con IA (caso Puente Balta)</div>`;
+const hdr = `<style>*{-webkit-print-color-adjust:exact;print-color-adjust:exact}</style><div style="width:100%;margin:0 20mm;font-family:Arial;font-size:7.5pt"><table style="width:100%;border-collapse:collapse"><tr>
+<td style="border:1px solid #0b5cad;background:#0b5cad;color:#fff;padding:3px 6px;font-weight:bold;width:46%">MANUAL DE USUARIO – PuenteGemelo</td>
+<td style="border:1px solid #0b5cad;padding:3px 6px;color:#0b5cad">Versión: 2.20.2</td><td style="border:1px solid #0b5cad;padding:3px 6px;color:#0b5cad">Fecha: 26/11/2026</td>
+<td style="border:1px solid #0b5cad;padding:3px 6px;color:#0b5cad">Página <span class="pageNumber"></span> de <span class="totalPages"></span></td></tr></table></div>`;
+const foot = `<style>*{-webkit-print-color-adjust:exact;print-color-adjust:exact}</style><div style="width:100%;margin:0 20mm;font-family:Arial;font-size:7pt;color:#5a6470;border-top:1.5px solid #0b5cad;padding-top:2px">Tesis UPC 2026 · Ñuñuvero Castillo y Tarazona Cerna · Plataforma digital para la inspección de puentes históricos con IA (caso Puente Balta)</div>`;
 (async () => {
   const b = await chromium.launch(); const p = await b.newPage();
   await p.goto('file://' + require('path').join(__dirname, 'guia.html')); await p.waitForTimeout(800);
