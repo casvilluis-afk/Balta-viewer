@@ -108,8 +108,6 @@ for niv, (ns_, hs) in NIV.items():
             nid += 1; q = a + (b - a) * t / ns; ln.append(f'N,{nid},{f7(q[0])},{f7(q[1])},{f7(q[2])}'); le.append(f'E,{prev},{nid}{ko}'); prev = nid; nbeam += 1
         le.append(f'E,{prev},{j+1}{ko}'); nbeam += 1
     S += ln + le
-    A('! --- masa no estructural del tablero'); A('TYPE,2')
-    for q, (i, m) in enumerate(sorted(MNS.items())): A(f'R,{100+q},{f7(m)},{f7(m)},{f7(m)}'); A(f'REAL,{100+q}'); A(f'E,{i+1}')
     for i, t in sorted(fix.items()): A(f'D,{i+1},ALL,0' if t == 'ALL' else f'D,{i+1},UX,0,,,,UY,UZ')
     xb = [-p['width'] / 2] + XS[:0] + [-5, -3, -1, 1, 3, 5] + [p['width'] / 2]; xg = grid(xb, hs); nsol = 0
     for k_, pn in enumerate(('p1', 'p2')):
@@ -130,6 +128,8 @@ for niv, (ns_, hs) in NIV.items():
         for a_, x in enumerate(xg):
             xm = min(XS, key=lambda v: (abs(v - x), v))
             for b_ in range(len(yg)): A(f'CERIG,{tops[(pn, xm)] + 1},{idn[(a_, b_, top)]},UXYZ')
+    A('! --- masa no estructural del tablero (MASS21 con KEYOPT(3)=2: una sola constante, la masa)'); A('TYPE,2')
+    for q, (i, m) in enumerate(sorted(MNS.items())): A(f'R,{100+q},{f7(m)}'); A(f'REAL,{100+q}'); A(f'E,{i+1}')
     NM = 12
     A('FINISH'); A('/SOLU'); A('ANTYPE,MODAL'); A(f'MODOPT,LANB,{NM}'); A(f'MXPAND,{NM},,,YES'); A('SOLVE'); A('FINISH')
     A('/POST1'); A('SET,LIST'); A(f'*DIM,FREQ,ARRAY,{NM}'); A(f'*DO,I,1,{NM}'); A('  *GET,FREQ(I),MODE,I,FREQ'); A('*ENDDO')
